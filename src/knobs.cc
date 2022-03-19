@@ -14,6 +14,7 @@ namespace knob
 	uint64_t simulation_instructions = 1000000;
 	bool  	 knob_cloudsuite = false;
 	bool     knob_low_bandwidth = false;
+    vector<string>   llc_prefetcher_types;
 	vector<string> 	 l2c_prefetcher_types;
 	vector<string> 	 l1d_prefetcher_types;
 	bool     l1d_perfect = false;
@@ -339,6 +340,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "knob_low_bandwidth"))
     {
 		knob::knob_low_bandwidth = atoi(value);
+    }
+    else if (MATCH("", "llc_prefetcher_types"))
+    {
+		knob::llc_prefetcher_types.push_back(string(value));
     }
     else if (MATCH("", "l2c_prefetcher_types"))
     {
