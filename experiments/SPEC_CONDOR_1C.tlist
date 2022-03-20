@@ -1,0 +1,11 @@
+NAME=astar_163B
+TRACE=/scratch/cluster/cmolder/zhan_traces/champsim_prefetching_zoo/astar_163B.trace.gz
+KNOBS=
+
+NAME=astar_23B
+TRACE=/scratch/cluster/cmolder/zhan_traces/champsim_prefetching_zoo/astar_23B.trace.gz
+KNOBS=
+
+NAME=astar_313B
+TRACE=/scratch/cluster/cmolder/zhan_traces/champsim_prefetching_zoo/astar_313B.trace.gz
+KNOBS=

@@ -44,31 +44,31 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define STLB_LATENCY 8
 
 // L1 INSTRUCTION CACHE
-#define L1I_SET 64
-#define L1I_WAY 8
+#define L1I_SET 256 // 256 sets in Voyager paper. 
+#define L1I_WAY 4   // 4 ways in Voyager paper. 
 #define L1I_RQ_SIZE 64
-#define L1I_WQ_SIZE 64
-#define L1I_PQ_SIZE 8
+#define L1I_WQ_SIZE 64 
+#define L1I_PQ_SIZE 32
 #define L1I_MSHR_SIZE 8
-#define L1I_LATENCY 1
+#define L1I_LATENCY 3 // 3 CC in Voyager paper. 
 
 // L1 DATA CACHE
-#define L1D_SET 64
-#define L1D_WAY 8
+#define L1D_SET 256 // 256 sets in Voyager paper. 
+#define L1D_WAY 4   // 4 ways in Voyager paper. 
 #define L1D_RQ_SIZE 64
-#define L1D_WQ_SIZE 64
+#define L1D_WQ_SIZE 64 
 #define L1D_PQ_SIZE 8
 #define L1D_MSHR_SIZE 16
-#define L1D_LATENCY 4
+#define L1D_LATENCY 3 // 3 CC in Voyager paper. 
 
 // L2 CACHE
-#define L2C_SET 512
+#define L2C_SET 1024
 #define L2C_WAY 8
 #define L2C_RQ_SIZE 32
 #define L2C_WQ_SIZE 32
-#define L2C_PQ_SIZE 32
+#define L2C_PQ_SIZE 16
 #define L2C_MSHR_SIZE 32
-#define L2C_LATENCY 10  // 5 (L1I or L1D) + 10 = 14 cycles
+#define L2C_LATENCY 11  // 11 CC in Voyager paper. // 4/5 (L1I or L1D) + 10 = 14/15 cycles
 
 // LAST LEVEL CACHE
 #define LLC_SET NUM_CPUS*2048

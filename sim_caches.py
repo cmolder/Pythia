@@ -20,6 +20,7 @@ from scipy import stats
 from tqdm import tqdm
 
 
+default_llc_repl_fn = 'ship'
 default_results_dir = './out/results'
 default_output_file = './out/stats.csv'
 default_instrs = 50
@@ -28,7 +29,7 @@ default_printing_period_instrs = 10
 default_llc_ways = 16
 default_llc_sets = 2048
 
-default_binary = 'bin/hashed_perceptron-no-no-{llc_pref_fn}-ship-{n_cores}core'
+default_binary = 'bin/perceptron-no-no-{llc_pref_fn}-{llc_repl_fn}-{n_cores}core'
 llc_sets_suffix = '-{n_sets}llc_sets'
 llc_ways_suffx = '-{n_ways}llc_ways'
 
@@ -68,7 +69,6 @@ Description:
 
         no            No prefetcher
         multi         Runtime-configurable prefetcher (see multi.llc_pref for options)
-        multi-2hyb    Runtime-configurable prefetcher of two hybrids (see multi_2hyb.llc_pref for options) (!! TODO !!)
         all           All of the above.
         
         Note: The replacement policy is SHiP for the LLC, and L1/L2 have no prefetcher.
@@ -211,7 +211,7 @@ def build_config(llc_pref_fn, num_cpus, num_sets):
 
     # Backup files
     backup_file('./inc/cache.h') # Backup original cache.h file
-    old_binary = default_binary.format(llc_pref_fn=llc_pref_fn, n_cores=num_cpus)
+    old_binary = default_binary.format(llc_pref_fn=llc_pref_fn, llc_repl_fn=default_llc_repl_fn, n_cores=num_cpus)
     new_binary = old_binary + f'-{num_sets}llc_sets'
     backup_file(old_binary)      # Backup original binary (if one clashes with ChampSim's output)
 
@@ -294,7 +294,7 @@ def run_command():
         [''.join(os.path.basename(et).split('.')[:-2]) for et in execution_traces]
     )
 
-    for name, fn in zip(replacement_names, replacement_fns):
+    for name, fn in zip(prefetcher_names, prefetcher_fns):
         
         # Retool fn to fit defined Hawkeye split, if necessary.
         if 'hawkeye_split' in name: 
@@ -308,7 +308,7 @@ def run_command():
             fn = fn + '_' + '_'.join(str(i) for i in args.hawkeye_split)
             
 
-        binary = default_binary_sets.format(replacement_fn = fn, n_cores = args.cores) + llc_sets_suffix.format(n_sets = args.sets)
+        binary = default_binary_sets.format(llc_pref_fn = fn, llc_repl_fn = default_llc_repl_fn, n_cores = args.cores) + llc_sets_suffix.format(n_sets = args.sets)
         base_binary = os.path.basename(binary)
 
         # Check if we should actually run this baseline
@@ -320,10 +320,13 @@ def run_command():
             print(f'{name} ChampSim binary not found, (looked for {binary})')
             exit(-1)
 
-        cmd = '{binary} -stat_printing_period {period}000000 -simulation_instructions {sim}000000 -traces {trace} > {results}/{base_traces}-{base_binary}.txt 2>&1'.format(
+        
+        cmd = '{binary} --warmup_instructions {warm}000000 --simulation_instructions {sim}000000 --config={config} -traces {trace} > {results}/{base_traces}-{base_binary}.txt 2>&1'.format(
             binary=binary,
-            period=args.stat_printing_period,
+            #period=args.stat_printing_period,
+            warm=args.warmup_instructions,
             sim=args.num_instructions,
+            config=args.config, # .ini file
             trace=' '.join(execution_traces),
             results=results_dir,
             base_traces=base_traces,

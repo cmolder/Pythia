@@ -86,6 +86,9 @@ namespace knob
 	uint32_t bop_pref_buffer_size = 256;
 	uint32_t bop_pref_degree = 4;
 	uint32_t bop_rr_size = 256;
+    
+    /* SISB */
+    uint32_t sisb_pref_degree = 1;
 
 	/* Sandbox */
 	uint32_t sandbox_pref_degree = 4;
