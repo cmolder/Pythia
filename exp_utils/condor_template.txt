@@ -1,0 +1,17 @@
++Group="GRAD"
++Project="ARCHITECTURE"
++ProjectDescription="Prefetcher Zoo"
+
+universe=vanilla
+getenv=true
+Rank=Memory >= {memory}
+notification=Error
+notify_user=cmolder@cs.utexas.edu
+error={err_file}
+output={out_file}
+initial_dir={init_dir}
+executable={exe}
+
+requirements=InMastodon
+
+queue

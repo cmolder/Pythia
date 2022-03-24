@@ -1,0 +1,13 @@
+*************************************************
+   ChampSim Multicore Out-of-Order Simulator
+   Last compiled: Mar 24 2022 09:41:41
+*************************************************
+parsing config file: config/prefetcher_zoo.ini
+unable to parse section: , name: sisb_pref_degree, value: 1
+
+trace_0 /u/qduong/traces/astar_313B.trace.gz
+Initialize SHIP state
+adding LLC_PREFETCHER: SISB
+unsupported prefetcher type bo
+
+gzip: stdout: Broken pipe

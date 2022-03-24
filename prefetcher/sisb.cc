@@ -116,5 +116,5 @@ void SISBPrefetcher::dump_stats() {
 
 void SISBPrefetcher::print_config()
 {
-    cout << "sisb_degree" << knob::sisb_pref_degree << endl;
+    cout << "sisb_pref_degree " << knob::sisb_pref_degree << endl;
 }
