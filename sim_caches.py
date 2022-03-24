@@ -227,12 +227,15 @@ def run_command():
     parser.add_argument('-c', '--cores', type=int, default=1)
     parser.add_argument('-s', '--sets', type=int, default=defaults.default_llc_sets)
     parser.add_argument('--results-dir', default=defaults.default_results_dir)
-    parser.add_argument('--warmup-instructions', default=10) #None) #default_spec_instrs if execution_trace[0].isdigit() else default_gap_instrs)
-    parser.add_argument('--num-instructions', default=50) #None) #default_spec_instrs if execution_trace[0].isdigit() else default_gap_instrs)
+    parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
+    parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
 
     args = parser.parse_args(sys.argv[2:])
-    assert len(args.execution_traces) == args.cores, f'Provided {len(args.execution_traces)} traces for a {args.cores} core simulation.'
-    execution_traces = args.execution_traces
+    
+    # Assertion checks
+    assert len(args.execution_traces) == args.cores, f'Provided {len(args.execution_traces)} traces for a {args.cores} core simulation.'   
+    assert(not (len(args.targets) > 1 and 'no' in args.targets)), f'Cannot run "no" prefetcher in a hybrid setup: {args.targets}'
+    assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'      
 
     # Generate results directory
     results_dir = args.results_dir.rstrip('/')
@@ -241,12 +244,9 @@ def run_command():
 
     # Generate names for this permutation. (trace names without extensions, joined by hyphen)
     base_traces = '-'.join(
-        [''.join(os.path.basename(et).split('.')[:-2]) for et in execution_traces]
+        [''.join(os.path.basename(et).split('.')[:-2]) for et in args.execution_traces]
     )
-    
-    assert(not (len(args.targets) > 1 and 'no' in args.targets)), f'Cannot run "no" prefetcher in a hybrid setup: {args.targets}'
-    assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'
-        
+
     if args.targets == ['no']:
         llc_pref_fn = 'no'
     else:
@@ -260,21 +260,18 @@ def run_command():
     ) + defaults.llc_sets_suffix.format(n_sets = args.sets)
         
     base_binary = os.path.basename(binary)
-
-    if not os.path.exists(binary):
-        print(f'{name} ChampSim binary not found, (looked for {binary})')
-        exit(-1)
-
-        
-    cmd = '{binary} {pref_knobs} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 --config={config} -traces {trace} > {results}/{base_traces}-{base_binary}-{pref_str}.txt 2>&1'.format(
+    assert os.path.exists(binary), f'ChampSim binary not found, (looked for {binary})'
+    
+    # Run ChampSim
+    cmd = '{binary} {llc_pref_knobs} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 --config={config} -traces {trace} > {results}/{base_traces}-{base_binary}-{llc_pref_str}.txt 2>&1'.format(
         binary=binary,
-        pref_knobs=' '.join([f'--llc_prefetcher_types={t}' for t in args.targets]),
-        pref_str='_'.join(args.targets),
+        llc_pref_knobs=' '.join([f'--llc_prefetcher_types={t}' for t in args.targets]),
+        llc_pref_str='_'.join(args.targets),
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,
         config=args.config, # .ini file
-        trace=' '.join(execution_traces),
+        trace=' '.join(args.execution_traces),
         results=results_dir,
         base_traces=base_traces,
         base_binary=base_binary
@@ -282,6 +279,17 @@ def run_command():
 
     print('Running "' + cmd + '"')
     os.system(cmd)
+    
+    
+    
+"""
+Condor Setup
+"""
+def condor_setup_command():
+    """Condor Setup command
+    """
+    pass
+
 
 
 """
@@ -291,7 +299,6 @@ def eval_command():
     """Eval command
     """
     pass
-
 
 
 
@@ -318,6 +325,7 @@ Main
 commands = {
     'build': build_command,
     'run': run_command,
+    'condor_setup': condor_setup_command,
     'eval': eval_command,
     'help': help_command,
 }

@@ -1,5 +1,5 @@
 """
-Utility functions for setting up Condor experiments on the Prefetching Zoo.
+Utility functions for setting up Condor experiments on Pythia.
 
 Author: Carson Molder
 """
@@ -7,6 +7,7 @@ Author: Carson Molder
 import os
 
 def generate_condor_config(out, dry_run, memory=0, **params):
+    """Generate a configuration that Condor will use to submit the job."""
     with open('exp_utils/condor_template.txt', 'r') as f:
         cfg = f.read()
     
@@ -22,8 +23,8 @@ def generate_condor_config(out, dry_run, memory=0, **params):
             print(cfg, file=out)
 
             
-# TODO - Change keywords and template
 def generate_condor_script(out, dry_run, **params):
+    """Generate a script that the Condor run will execute to simulate."""
     with open('exp_utils/script_template.txt', 'r') as f:
         cfg = f.read()
         
@@ -35,17 +36,21 @@ def generate_condor_script(out, dry_run, **params):
         os.chmod(out, 0o777) # Make script executable
 
 
-def generate_run_name(trace_path, llc_num_sets, prefetchers):
+def generate_run_name(trace_path, llc_num_sets, llc_prefetchers):
+    """Generate a unique run name, given the trace, LLC number of sets, and LLC prefetchers."""
     trace_name = os.path.basename(tr_path).split('_')[0]
-    return trace_name + f'{'_'.join(prefetchers)} f'-{llc_num_sets}sets'
+    return trace_name + f'{'_'.join(llc_prefetchers)} f'-{llc_num_sets}sets'
     
 
 
-def build_run(tr_path, prefetchers,
+def build_run(tr_path, llc_prefetchers,
               llc_num_sets=defaults.default_llc_sets,
               exp_dir=defaults.default_exp_dir,
               champsim_dir=defaults.default_champsim_dir,
-              dry_run=False, verbose=False):
+              num_instructions=defaults.default_sim_instructions,
+              warmup_instructions=defaults.default_warmup_instructions,
+              dry_run=False, 
+              verbose=False):
     """Build a single run and its necessary files. Return
     the path to the saved condor file.
     
@@ -53,17 +58,24 @@ def build_run(tr_path, prefetchers,
         tr_path: string
             Path to trace
             
-        llc_num_sets: int
-            Number of LLC sets
-            
-        prefetchers: List[string]
+        llc_prefetchers: List[string]
             List of prefetchers that are in multi.llc_pref, for knob
             
+            
+        llc_num_sets: int
+            Number of LLC sets
+
         exp_dir: string
             Directory of experiment.
             
         champsim_dir: string
             Directory of ChampSim / Pythia files. (default: $PYTHIA_HOME)
+            
+        num_instructions: int
+            Number of instructions to simulate (in millions)
+            
+        warmup_instructions: int
+            Number of instructions to warm up, before simulating (in millions)
             
         dry_run: string (optional)
             If raised, does not save anything.
@@ -76,8 +88,7 @@ def build_run(tr_path, prefetchers,
             Path to Condor file
     """
     tr_path = tr_path.replace('.txt', '.trace')
-    run_name = generate_run_str(tr_path, llc_num_sets, prefetchers)
-    
+    run_name = generate_run_str(tr_path, llc_num_sets, llc_prefetchers)
     
     # Setup initial output directories/files per experiment
     log_file_base = os.path.join(exp_dir, 'logs', run_name)
@@ -111,9 +122,6 @@ def build_run(tr_path, prefetchers,
         exe=script_file,
     )
         
-    # Determine number of warmup instructions, and total instructions
-    num_warmup = int(round(num_inst * (defaults.default_warmup_pct/ 100))) # First (train+valid)% go to warmup.
-
     if verbose:
         print(f'ChampSim simulation parameters for {run_name}:')
         print(f'    targets        : {" ".join(targets)}')
@@ -121,10 +129,9 @@ def build_run(tr_path, prefetchers,
         print(f'    champsim path  : {champsim_dir}')
         print(f'    results dir    : {results_dir}')
         print(f'    # cores        : {1}')
-        print(f'    # instructions : {defaults.default_instrs} million')
-        print(f'    # warmup insts : {num_warmup} million')
+        print(f'    # instructions : {num_instructions} million')
+        print(f'    # warmup insts : {warmup_instructions} million')
     
-    # TODO - Change keywords
     generate_condor_script(
         script_file,
         dry_run
@@ -132,9 +139,10 @@ def build_run(tr_path, prefetchers,
         trace_file=tr_path,
         num_cores=1,
         num_sets=llc_num_sets,
-        targets=' '.join(prefetchers),
+        targets=' '.join(llc_prefetchers),
         results_dir=results_dir,
-        num_instructions=defaults.default_instrs,
+        num_instructions=num_instructions,
+        warmup_instructions=warmup_instructions
     )
 
     # Add condor file to the list
