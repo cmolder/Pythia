@@ -20,6 +20,7 @@ namespace knob
    extern float    bingo_l2c_thresh;
    extern float    bingo_llc_thresh;
    extern string   bingo_pc_address_fill_level;
+   extern bool     bingo_pf_llc_only;
 }
 
 void Bingo::init_knobs() {
@@ -66,6 +67,7 @@ void Bingo::print_config() {
    << "bingo_l2c_thresh " << knob::bingo_l2c_thresh << endl
    << "bingo_llc_thresh " << knob::bingo_llc_thresh << endl
    << "bingo_pc_address_fill_level " << knob::bingo_pc_address_fill_level << endl
+   << "bingo_pf_llc_only " << knob::bingo_pf_llc_only << endl
    << endl;
 }
 

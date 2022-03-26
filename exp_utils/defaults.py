@@ -18,15 +18,15 @@ prefetcher_fns = ['no', 'multi']
 default_max_hybrid = 2
 
 default_prefetcher_candidates = [
-    'no',
-    'bingo',
-    'bop',
-    'scooby',
-    'sisb',
-    'spp_dev2',
+    'no',       # No prefetcher
+    'bingo',    # Bingo
+    'bop',      # Best Offset
+    'scooby',   # Pythia
+    'sisb',     # Idealized ISB
+    'spp_dev2', # SPP
 ]
     
-
+default_condor_user = 'cmolder@cs.utexas.edu'
 default_exp_dir = '/scratch/cluster/cmolder/prefetching_zoo/'
 default_trace_dir = '/scratch/cluster/cmolder/traces/prefetching_zoo/champsim/'
 default_champsim_dir = '/u/cmolder/GitHub/Pythia/'

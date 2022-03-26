@@ -9,6 +9,7 @@ namespace knob
 {
     extern uint32_t spp_dev2_fill_threshold;
     extern uint32_t spp_dev2_pf_threshold;
+    extern bool spp_dev2_pf_llc_only;
 }
 
 void SPP_dev2::init_knobs()
@@ -40,6 +41,7 @@ SPP_dev2::SPP_dev2(std::string type, CACHE *cache) : Prefetcher(type), m_parent_
         << "FILTER_SET: " << FILTER_SET << endl
         << "fill_threshold: " << knob::spp_dev2_fill_threshold << endl
         << "pf_threshold: " << knob::spp_dev2_pf_threshold << endl
+        << "pf_llc_only: " << knob::spp_dev2_pf_llc_only << endl
         << endl;
 }
 
@@ -110,15 +112,22 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
 
                 if ((addr & ~(PAGE_SIZE - 1)) == (pf_addr & ~(PAGE_SIZE - 1))) { // Prefetch request is in the same physical page
                     if (FILTER.check(pf_addr, confidence_q[i] >= knob::spp_dev2_fill_threshold ? SPP_L2C_PREFETCH : SPP_LLC_PREFETCH, GHR)) {
-                        m_parent_cache->prefetch_line(ip, addr, pf_addr, ((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC), 0); // Use addr (not base_addr) to obey the same physical page boundary
+                        
+                        
+                        if (knob::spp_dev2_pf_llc_only)
+                            m_parent_cache->prefetch_line(ip, addr, pf_addr, FILL_LLC, 0);
+                        else {
+                            // Use addr (not base_addr) to obey the same physical page boundary
+                            m_parent_cache->prefetch_line(ip, addr, pf_addr, ((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC), 0);
+                        }
                         
                         stats.pref.total++;
-                        if(confidence_q[i] >= knob::spp_dev2_fill_threshold) 
+                        if((confidence_q[i] >= knob::spp_dev2_fill_threshold) && (!knob::spp_dev2_pf_llc_only)) 
                             stats.pref.at_L2++;
                         else
                             stats.pref.at_LLC++;
 
-                        if (confidence_q[i] >= knob::spp_dev2_fill_threshold) {
+                        if ((confidence_q[i] >= knob::spp_dev2_fill_threshold) && (!knob::spp_dev2_pf_llc_only)) {
                             GHR.pf_issued++;
                             if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
                                 GHR.pf_issued >>= 1;

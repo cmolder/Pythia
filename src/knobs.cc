@@ -76,6 +76,7 @@ namespace knob
 	/* SPP_dev2 */
 	uint32_t spp_dev2_fill_threshold = 90;
 	uint32_t spp_dev2_pf_threshold = 25;
+    bool     spp_dev2_pf_llc_only = false;
 
 	/* BOP */
 	vector<int32_t> bop_candidates;
@@ -146,6 +147,7 @@ namespace knob
 	float    bingo_l2c_thresh;
 	float    bingo_llc_thresh;
 	string   bingo_pc_address_fill_level;
+    bool     bingo_pf_llc_only;
 
 	/* Stride */
 	uint32_t stride_num_trackers = 64;
@@ -565,6 +567,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 		knob::spp_dev2_pf_threshold = atoi(value);
 	}
+    else if (MATCH("", "spp_dev2_pf_llc_only"))
+	{
+		knob::spp_dev2_pf_llc_only = !strcmp(value, "true") ? true : false;
+	}
 
 	/* BOP */
 	else if (MATCH("", "bop_candidates"))
@@ -599,6 +605,12 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 		knob::bop_rr_size = atoi(value);
 	}
+    
+    /* SISB */
+    else if (MATCH("", "sisb_pref_degree"))
+    {
+        knob::sisb_pref_degree = atoi(value);
+    }
 
 	/* Sandbox */
 	else if (MATCH("", "sandbox_pref_degree"))
@@ -794,6 +806,11 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 	   knob::bingo_pc_address_fill_level = string(value);
 	}
+    else if (MATCH("", "bingo_pf_llc_only"))
+	{
+	   knob::bingo_pf_llc_only = !strcmp(value, "true") ? true : false;
+	}
+
 
 	/* Stride Prefetcher */
 	else if (MATCH("", "stride_num_trackers"))

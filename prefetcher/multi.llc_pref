@@ -25,6 +25,8 @@ using namespace std;
 namespace knob
 {
 	extern vector<string> llc_prefetcher_types;
+    extern bool           spp_dev2_pf_llc_only;
+    extern bool           bingo_pf_llc_only;
 }
 
 // vector<Prefetcher*> prefetchers;
@@ -75,6 +77,7 @@ void CACHE::llc_prefetcher_initialize()
 		}
 		else if(!knob::llc_prefetcher_types[index].compare("spp_dev2"))
 		{
+            assert(knob::spp_dev2_pf_llc_only); // Can't prefetch to L2 if spp_dev2 operating in LLC. (knob must be true)
 			cout << "adding LLC_PREFETCHER: SPP_dev2" << endl;
 			SPP_dev2 *pref_spp_dev2 = new SPP_dev2(knob::llc_prefetcher_types[index], this);
 			prefetchers.push_back(pref_spp_dev2);
@@ -93,6 +96,7 @@ void CACHE::llc_prefetcher_initialize()
 		}
 		else if(!knob::llc_prefetcher_types[index].compare("bingo"))
 		{
+            assert(knob::bingo_pf_llc_only); // Can't prefetch to L2 if Bingo operating in LLC. (knob must be true)
 			cout << "adding LLC_PREFETCHER: Bingo" << endl;
 			Bingo *pref_bingo = new Bingo(knob::llc_prefetcher_types[index], this);
 			prefetchers.push_back(pref_bingo);

@@ -14,6 +14,11 @@
 
 using namespace std;
 
+namespace knob
+{
+    extern bool bingo_pf_llc_only;
+}
+
 class FilterTableData {
 public:
    uint64_t pc;
@@ -386,7 +391,7 @@ public:
             if (0 <= pf_offset && pf_offset < this->pattern_len && pattern[pf_offset] > 0) {
                uint64_t pf_address = (region_number * this->pattern_len + pf_offset) << LOG2_BLOCK_SIZE;
                if (cache->PQ.occupancy + cache->MSHR.occupancy < cache->MSHR.SIZE - 1 && cache->PQ.occupancy < cache->PQ.SIZE) {
-                  cache->prefetch_line(0, base_addr, pf_address, pattern[pf_offset], 0);
+                  cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
                   pf_issued += 1;
                   pattern[pf_offset] = 0;
                } else {
