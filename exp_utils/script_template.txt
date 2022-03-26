@@ -1,10 +1,9 @@
 #!/bin/bash
-source {champsim_dir}/setvars.sh
-source /u/cmolder/miniconda3/etc/profile.d/conda.sh
+cd {champsim_dir}
+source {conda_source}
 conda activate tensorflow
-cd $PYTHIA_HOME
-python3 -u sim_caches.py run {trace_file} \\
-        -c {num_cores} -s {num_sets} -t {targets} \\
-        --results-dir {results_dir} \\
-        --num-instructions {num_instructions}
-        --warmup-instructions {warmup_instructions}
+./sim_caches.py run {trace_file} \
+    -c {num_cores} -s {num_sets} -t {targets} \
+    --results-dir {results_dir} \
+    --num-instructions {num_instructions} \
+    --warmup-instructions {warmup_instructions}

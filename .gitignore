@@ -21,4 +21,5 @@ tags
 *.out
 libbf/
 .ipynb_checkpoints/
+__pycache__/
 

@@ -28,4 +28,6 @@ default_prefetcher_candidates = [
     
 
 default_exp_dir = '/scratch/cluster/cmolder/prefetching_zoo/'
-default_champsim_dir = '/u/cmolder/GitHub/Pythia'
+default_trace_dir = '/scratch/cluster/cmolder/traces/prefetching_zoo/champsim/'
+default_champsim_dir = '/u/cmolder/GitHub/Pythia/'
+default_conda_source = '/u/cmolder/miniconda3/etc/profile.d/conda.sh'

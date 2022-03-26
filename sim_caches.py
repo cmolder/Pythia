@@ -19,7 +19,7 @@ import numpy as np
 from scipy import stats
 from tqdm import tqdm
 
-from exp_utils import defaults, build
+from exp_utils import defaults, build, condor
 
 # Example:
 #   64 bytes per line
@@ -83,15 +83,48 @@ Description:
         defined in prefetcher/multi.llc_pref, separated by a space (" ").
         
 Options:
+    -d / --experiment-dir <experiment-dir>
+        The directory to put the Condor scripts, results, etc.
+        
+        Default: {default_exp_dir}
+        
+    -t / --trace-dir <trace-dir>
+        The directory where ChampSim traces will be found.
+        
+        Default {default_trace_dir}
+    
     -h / --hybrid <max-hybrid-counts>
         Will build all combinations of LLC <prefetchers>, up to <max-hybrid-counts> running
         at the same time. For example, -h 2 will build configurations for all 2 hybrids, single prefetchers,
         and no prefetcher.
         
         Default: {default_max_hybrid}
+        
+    -s / --llc-sets <num-llc-sets>
+        The number of LLC cache sets that ChampSim will be simulating. By default,
+        {default_llc_sets} sets are used (if the binary is available).
+        
+    --warmup-instructions <warmup-instructions>
+        Number of instructions to warmup the simulation for. Defaults to
+        {default_warmup_instructions}M instructions
+
+    --num-instructions <num-instructions>
+        Number of instructions to run the simulation for. Defaults to
+        {default_sim_instructions}M instructions
+        
+    -v / --verbose
+        If passed, prints extra details about the experiment setup.
+        
+    --dry-run
+        If passed, builds the experiment but writes nothing to <experiment-dir>.
 '''.format(
     prog=sys.argv[0], 
-    default_max_hybrid=defaults.default_max_hybrid
+    default_exp_dir=defaults.default_exp_dir,
+    default_trace_dir=defaults.default_trace_dir,
+    default_max_hybrid=defaults.default_max_hybrid,
+    default_llc_sets=defaults.default_llc_sets,
+    default_warmup_instructions=defaults.default_warmup_instructions,
+    default_sim_instructions=defaults.default_sim_instructions
 ),
     
 
@@ -99,8 +132,6 @@ Options:
                             [-t / --targets <list-of-targets>] [--hawkeye-split <hawkeye-split>]
                             [--results-dir <results-dir>] [--num-instructions <num-instructions>] 
                             [--stat-printing-period <num-instructions>]
-
-TODO - WORK IN PROGRESS FOR PREFETCHER ZOO! NOT READY FOR USE!
 
 Description:
     {prog} run <execution-traces>
@@ -118,23 +149,24 @@ Options:
 
     -t / --targets <list-of-targets>
         List of targets to run. By default, it will run all targets: {prefetcher_names}.
-        
-    --hawkeye-split <hawkeye-split>
-        Split of ways between the <n_cores> OPTgens. If not provided, hawkeye_split
-        will be skipped.
-
+    
     --results-dir <results-dir>
         Specifies what directory to save the ChampSim results file in. This
         defaults to `{default_results_dir}`.
+        
+    --warmup-instructions <warmup-instructions>
+        Number of instructions to warmup the simulation for. Defaults to
+        {default_warmup_instructions}M instructions
 
     --num-instructions <num-instructions>
         Number of instructions to run the simulation for. Defaults to
-        {default_instrs}M instructions
+        {default_sim_instructions}M instructions
 '''.format(
     prog=sys.argv[0], 
     default_results_dir=defaults.default_results_dir,
     prefetcher_names=defaults.prefetcher_names,
-    default_instrs=defaults.default_instrs,
+    default_warmup_instructions=defaults.default_warmup_instructions,
+    default_sim_instructions=defaults.default_sim_instructions,
     default_llc_sets=defaults.default_llc_sets,
 ),
 
@@ -288,7 +320,48 @@ Condor Setup
 def condor_setup_command():
     """Condor Setup command
     """
-    pass
+    if len(sys.argv) < 3:
+        print(help_str['condor_setup'])
+        exit(-1)
+
+    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
+    parser.add_argument('prefetchers', nargs='+', type=str)
+    parser.add_argument('-d', '--experiment-dir', type=str, default=defaults.default_exp_dir)
+    parser.add_argument('-t', '--trace-dir', type=str, default=defaults.default_trace_dir)
+    parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
+    parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
+    parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args(sys.argv[2:])
+    
+    
+    champsim_dir = defaults.default_champsim_dir if not os.environ.get('PYTHIA_HOME') else os.environ.get('PYTHIA_HOME')
+    
+    print('Setting up Condor Prefetcher Zoo experiment:')
+    print('    ChampSim dir   :', champsim_dir)
+    print('    Experiment dir :', args.experiment_dir)
+    print('    Trace dir      :', args.trace_dir)
+    print('    # instructions :', args.num_instructions, 'million')
+    print('    # warmup       :', args.warmup_instructions, 'million')
+    
+    print('Cache / prefetcher setup:')
+    print('    Prefetchers    :', ', '.join(args.prefetchers))
+    print('    Max hybrid     :', args.hybrid)
+    print('    # LLC sets     :', args.llc_sets)
+    
+    condor.build_sweep(
+        args.trace_dir,
+        args.prefetchers,
+        llc_num_sets=args.llc_sets,
+        exp_dir=args.experiment_dir,
+        champsim_dir=champsim_dir,
+        num_instructions=args.num_instructions,
+        warmup_instructions=args.warmup_instructions,
+        dry_run=args.dry_run,
+        verbose=args.verbose
+    )
 
 
 
