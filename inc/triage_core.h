@@ -31,6 +31,7 @@ public:
     void set_conf(TriageConfig *config);
     void calculatePrefetch(uint64_t pc, uint64_t addr, bool cache_hit, uint64_t *prefetch_list, int max_degree, uint64_t cpu);
     void print_stats();
+    void print_conf();
     uint32_t get_assoc();
 };
 

@@ -122,7 +122,7 @@ void TriageCore::calculatePrefetch(uint64_t pc, uint64_t addr,
     // Train
     train(pc, addr, cache_hit);
 
-    for (uint32_t i = 0; i < degree && i < next_addr_list.size(); ++i) {
+    for (int i = 0; i < degree && i < next_addr_list.size(); ++i) {
         prefetch_list[i] = next_addr_list[i];
     }
 }
@@ -146,5 +146,12 @@ void TriageCore::print_stats()
     cout << "total_assoc=" << total_assoc <<endl;
 
     on_chip_data.print_stats();
+}
+
+void TriageCore::print_conf()
+{
+    cout << dec << "lookahead=" << lookahead <<endl;
+    cout << "degree=" << degree <<endl;
+    cout << "assoc=" << get_assoc() << endl;
 }
 

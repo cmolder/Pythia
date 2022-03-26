@@ -95,7 +95,8 @@ namespace knob
     /* Triage */
     uint32_t       triage_lookahead = 1;
     uint32_t       triage_degree = 1;
-    uint32_t       triage_on_chip_sets = 262144; // 1 MB
+    uint32_t       triage_on_chip_set = 262144; // 1 MB
+    uint32_t       triage_on_chip_assoc = 8;
     uint32_t       triage_training_unit_size = 10000000;
     TriageReplType triage_repl = TRIAGE_REPL_HAWKEYE;
     bool           triage_use_dynamic_assoc = true;
@@ -631,9 +632,13 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     {
         knob::triage_degree = atoi(value);
     }
-    else if (MATCH("", "triage_on_chip_sets"))
+    else if (MATCH("", "triage_on_chip_set"))
     {
-        knob::triage_on_chip_sets = atoi(value);
+        knob::triage_on_chip_set = atoi(value);
+    }
+    else if (MATCH("", "triage_on_chip_assoc"))
+    {
+        knob::triage_on_chip_assoc = atoi(value);
     }
     else if (MATCH("", "triage_training_unit_size"))
     {

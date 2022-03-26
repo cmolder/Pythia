@@ -7,13 +7,12 @@
 #include "champsim.h"
 #include "memory_class.h"
 
-// NOTE: Only fills LLC.
-
 namespace knob
 {
     extern uint32_t       triage_lookahead;
     extern uint32_t       triage_degree;
-    extern uint32_t       triage_on_chip_sets;       // 262144 (1MB)
+    extern uint32_t       triage_on_chip_set;       // 262144 (1MB)
+    extern uint32_t       triage_on_chip_assoc;      // 8
     extern uint32_t       triage_training_unit_size; // 10000000
     extern TriageReplType triage_repl;               // TABLEISB_REPL_HAWKEYE, or TABLEISB_REPL_LRU or TABLEISB_REPL_PERFECT
     extern bool           triage_use_dynamic_assoc;  // true
@@ -25,7 +24,8 @@ void TriagePrefetcher::init_knobs()
     for (uint32_t cpu = 0; cpu < NUM_CPUS; cpu++) {
         conf[cpu].lookahead = knob::triage_lookahead;
         conf[cpu].degree = knob::triage_degree;
-        conf[cpu].on_chip_set = knob::triage_on_chip_sets; 
+        conf[cpu].on_chip_set = knob::triage_on_chip_set; 
+        conf[cpu].on_chip_assoc = knob::triage_on_chip_assoc;
         conf[cpu].training_unit_size = knob::triage_training_unit_size;
         conf[cpu].repl = knob::triage_repl;
         conf[cpu].use_dynamic_assoc = knob::triage_use_dynamic_assoc;
@@ -76,7 +76,7 @@ void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
             break;
         }
         //pref_addr.push_back(prefetch_addr_list[i]);
-        int ret = m_parent_cache->prefetch_line(pc, address, prefetch_addr_list[i], FILL_LLC, address);
+        int ret = m_parent_cache->prefetch_line(pc, address, prefetch_addr_list[i], m_parent_cache->fill_level, address);
         if(ret)
         {
             prefetched++;
@@ -90,7 +90,7 @@ void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
 //        current_assoc = LLC_WAY - data[cpu].get_assoc();
 //    }
     unsigned total_assoc = 0;
-    for (unsigned mycpu = 0; mycpu < NUM_CPUS; ++mycpu) {
+    for (uint32_t mycpu = 0; mycpu < NUM_CPUS; ++mycpu) {
         total_assoc += data[mycpu].get_assoc();
     }
     total_assoc /= NUM_CPUS;
@@ -115,13 +115,16 @@ void TriagePrefetcher::register_fill(uint64_t address)
 
 void TriagePrefetcher::dump_stats() {
     // TODO - If it prints multiple times, use a flag variable to disbale printing on 2nd and later tries.
-
+    for(uint32_t cpu=0; cpu < NUM_CPUS; cpu++) {
+        cout << "Triage stats (CPU "  << cpu << ")" << endl;
+        data[cpu].print_stats();
+    }
 }
 
 void TriagePrefetcher::print_config()
 {
     for(uint32_t cpu=0; cpu < NUM_CPUS; cpu++) {
-        cout << "CPU " << cpu << " TRIAGE Stats:" << endl;
-        data[cpu].print_stats();
+        cout << "Triage configuration (CPU "  << cpu << ")" << endl;
+        data[cpu].print_conf();
     }
 }
