@@ -23,7 +23,9 @@ default_prefetcher_candidates = [
     'bop',      # Best Offset
     'scooby',   # Pythia
     'sisb',     # Idealized ISB
+    'sms',      # SMS
     'spp_dev2', # SPP
+    'triage',   # Triage
 ]
     
 default_condor_user = 'cmolder@cs.utexas.edu'

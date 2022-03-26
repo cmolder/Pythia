@@ -19,6 +19,7 @@
 #include "streamer.h"
 #include "pref_power7.h"
 #include "sisb.h"
+#include "triage.h"
 
 using namespace std;
 
@@ -136,6 +137,12 @@ void CACHE::llc_prefetcher_initialize()
 			cout << "adding LLC_PREFETCHER: SISB" << endl;
 			SISBPrefetcher *pref_sisb = new SISBPrefetcher(knob::llc_prefetcher_types[index]);
 			prefetchers.push_back(pref_sisb);
+		}
+        else if (!knob::llc_prefetcher_types[index].compare("triage"))
+		{
+			cout << "adding LLC_PREFETCHER: TRIAGE" << endl;
+			TriagePrefetcher *pref_triage = new TriagePrefetcher(knob::llc_prefetcher_types[index], this);
+			prefetchers.push_back(pref_triage);
 		}
 		else
 		{

@@ -4,6 +4,7 @@
 #include <math.h>
 #include "knobs.h"
 #include "ini.h"
+#include "triage_onchip.h"
 using namespace std;
 
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
@@ -90,6 +91,15 @@ namespace knob
     
     /* SISB */
     uint32_t sisb_pref_degree = 1;
+    
+    /* Triage */
+    uint32_t       triage_lookahead = 1;
+    uint32_t       triage_degree = 1;
+    uint32_t       triage_on_chip_sets = 262144; // 1 MB
+    uint32_t       triage_training_unit_size = 10000000;
+    TriageReplType triage_repl = TRIAGE_REPL_HAWKEYE;
+    bool           triage_use_dynamic_assoc = true;
+    uint32_t       triage_max_allowed_degree = 8;
 
 	/* Sandbox */
 	uint32_t sandbox_pref_degree = 4;
@@ -610,6 +620,42 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "sisb_pref_degree"))
     {
         knob::sisb_pref_degree = atoi(value);
+    }
+    
+    /* Triage */
+    else if (MATCH("", "triage_lookahead"))
+    {
+        knob::triage_lookahead = atoi(value);
+    }
+    else if (MATCH("", "triage_degree"))
+    {
+        knob::triage_degree = atoi(value);
+    }
+    else if (MATCH("", "triage_on_chip_sets"))
+    {
+        knob::triage_on_chip_sets = atoi(value);
+    }
+    else if (MATCH("", "triage_training_unit_size"))
+    {
+        knob::triage_training_unit_size = atoi(value);
+    }
+    else if (MATCH("", "triage_repl"))
+    {
+        if (strcmp(value, "TRIAGE_REPL_HAWKEYE")) {
+            knob::triage_repl = TRIAGE_REPL_HAWKEYE;
+        } else if (strcmp(value, "TRIAGE_REPL_PERFECT")) {
+            knob::triage_repl = TRIAGE_REPL_PERFECT;
+        } else {
+            knob::triage_repl = TRIAGE_REPL_LRU;
+        }
+    }
+    else if (MATCH("", "triage_use_dynamic_assoc"))
+    {
+        knob::triage_use_dynamic_assoc = !strcmp(value, "true") ? true : false;
+    }
+    else if (MATCH("", "triage_max_allowed_degree"))
+    {
+        knob::triage_max_allowed_degree = atoi(value);
     }
 
 	/* Sandbox */
