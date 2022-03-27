@@ -19,7 +19,7 @@ import numpy as np
 from scipy import stats
 from tqdm import tqdm
 
-from exp_utils import defaults, build, condor
+from exp_utils import defaults, build, condor, evaluate
 
 # Example:
 #   64 bytes per line
@@ -172,23 +172,18 @@ Options:
 
 'eval': '''usage: {prog} eval <results-dir> [--output-file <output-file>] [--norm-baseline <baseline>]
 
-TODO - WORK IN PROGRESS FOR PREFETCHER ZOO! NOT READY FOR USE!
-
 Description:
-    {prog} eval
-        Runs the evaluation procedure on the ChampSim result files found in the specified
-        results directory and outputs a CSV at the specified output path.
+    {prog} eval <results-dir>
+        Runs the evaluation procedure on the ChampSim result files found in <results-dir>
+        and outputs a CSV at the specified output path.
 
 Options:
-    --output-file <output-file>
+    -o / --output-file <output-file>
         Specifies what file path to save the stats CSV data to. This defaults to
         `{default_output_file}`.
         
-    --norm-baseline <baseline>
-        If specified, results on ALL baselines will be normalized to this specific
-        baseline, for both homogeneous-mix and single-core norms. If not specified,
-        the normalization will be to the closest-related baseline (specified in
-        the NormBaseline column).
+    --dry-run
+        If passed, builds the spreadsheet but writes nothing to <output-file>.
 
 Note:
     To get stats comparing performance to a no-prefetcher baseline, it is necessary
@@ -371,7 +366,17 @@ Eval
 def eval_command():
     """Eval command
     """
-    pass
+    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
+    parser.add_argument('results_dir', type=str)
+    parser.add_argument('-o', '--output-file', type=str, default=defaults.default_output_file)
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args(sys.argv[2:])
+    
+    evaluate.generate_csv(
+        args.results_dir,
+        args.output_file,
+        dry_run=args.dry_run
+    )
 
 
 

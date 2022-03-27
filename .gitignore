@@ -15,6 +15,7 @@ cvp1_traces/
 # Run directory
 runs/
 out/
+results/
 
 # Others  
 tracer/obj-intel64/
