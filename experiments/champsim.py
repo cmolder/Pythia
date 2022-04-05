@@ -73,9 +73,11 @@ Notes:
 ),
 
 'run': '''usage: {prog} run <execution-traces> [-c / --cores <num-cores>] [-s / --sets <num-llc-sets>]
-                            [-t / --targets <list-of-targets>] [--hawkeye-split <hawkeye-split>]
-                            [--results-dir <results-dir>] [--num-instructions <num-instructions>] 
-                            [--stat-printing-period <num-instructions>]
+                            [-t / --llc-pref <list-of-llc-prefetchers>]
+                            [--llc-pref-degrees <list-of-llc-prefetcher-degrees>]
+                            [--results-dir <results-dir>] 
+                            [--warmup-instructions <warmup-instructions>] 
+                            [--num-instructions <num-instructions>] 
 
 Description:
     {prog} run <execution-traces>
@@ -95,8 +97,18 @@ Options:
         The number of LLC cache sets that ChampSim will be simulating. By default,
         {default_llc_sets} sets are used (if the binary is available).
 
-    -t / --targets <list-of-targets>
-        List of targets to run. By default, it will run all targets: {prefetcher_names}.
+    -t / --llc-pref <list-of-llc-prefetchers>
+        List of LLC prefetchers to run. If two or more are proivded, runs them
+        in a hybrid setting. By default, it will run no prefetcher.
+        
+    --llc-pref-degrees <list-of-llc-prefetcher-degrees>
+        List of degrees to run each LLC prefetcher. If the prefetcher does not
+        support variable degrees, the value is ignored. Pass them in the same
+        order as `--llc-prefetchers`. 
+        
+        Defaults to the knobs in the config file
+        passed to `--config`, or the values in knobs.cc if the relevant knob 
+        isn't provided in the config file.
     
     --results-dir <results-dir>
         Specifies what directory to save the ChampSim results file in. This
@@ -113,7 +125,6 @@ Options:
     prog=sys.argv[0], 
     default_config_file=defaults.default_config_file,
     default_results_dir=defaults.default_results_dir,
-    prefetcher_names=defaults.prefetcher_names,
     default_warmup_instructions=defaults.default_warmup_instructions,
     default_sim_instructions=defaults.default_sim_instructions,
     default_llc_sets=defaults.default_llc_sets,
@@ -172,9 +183,10 @@ def run_command():
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('execution_traces', nargs='+', type=str, default=None)
     parser.add_argument('-f', '--config', type=str, default=defaults.default_config_file)
-    parser.add_argument('-t', '--targets', nargs='+', type=str, default=['no'])
+    parser.add_argument('-t', '--llc-pref', nargs='+', type=str, default=['no'])
     parser.add_argument('-c', '--cores', type=int, default=1)
     parser.add_argument('-s', '--sets', type=int, default=defaults.default_llc_sets)
+    parser.add_argument('--llc-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--results-dir', default=defaults.default_results_dir)
     parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
     parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
@@ -183,7 +195,7 @@ def run_command():
     
     # Assertion checks
     assert len(args.execution_traces) == args.cores, f'Provided {len(args.execution_traces)} traces for a {args.cores} core simulation.'   
-    assert(not (len(args.targets) > 1 and 'no' in args.targets)), f'Cannot run "no" prefetcher in a hybrid setup: {args.targets}'
+    assert(not (len(args.llc_pref) > 1 and 'no' in args.llc_pref)), f'Cannot run "no" prefetcher in a hybrid setup: {args.llc_pref}'
     #assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'      
 
     # Generate results directory
@@ -191,31 +203,26 @@ def run_command():
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)
 
-    # Generate names for this permutation. (trace names without extensions, joined by hyphen)
-    base_traces = '-'.join(
-        [''.join(os.path.basename(et).split('.')[:-2]) for et in args.execution_traces]
-    )
-
-    if args.targets == ['no']:
-        llc_pref_fn = 'no'
-    else:
-        llc_pref_fn = 'multi'
-
+    llc_pref_fn = 'no' if args.llc_pref == ['no'] else 'multi'
     binary = run.get_binary(
         llc_pref_fn=llc_pref_fn, 
         llc_repl_fn=defaults.default_llc_repl_fn, 
         n_cores=args.cores, 
         llc_n_sets=args.sets, 
     )
+    
+    # Generate names for this permutation. (trace names without extensions, joined by hyphen)
+    base_traces = '-'.join([''.join(os.path.basename(et).split('.')[:-2]) for et in args.execution_traces])
     base_binary = os.path.basename(binary)
     
     assert os.path.exists(binary), f'ChampSim binary not found, (looked for {binary})'
     
     # Run ChampSim
-    cmd = '{binary} {llc_pref_knobs} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 --config={config} -traces {trace} > {results}/{base_traces}-{base_binary}-{llc_pref_str}.txt 2>&1'.format(
+    # NOTE: Put config knob first, so any other added knobs override it.
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {llc_pref_knobs} -traces {trace} > {results}/{base_traces}-{base_binary}-{llc_pref_str}.txt 2>&1'.format(
         binary=binary,
-        llc_pref_knobs=' '.join([f'--llc_prefetcher_types={t}' for t in args.targets]),
-        llc_pref_str='_'.join(args.targets),
+        llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees),
+        llc_pref_str='_'.join(args.llc_pref),
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,
