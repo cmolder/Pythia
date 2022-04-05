@@ -47,6 +47,8 @@ def move_file(old_path, new_path):
     if os.path.exists(old_path):
         print(f'Moving {old_path} to {new_path}...')
         shutil.move(old_path, new_path)
+    else:
+        print(f'[DEBUG] {old_path} does not exist, cannot move to {new_path}.')
 
 
 def build_config(llc_pref_fn, num_cpus, llc_num_sets=2048):
@@ -66,12 +68,12 @@ def build_config(llc_pref_fn, num_cpus, llc_num_sets=2048):
 
     # Backup files
     backup_file('./inc/cache.h') # Backup original cache.h file
-    old_binary = defaults.default_binary.format(
+    old_binary = defaults.binary_base.format(
         llc_pref_fn=llc_pref_fn, 
         llc_repl_fn=defaults.default_llc_repl_fn, 
         n_cores=num_cpus
     )
-    new_binary = old_binary + defaults.llc_sets_suffix.format(n_sets=llc_num_sets)
+    new_binary = old_binary + defaults.llc_sets_suffix.format(llc_n_sets=llc_num_sets)
     backup_file(old_binary)      # Backup original binary (if one clashes with ChampSim's output)
 
     # Modify files and build

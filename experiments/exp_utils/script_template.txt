@@ -2,7 +2,7 @@
 cd {champsim_dir}
 source {conda_source}
 conda activate tensorflow
-./sim_caches.py run {trace_file} \
+./experiments/champsim.py run {trace_file} \
     -c {num_cores} -s {num_sets} -t {targets} \
     --results-dir {results_dir} \
     --num-instructions {num_instructions} \

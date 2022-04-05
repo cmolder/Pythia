@@ -136,11 +136,11 @@ def generate_csv(results_dir, output_file, baseline_prefetcher='no', dry_run=Fal
                 
             assert all([k in columns for k in row.keys()])
             stats.loc[len(stats.index)] = row.values()
-    
+            
     if not dry_run:
         print(f'Saving statistics to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        stats.to_csv(output_file)
+        stats.to_csv(output_file, index=False)
             
         
             

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Build singlecore versions of ChampSim, and evaluate
-LLC prefetchers.
+Build and run singlecore versions of ChampSim.
 
 Authors: Quang Duong and Carson Molder
 """
@@ -19,7 +18,7 @@ import numpy as np
 from scipy import stats
 from tqdm import tqdm
 
-from exp_utils import defaults, build, condor, evaluate
+from exp_utils import defaults, build, run
 
 # Example:
 #   64 bytes per line
@@ -37,8 +36,6 @@ help_str = {
 Available commands:
     build            Build ChampSim binaries
     run              Run ChampSim on specified traces
-    condor_setup     Set up Condor prefetching zoo experiment
-    eval             Parse and compute metrics on simulation results
     help             Display this help message. Command-specific help messages
                      can be displayed with `{prog} help command`
 '''.format(prog=sys.argv[0]),
@@ -74,59 +71,6 @@ Notes:
     default_llc_ways=defaults.default_llc_ways, 
     default_llc_sets=defaults.default_llc_sets
 ),
-    
-'condor_setup': '''usage: {prog} condor_setup <prefetchers> [-h / --hybrid <max-hybrid-count>]
-
-Description:
-    {prog} condor_setup <prefetchers>
-        Sets up a Prefetching Zoo sweep for use on Condor. <prefetchers> is any set of LLC prefetchers
-        defined in prefetcher/multi.llc_pref, separated by a space (" ").
-        
-Options:
-    -d / --experiment-dir <experiment-dir>
-        The directory to put the Condor scripts, results, etc.
-        
-        Default: {default_exp_dir}
-        
-    -t / --trace-dir <trace-dir>
-        The directory where ChampSim traces will be found.
-        
-        Default {default_trace_dir}
-    
-    -h / --hybrid <max-hybrid-counts>
-        Will build all combinations of LLC <prefetchers>, up to <max-hybrid-counts> running
-        at the same time. For example, -h 2 will build configurations for all 2 hybrids, single prefetchers,
-        and no prefetcher.
-        
-        Default: {default_max_hybrid}
-        
-    -s / --llc-sets <num-llc-sets>
-        The number of LLC cache sets that ChampSim will be simulating. By default,
-        {default_llc_sets} sets are used (if the binary is available).
-        
-    --warmup-instructions <warmup-instructions>
-        Number of instructions to warmup the simulation for. Defaults to
-        {default_warmup_instructions}M instructions
-
-    --num-instructions <num-instructions>
-        Number of instructions to run the simulation for. Defaults to
-        {default_sim_instructions}M instructions
-        
-    -v / --verbose
-        If passed, prints extra details about the experiment setup.
-        
-    --dry-run
-        If passed, builds the experiment but writes nothing to <experiment-dir>.
-'''.format(
-    prog=sys.argv[0], 
-    default_exp_dir=defaults.default_exp_dir,
-    default_trace_dir=defaults.default_trace_dir,
-    default_max_hybrid=defaults.default_max_hybrid,
-    default_llc_sets=defaults.default_llc_sets,
-    default_warmup_instructions=defaults.default_warmup_instructions,
-    default_sim_instructions=defaults.default_sim_instructions
-),
-    
 
 'run': '''usage: {prog} run <execution-traces> [-c / --cores <num-cores>] [-s / --sets <num-llc-sets>]
                             [-t / --targets <list-of-targets>] [--hawkeye-split <hawkeye-split>]
@@ -139,6 +83,10 @@ Description:
         a multi-core setup, must provide <cores> traces.
 
 Options:
+    -f / --config <config_file>
+        The knobs configuration to use. This
+        defaults to `{default_config_file}`.
+    
     -c / --cores <num-cores>
         The number of cores that ChampSim will be simulating. Must provide a <cores>
         length list of execution traces to the script. By default, one core is used.
@@ -163,39 +111,13 @@ Options:
         {default_sim_instructions}M instructions
 '''.format(
     prog=sys.argv[0], 
+    default_config_file=defaults.default_config_file,
     default_results_dir=defaults.default_results_dir,
     prefetcher_names=defaults.prefetcher_names,
     default_warmup_instructions=defaults.default_warmup_instructions,
     default_sim_instructions=defaults.default_sim_instructions,
     default_llc_sets=defaults.default_llc_sets,
-),
-
-'eval': '''usage: {prog} eval <results-dir> [--output-file <output-file>] [--norm-baseline <baseline>]
-
-Description:
-    {prog} eval <results-dir>
-        Runs the evaluation procedure on the ChampSim result files found in <results-dir>
-        and outputs a CSV at the specified output path.
-
-Options:
-    -o / --output-file <output-file>
-        Specifies what file path to save the stats CSV data to. This defaults to
-        `{default_output_file}`.
-        
-    --dry-run
-        If passed, builds the spreadsheet but writes nothing to <output-file>.
-
-Note:
-    To get stats comparing performance to a no-prefetcher baseline, it is necessary
-    to have run the base ChampSim binary on the same execution trace.
-
-    Without the base data, relative performance data comparing MPKI and IPC will
-    not be available and the coverage statistic will only be approximate.
-'''.format(
-    prog=sys.argv[0], 
-    default_output_file=defaults.default_output_file
-),
-}
+)}
 
 
 
@@ -249,7 +171,7 @@ def run_command():
 
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('execution_traces', nargs='+', type=str, default=None)
-    parser.add_argument('-f', '--config', type=str, default='config/prefetcher_zoo.ini')
+    parser.add_argument('-f', '--config', type=str, default=defaults.default_config_file)
     parser.add_argument('-t', '--targets', nargs='+', type=str, default=['no'])
     parser.add_argument('-c', '--cores', type=int, default=1)
     parser.add_argument('-s', '--sets', type=int, default=defaults.default_llc_sets)
@@ -262,7 +184,7 @@ def run_command():
     # Assertion checks
     assert len(args.execution_traces) == args.cores, f'Provided {len(args.execution_traces)} traces for a {args.cores} core simulation.'   
     assert(not (len(args.targets) > 1 and 'no' in args.targets)), f'Cannot run "no" prefetcher in a hybrid setup: {args.targets}'
-    assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'      
+    #assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'      
 
     # Generate results directory
     results_dir = args.results_dir.rstrip('/')
@@ -279,14 +201,14 @@ def run_command():
     else:
         llc_pref_fn = 'multi'
 
-
-    binary = defaults.default_binary.format(
-        llc_pref_fn = llc_pref_fn, 
-        llc_repl_fn = defaults.default_llc_repl_fn, 
-        n_cores = args.cores
-    ) + defaults.llc_sets_suffix.format(n_sets = args.sets)
-        
+    binary = run.get_binary(
+        llc_pref_fn=llc_pref_fn, 
+        llc_repl_fn=defaults.default_llc_repl_fn, 
+        n_cores=args.cores, 
+        llc_n_sets=args.sets, 
+    )
     base_binary = os.path.basename(binary)
+    
     assert os.path.exists(binary), f'ChampSim binary not found, (looked for {binary})'
     
     # Run ChampSim
@@ -307,78 +229,6 @@ def run_command():
     print('Running "' + cmd + '"')
     os.system(cmd)
     
-    
-    
-"""
-Condor Setup
-"""
-def condor_setup_command():
-    """Condor Setup command
-    """
-    if len(sys.argv) < 3:
-        print(help_str['condor_setup'])
-        exit(-1)
-
-    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
-    parser.add_argument('prefetchers', nargs='+', type=str)
-    parser.add_argument('-d', '--experiment-dir', type=str, default=defaults.default_exp_dir)
-    parser.add_argument('-t', '--trace-dir', type=str, default=defaults.default_trace_dir)
-    parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
-    parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
-    parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
-    parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
-    parser.add_argument('--dry-run', action='store_true')
-    args = parser.parse_args(sys.argv[2:])
-    
-    
-    champsim_dir = defaults.default_champsim_dir if not os.environ.get('PYTHIA_HOME') else os.environ.get('PYTHIA_HOME')
-    
-    print('Setting up Condor Prefetcher Zoo experiment:')
-    print('    ChampSim dir   :', champsim_dir)
-    print('    Experiment dir :', args.experiment_dir)
-    print('    Trace dir      :', args.trace_dir)
-    print('    # instructions :', args.num_instructions, 'million')
-    print('    # warmup       :', args.warmup_instructions, 'million')
-    
-    print('Cache / prefetcher setup:')
-    print('    Prefetchers    :', ', '.join(args.prefetchers))
-    print('    Max hybrid     :', args.hybrid)
-    print('    # LLC sets     :', args.llc_sets)
-    
-    condor.build_sweep(
-        args.trace_dir,
-        args.prefetchers,
-        llc_num_sets=args.llc_sets,
-        exp_dir=args.experiment_dir,
-        champsim_dir=champsim_dir,
-        num_instructions=args.num_instructions,
-        warmup_instructions=args.warmup_instructions,
-        dry_run=args.dry_run,
-        verbose=args.verbose
-    )
-
-
-
-"""
-Eval
-"""
-def eval_command():
-    """Eval command
-    """
-    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
-    parser.add_argument('results_dir', type=str)
-    parser.add_argument('-o', '--output-file', type=str, default=defaults.default_output_file)
-    parser.add_argument('--dry-run', action='store_true')
-    args = parser.parse_args(sys.argv[2:])
-    
-    evaluate.generate_csv(
-        args.results_dir,
-        args.output_file,
-        dry_run=args.dry_run
-    )
-
-
 
 """
 Help
@@ -403,8 +253,6 @@ Main
 commands = {
     'build': build_command,
     'run': run_command,
-    'condor_setup': condor_setup_command,
-    'eval': eval_command,
     'help': help_command,
 }
 

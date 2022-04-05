@@ -1,0 +1,33 @@
+# TODO: Replace exp_utils/defaults with .yml config files
+# (Maybe keep around string suffixes and such)
+
+champsim:
+    warmup_instructions: 10
+    sim_instructions: 50
+llc:
+    ways: 16 # TODO - Implement in build
+    sets: 2048
+    repl_fn: 'ship'
+    pref_candidates:
+        - 'no'       # No prefetcher
+        - 'bingo'    # Bingo
+        - 'bop'      # Best Offset
+        - 'scooby'   # Pythia
+        - 'sisb'     # Idealized ISB
+        - 'sms'      # SMS
+        - 'spp_dev2' # SPP
+        - 'triage'   # Triage
+        #- 'reeses'   # Reese's
+    max_hybrid: 2
+paths:
+    exp_dir: '/scratch/cluster/cmolder/prefetching_zoo/'
+    traces_dir: '/scratch/cluster/cmolder/traces/prefetching_zoo/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+    results_dir: './out/prefetcher_zoo/'
+    eval_csv: './out/prefetcher_zoo.csv'
+    conda: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'                 # TODO - Implement in condor_setup
+    project: 'ARCHITECTURE'       # TODO - Implement in condor_setup
+    description: 'Prefetcher Zoo' # TODO - Implement in condor_setup

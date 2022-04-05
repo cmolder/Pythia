@@ -9,9 +9,12 @@ import glob
 from itertools import combinations
 from exp_utils import defaults
 
+condor_template = 'experiments/exp_utils/condor_template.txt'
+script_template = 'experiments/exp_utils/script_template.txt'
+
 def generate_condor_config(out, dry_run, memory=0, **params):
     """Generate a configuration that Condor will use to submit the job."""
-    with open('exp_utils/condor_template.txt', 'r') as f:
+    with open(condor_template, 'r') as f:
         cfg = f.read()
     
     params['memory'] = memory
@@ -24,7 +27,7 @@ def generate_condor_config(out, dry_run, memory=0, **params):
             
 def generate_condor_script(out, dry_run, **params):
     """Generate a script that the Condor run will execute to simulate."""
-    with open('exp_utils/script_template.txt', 'r') as f:
+    with open(script_template, 'r') as f:
         cfg = f.read()
         
     cfg = cfg.format(**params)
