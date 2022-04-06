@@ -3,7 +3,7 @@ cd {champsim_dir}
 source {conda_source}
 conda activate tensorflow
 ./experiments/champsim.py run {trace_file} \
-    -c {num_cores} -s {num_sets} -t {targets} \
+    -c {num_cores} -s {num_sets} -t {llc_prefetchers} \
     --results-dir {results_dir} \
     --num-instructions {num_instructions} \
     --warmup-instructions {warmup_instructions}

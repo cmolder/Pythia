@@ -6,8 +6,8 @@ Author: Carson Molder
 
 import os
 import glob
-from itertools import combinations
-from exp_utils import defaults
+from itertools import combinations, product
+from exp_utils import defaults, run
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -30,7 +30,12 @@ def generate_condor_script(out, dry_run, **params):
     with open(script_template, 'r') as f:
         cfg = f.read()
         
+    # Add required parameters
     cfg = cfg.format(**params)
+    
+    # Add optional parameters
+    if 'llc_pref_degrees' in params.keys() and params['llc_pref_degrees'] is not None:
+        cfg += f'\\\n    --llc-pref-degrees {params["llc_pref_degrees"]}'
     
     if not dry_run:
         with open(out, 'w') as f:
@@ -44,19 +49,21 @@ def generate_condor_list(out, condor_paths):
             print(path, file=f)
 
 
-def generate_run_name(trace_path, llc_num_sets, llc_prefetchers):
+def generate_run_name(trace_path, llc_num_sets, llc_prefetchers, llc_pref_degrees=[]):
     """Generate a unique run name, given the trace, LLC number of sets, and LLC prefetchers."""
     trace_name = os.path.basename(trace_path).split('.')[0]
     
     return '-'.join((
         trace_name, 
         f'llc_pref_{",".join(llc_prefetchers)}', 
+        f'llc_pref_degrees_{",".join([str(d) for d in llc_pref_degrees])}' if len(llc_pref_degrees) > 0 else '',
         f'llc_sets_{llc_num_sets}'
     ))
     
 
 
 def build_run(tr_path, llc_prefetchers,
+              llc_pref_degrees=[],
               llc_num_sets=defaults.default_llc_sets,
               exp_dir=defaults.default_exp_dir,
               champsim_dir=defaults.default_champsim_dir,
@@ -101,7 +108,7 @@ def build_run(tr_path, llc_prefetchers,
             Path to Condor file
     """
     #tr_path = tr_path.replace('.txt', '.trace')
-    run_name = generate_run_name(tr_path, llc_num_sets, llc_prefetchers)
+    run_name = generate_run_name(tr_path, llc_num_sets, llc_prefetchers, llc_pref_degrees)
     
     # Setup initial output directories/files per experiment
     log_file_base = os.path.join(exp_dir, 'logs', run_name)
@@ -154,7 +161,8 @@ def build_run(tr_path, llc_prefetchers,
         trace_file=tr_path,
         num_cores=1,
         num_sets=llc_num_sets,
-        targets=' '.join(llc_prefetchers),
+        llc_prefetchers=' '.join(llc_prefetchers),
+        llc_pref_degrees=' '.join([str(d) for d in llc_pref_degrees]) if len(llc_pref_degrees) > 0 else None,
         results_dir=results_dir,
         num_instructions=num_instructions,
         warmup_instructions=warmup_instructions
@@ -172,12 +180,15 @@ def build_sweep(trace_dir, llc_prefetchers,
                 warmup_instructions=defaults.default_warmup_instructions,
                 dry_run=False, 
                 verbose=False):
+    """Build an evaluation sweep, for prefetcher_zoo.py
+    """
     
     condor_paths = []
     
     for path in glob.glob(os.path.join(trace_dir, '*.trace.*')):
         for num_hybrid in range(1, max_hybrid + 1):
             for prefs in combinations(llc_prefetchers, num_hybrid):
+                print(path, prefs)
                 c_path = build_run(
                     path, prefs,              
                     llc_num_sets=llc_num_sets,
@@ -208,5 +219,80 @@ def build_sweep(trace_dir, llc_prefetchers,
         os.path.join(exp_dir, 'condor_configs_champsim.txt'),
         condor_paths
     )
+    
+    print(f'Generated {len(condor_paths)} runs')
+    
+def _should_skip_degree_combination(prefs, degs):
+    """Helper function to skip redundant degree sweeps,
+    on prefetchers that aren't tunable w.r.t degree.
+    
+    Check if any of the prefetchers does not have a degree knob,
+    f so, don't sweep over that degree (default to 1, which
+    gets ignored when run detects it's not a valid degree-tunable
+    prefetcher)
+    """
+    for i, pref in enumerate(prefs):
+        if pref not in run.pref_degree_knobs.keys() and degs[i] != 1:
+            return True
+    return False
+    
+def build_degree_sweep(trace_dir, llc_prefetchers, max_degree,
+                       max_hybrid=defaults.default_max_hybrid,
+                       llc_num_sets=defaults.default_llc_sets,
+                       exp_dir=defaults.default_exp_dir,
+                       champsim_dir=defaults.default_champsim_dir,
+                       num_instructions=defaults.default_sim_instructions,
+                       warmup_instructions=defaults.default_warmup_instructions,
+                       dry_run=False, 
+                       verbose=False):
+    """Build a degree sweep, for prefetcher_degree_sweep.py
+    """
+    
+    condor_paths = []
+    
+    for path in glob.glob(os.path.join(trace_dir, '*.trace.*')):
+        for num_hybrid in range(1, max_hybrid + 1):
+            for prefs in combinations(llc_prefetchers, num_hybrid):
+                for degs in product(*[list(range(1, max_degree + 1))]*num_hybrid):
+                    
+                    # Skip degree combinations if one of the prefetchers is not
+                    # degree-tunable (see run.pref_degree_knobs and 
+                    # _should_skip_degree_combination)
+                    if _should_skip_degree_combination(prefs, degs):
+                        continue
+                    
+                    print(path, prefs, degs)
+                    c_path = build_run(
+                        path, prefs,
+                        llc_pref_degrees = degs,
+                        llc_num_sets=llc_num_sets,
+                        exp_dir=exp_dir,
+                        champsim_dir=champsim_dir,
+                        num_instructions=num_instructions,
+                        warmup_instructions=warmup_instructions,
+                        dry_run=dry_run, 
+                        verbose=verbose
+                    )
+                    condor_paths.append(c_path)
+        
+        # Build no prefetcher baseline
+        c_path = build_run(
+            path, ['no'],              
+            llc_num_sets=llc_num_sets,
+            exp_dir=exp_dir,
+            champsim_dir=champsim_dir,
+            num_instructions=num_instructions,
+            warmup_instructions=warmup_instructions,
+            dry_run=dry_run, 
+            verbose=verbose
+        )
+        condor_paths.append(c_path)
+        
+    # Write condor paths to <exp_dir>/condor_configs_champsim.txt
+    if not dry_run:
+        generate_condor_list(
+            os.path.join(exp_dir, 'condor_configs_champsim.txt'),
+            condor_paths
+        )
     
     print(f'Generated {len(condor_paths)} runs')

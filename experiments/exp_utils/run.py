@@ -12,7 +12,7 @@ pref_degree_knobs = {
     'bop'     : 'bop_pref_degree',
     'dspatch' : 'dspatch_pref_degree',
     'mlop'    : 'mlop_pref_degree',
-    'scooby'  : 'scooby_pref_degree',       # Default - it can be dynamic
+    #'scooby'  : 'scooby_pref_degree',       # Default - it can be dynamic
     'sisb'    : 'sisb_pref_degree',
     'sms'     : 'sms_pref_degree',
     'spp_dev2': 'spp_pref_degree',
@@ -20,6 +20,7 @@ pref_degree_knobs = {
     'triage'  : 'triage_max_allowed_degree' # Maximum - it is dynamic
     
     # Sandbox, Bingo have no degree knobs
+    # Pythia has dynamic degrees by default.
 }
 
 def get_binary(**kwargs):

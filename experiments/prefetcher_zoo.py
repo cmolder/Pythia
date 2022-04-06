@@ -152,6 +152,7 @@ def condor_setup_command():
     condor.build_sweep(
         args.trace_dir,
         args.prefetchers,
+        max_hybrid=args.max_hybrid,
         llc_num_sets=args.llc_sets,
         exp_dir=args.experiment_dir,
         champsim_dir=champsim_dir,

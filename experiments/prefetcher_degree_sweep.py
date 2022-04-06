@@ -23,11 +23,15 @@ from tqdm import tqdm
 
 from exp_utils import defaults, condor, evaluate
 
+# TODO: Move to config
+default_max_degree = 8
+default_exp_dir = '/scratch/cluster/cmolder/prefetcher_degree_sweep/'
+
 help_str = {
 'help': '''usage: {prog} command [<args>]
 
 Available commands:
-    condor_setup     Set up Prefetcher Zoo sweep on Condor
+    condor_setup     Set up Prefetcher Degree sweep on Condor
     eval             Parse and compute metrics on sweep results
     help             Display this help message. Command-specific help messages
                      can be displayed with `{prog} help command`
@@ -50,11 +54,16 @@ Options:
         The directory where ChampSim traces will be found.
         
         Default {default_trace_dir}
+        
+    -g / --degree <max-degree>
+        Will sweep all degrees from 1 to <max-degree> inclusive.
+        
+        Default: {default_max_degree}
     
     -h / --hybrid <max-hybrid-counts>
-        Will build all combinations of LLC <prefetchers>, up to <max-hybrid-counts> running
-        at the same time. For example, -h 2 will build configurations for all 2 hybrids, single prefetchers,
-        and no prefetcher.
+        Will sweep all combinations of LLC <prefetchers>, up to <max-hybrid-counts> running
+        at the same time. For example, -h 2 will sweep degrees for configurations of all 2 hybrids, 
+        single prefetchers, and no prefetcher.
         
         Default: {default_max_hybrid}
         
@@ -77,8 +86,9 @@ Options:
         If passed, builds the experiment but writes nothing to <experiment-dir>.
 '''.format(
     prog=sys.argv[0], 
-    default_exp_dir=defaults.default_exp_dir,
+    default_exp_dir=default_exp_dir,
     default_trace_dir=defaults.default_trace_dir,
+    default_max_degree=default_max_degree,
     default_max_hybrid=defaults.default_max_hybrid,
     default_llc_sets=defaults.default_llc_sets,
     default_warmup_instructions=defaults.default_warmup_instructions,
@@ -123,7 +133,47 @@ def condor_setup_command():
         print(help_str['condor_setup'])
         exit(-1)
 
-    pass
+    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
+    parser.add_argument('prefetchers', nargs='+', type=str)
+    parser.add_argument('-d', '--experiment-dir', type=str, default=default_exp_dir)
+    parser.add_argument('-t', '--trace-dir', type=str, default=defaults.default_trace_dir)
+    parser.add_argument('-g', '--degree', type=int, default=default_max_degree)
+    parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
+    parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
+    parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args(sys.argv[2:])
+    
+    champsim_dir = defaults.default_champsim_dir if not os.environ.get('PYTHIA_HOME') else os.environ.get('PYTHIA_HOME')
+    
+    print('Setting up Condor Prefetcher Zoo experiment:')
+    print('    ChampSim dir   :', champsim_dir)
+    print('    Experiment dir :', args.experiment_dir)
+    print('    Trace dir      :', args.trace_dir)
+    print('    # instructions :', args.num_instructions, 'million')
+    print('    # warmup       :', args.warmup_instructions, 'million')
+    
+    print('Cache / prefetcher setup:')
+    print('    Prefetchers    :', ', '.join(args.prefetchers))
+    print('    Max degree     :', args.degree)
+    print('    Max hybrid     :', args.hybrid)
+    print('    # LLC sets     :', args.llc_sets)
+    
+    condor.build_degree_sweep(
+        args.trace_dir,
+        args.prefetchers,
+        args.degree,
+        max_hybrid=args.hybrid,
+        llc_num_sets=args.llc_sets,
+        exp_dir=args.experiment_dir,
+        champsim_dir=champsim_dir,
+        num_instructions=args.num_instructions,
+        warmup_instructions=args.warmup_instructions,
+        dry_run=args.dry_run,
+        verbose=args.verbose
+    )
 
 
 

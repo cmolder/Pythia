@@ -12,7 +12,7 @@ prefetcher_names = ['no', 'multi']
 prefetcher_fns = ['no', 'multi']
 
 default_results_dir = './out/'
-default_config_file = './config/prefetcher_zoo.ini'
+default_config_file = './config/default_sweep.ini'
 default_output_file = './out/stats.csv'
 default_warmup_instructions = 10
 default_sim_instructions = 50
@@ -33,7 +33,7 @@ default_prefetcher_candidates = [
 ]
     
 default_condor_user = 'cmolder@cs.utexas.edu'
-default_exp_dir = '/scratch/cluster/cmolder/prefetching_zoo/'
-default_trace_dir = '/scratch/cluster/cmolder/traces/prefetching_zoo/champsim/'
+default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/'
+default_trace_dir = '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
 default_champsim_dir = '/u/cmolder/GitHub/Pythia/'
 default_conda_source = '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
