@@ -215,10 +215,11 @@ def build_sweep(trace_dir, llc_prefetchers,
         condor_paths.append(c_path)
         
     # Write condor paths to <exp_dir>/condor_configs_champsim.txt
-    generate_condor_list(
-        os.path.join(exp_dir, 'condor_configs_champsim.txt'),
-        condor_paths
-    )
+    if not dry_run:
+        generate_condor_list(
+            os.path.join(exp_dir, 'condor_configs_champsim.txt'),
+            condor_paths
+        )
     
     print(f'Generated {len(condor_paths)} runs')
     

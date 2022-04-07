@@ -204,33 +204,33 @@ def run_command():
         os.makedirs(results_dir, exist_ok=True)
 
     llc_pref_fn = 'no' if args.llc_pref == ['no'] else 'multi'
+    
+    # Generate paths
     binary = run.get_binary(
         llc_pref_fn=llc_pref_fn, 
         llc_repl_fn=defaults.default_llc_repl_fn, 
         n_cores=args.cores, 
         llc_n_sets=args.sets, 
     )
-    
-    # Generate names for this permutation. (trace names without extensions, joined by hyphen)
-    base_traces = '-'.join([''.join(os.path.basename(et).split('.')[:-2]) for et in args.execution_traces])
-    base_binary = os.path.basename(binary)
-    
+    results_file = run.get_results_file(
+        binary, args.execution_traces, 
+        llc_prefs=args.llc_pref,
+        llc_pref_degrees=args.llc_pref_degrees
+    )
     assert os.path.exists(binary), f'ChampSim binary not found, (looked for {binary})'
     
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {llc_pref_knobs} -traces {trace} > {results}/{base_traces}-{base_binary}-{llc_pref_str}.txt 2>&1'.format(
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {llc_pref_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
         binary=binary,
         llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees),
-        llc_pref_str='_'.join(args.llc_pref),
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,
         config=args.config, # .ini file
         trace=' '.join(args.execution_traces),
         results=results_dir,
-        base_traces=base_traces,
-        base_binary=base_binary
+        results_file=results_file
     )
 
     print('Running "' + cmd + '"')
