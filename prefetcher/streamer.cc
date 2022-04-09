@@ -37,7 +37,7 @@ Streamer::~Streamer()
 
 }
 
-void Streamer::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void Streamer::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     uint64_t page = address >> LOG2_PAGE_SIZE;
     uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -105,6 +105,7 @@ void Streamer::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hi
             {
                 uint64_t pf_addr = (page << LOG2_PAGE_SIZE) + (pref_offset << LOG2_BLOCK_SIZE);
                 pref_addr.push_back(pf_addr);
+                pref_level.push_back(0);
             }
             else
             {

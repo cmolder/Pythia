@@ -60,7 +60,7 @@ SMSPrefetcher::~SMSPrefetcher()
 
 }
 
-void SMSPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void SMSPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint64_t page = address >> knob::sms_region_size_log;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (knob::sms_region_size_log - LOG2_BLOCK_SIZE)) - 1);
@@ -96,7 +96,7 @@ void SMSPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cac
 		{
 			/* filter table miss. Beginning of new generation. Issue prefetch */
 			insert_filter_table(pc, page, offset);
-			generate_prefetch(pc, address, page, offset, pref_addr);
+			generate_prefetch(pc, address, page, offset, pref_addr, pref_level);
 			if(knob::sms_enable_pref_buffer)
 			{
 				buffer_prefetch(pref_addr);
@@ -108,7 +108,7 @@ void SMSPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cac
 	/* slowly inject prefetches at every demand access, if buffer is turned on */
 	if(knob::sms_enable_pref_buffer)
 	{
-		issue_prefetch(pref_addr);
+		issue_prefetch(pref_addr, pref_level);
 	}
 }
 
@@ -301,7 +301,7 @@ uint64_t SMSPrefetcher::create_signature(uint64_t pc, uint32_t offset)
 	return signature;
 }
 
-int SMSPrefetcher::generate_prefetch(uint64_t pc, uint64_t address, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr)
+int SMSPrefetcher::generate_prefetch(uint64_t pc, uint64_t address, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	stats.generate_prefetch.called++;
 	uint64_t signature = create_signature(pc, offset);
@@ -321,6 +321,7 @@ int SMSPrefetcher::generate_prefetch(uint64_t pc, uint64_t address, uint64_t pag
 		{
 			uint64_t addr = (page << knob::sms_region_size_log) + (index << LOG2_BLOCK_SIZE);
 			pref_addr.push_back(addr);
+            pref_level.push_back(0);
 		}
 	}
 	update_age_pht(set, pht_index);
@@ -345,12 +346,13 @@ void SMSPrefetcher::buffer_prefetch(vector<uint64_t> pref_addr)
 	stats.pref_buffer.spilled += (pref_addr.size() - count);
 }
 
-void SMSPrefetcher::issue_prefetch(vector<uint64_t> &pref_addr)
+void SMSPrefetcher::issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint32_t count = 0;
 	while(!pref_buffer.empty() && count < knob::sms_pref_degree)
 	{
 		pref_addr.push_back(pref_buffer.front());
+        pref_level.push_back(0);
 		pref_buffer.pop_front();
 		count++;
 	}

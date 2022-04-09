@@ -134,14 +134,14 @@ private:
 	void insert_pht_table(ATEntry *atentry);
 
 	uint64_t create_signature(uint64_t pc, uint32_t offset);
-	int generate_prefetch(uint64_t pc, uint64_t address, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr);
+	int generate_prefetch(uint64_t pc, uint64_t address, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void buffer_prefetch(vector<uint64_t> pref_addr);
-	void issue_prefetch(vector<uint64_t> &pref_addr);
+	void issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 
 public:
 	SMSPrefetcher(string type);
 	~SMSPrefetcher();
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void dump_stats();
 	void print_config();
 };

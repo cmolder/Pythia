@@ -13,7 +13,7 @@ public:
 	Prefetcher(std::string _type) {type = _type;}
 	~Prefetcher(){}
 	std::string get_type() {return type;}
-	virtual void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr) = 0;
+	virtual void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, std::vector<uint64_t> &pref_level) = 0;
 	virtual void dump_stats() = 0;
 	virtual void print_config() = 0;
 };

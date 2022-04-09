@@ -161,7 +161,7 @@ private:
 
 	void update_global_state(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address);
 	Scooby_STEntry* update_local_state(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address);
-	uint32_t predict(uint64_t address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr);
+	uint32_t predict(uint64_t address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	bool track(uint64_t address, State *state, uint32_t action_index, Scooby_PTEntry **tracker);
 	void reward(uint64_t address);
 	void reward(Scooby_PTEntry *ptentry);
@@ -172,14 +172,14 @@ private:
 	void update_stats(uint32_t state, uint32_t action_index, uint32_t pref_degree = 1);
 	void update_stats(State *state, uint32_t action_index, uint32_t degree = 1);
 	void track_in_st(uint64_t page, uint32_t pred_offset, int32_t pref_offset);
-	void gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr);
+	void gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	uint32_t get_dyn_pref_degree(float max_to_avg_q_ratio, uint64_t page = 0xdeadbeef, int32_t action = 0); /* only implemented for CMAC engine 2.0 */
 	bool is_high_bw();
 
 public:
 	Scooby(string type);
 	~Scooby();
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void register_fill(uint64_t address);
 	void register_prefetch_hit(uint64_t address);
 	void dump_stats();

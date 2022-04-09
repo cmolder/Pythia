@@ -51,24 +51,23 @@ TriagePrefetcher::~TriagePrefetcher()
 
 }
 
-void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
-    int cpu = 0; // TODO - Fix for multicore.
-    
     if (type != LOAD)
         return;
     
     address = (address >> 6) << 6;
-    if(address == last_address[cpu])
+    if(address == last_address[m_parent_cache->cpu])
         return;
-    last_address[cpu] = address;
+    last_address[m_parent_cache->cpu] = address;
     
     uint32_t i;
     uint64_t prefetch_addr_list[knob::triage_max_allowed_degree];
     for (i = 0; i < knob::triage_max_allowed_degree; ++i) {
         prefetch_addr_list[i] = 0;
     }
-    data[cpu].calculatePrefetch(pc, address, cache_hit, prefetch_addr_list, knob::triage_max_allowed_degree, cpu);
+    data[m_parent_cache->cpu].calculatePrefetch(pc, address, cache_hit, prefetch_addr_list, 
+                                                knob::triage_max_allowed_degree, m_parent_cache->cpu);
 
     int prefetched = 0;
     for (i = 0; i < knob::triage_max_allowed_degree; ++i) {
@@ -76,13 +75,22 @@ void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
             break;
         }
         //pref_addr.push_back(prefetch_addr_list[i]);
+        //pref_level.push_back(fill_level)
         int ret = m_parent_cache->prefetch_line(pc, address, prefetch_addr_list[i], m_parent_cache->fill_level, address);
+        
+        // Add prefetches to pref_addr and pref_level vectors.
+        // multi.*_pref will not double-prefetch in this case, as it will
+        // recognize the requests are coming from Triage.
+        pref_addr.push_back(prefetch_addr_list[i]);
+        pref_level.push_back(m_parent_cache->fill_level);
+        
+        // Stop early if we surpass confidence ?
         if(ret)
         {
             prefetched++;
-            if(prefetched >= conf[cpu].degree)
+            if(prefetched >= conf[m_parent_cache->cpu].degree)
                 break;
-        }
+        }    
     }
     // Set cache assoc if dynamic
 //    if (conf[cpu].use_dynamic_assoc) {
@@ -102,15 +110,14 @@ void TriagePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
     
 }
 
-void TriagePrefetcher::register_fill(uint64_t address)
+void TriagePrefetcher::register_fill(uint64_t address, uint8_t prefetch, uint32_t metadata_in)
 {
-    //int cpu = 0; // TODO - Fix for multicore.
-    //if(prefetch) {
-    //    uint64_t next_addr;
-    //    bool next_addr_exists = data[cpu].on_chip_data.get_next_addr(metadata_in, next_addr, 0, true);
-    //    //assert(next_addr_exists);
-    //    //cout << "Filled " << hex << addr << "  by " << metadata_in << endl;
-    //}
+    if(prefetch) {
+       uint64_t next_addr;
+       bool next_addr_exists = data[m_parent_cache->cpu].on_chip_data.get_next_addr(metadata_in, next_addr, 0, true);
+       assert(next_addr_exists);
+       //cout << "Filled " << hex << addr << "  by " << metadata_in << endl;
+    }
 }
 
 void TriagePrefetcher::dump_stats() {

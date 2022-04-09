@@ -149,7 +149,7 @@ int IPCP_L1::update_conf(int stride, int pred_stride, int conf)
     return conf;
 }
 
-void IPCP_L1::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr)
+void IPCP_L1::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
    uint32_t cpu = m_parent_cache->cpu;
    uint64_t curr_page = addr >> LOG2_PAGE_SIZE;

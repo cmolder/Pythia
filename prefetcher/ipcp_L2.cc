@@ -52,7 +52,7 @@ int IPCP_L2::decode_stride(uint32_t metadata)
     return stride;
 }
 
-void IPCP_L2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, std::vector<uint64_t> &pref_addr)
+void IPCP_L2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
    uint32_t cpu = m_parent_cache->cpu;
    uint64_t cl_addr = addr >> LOG2_BLOCK_SIZE;

@@ -55,7 +55,7 @@ void SPP_dev2::print_config()
 
 }
 
-void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr)
+void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     uint64_t page = addr >> LOG2_PAGE_SIZE;
     uint32_t page_offset = (addr >> LOG2_BLOCK_SIZE) & (PAGE_SIZE / BLOCK_SIZE - 1),
@@ -114,12 +114,20 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
                     if (FILTER.check(pf_addr, confidence_q[i] >= knob::spp_dev2_fill_threshold ? SPP_L2C_PREFETCH : SPP_LLC_PREFETCH, GHR)) {
                         
                         
-                        if (knob::spp_dev2_pf_llc_only)
-                            m_parent_cache->prefetch_line(ip, addr, pf_addr, FILL_LLC, 0);
-                        else {
-                            // Use addr (not base_addr) to obey the same physical page boundary
-                            m_parent_cache->prefetch_line(ip, addr, pf_addr, ((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC), 0);
+                        if(knob::spp_dev2_pf_llc_only) {
+                            pref_addr.push_back(pf_addr);
+                            pref_level.push_back(FILL_LLC);
+                        } else {
+                            pref_addr.push_back(pf_addr);
+                            pref_level.push_back((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC);
                         }
+                        
+                        // if (knob::spp_dev2_pf_llc_only)
+                        //     m_parent_cache->prefetch_line(ip, addr, pf_addr, FILL_LLC, 0);
+                        // else {
+                        //     // Use addr (not base_addr) to obey the same physical page boundary
+                        //     m_parent_cache->prefetch_line(ip, addr, pf_addr, ((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC), 0);
+                        // }
                         
                         stats.pref.total++;
                         if((confidence_q[i] >= knob::spp_dev2_fill_threshold) && (!knob::spp_dev2_pf_llc_only)) 

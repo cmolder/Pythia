@@ -39,7 +39,7 @@ AMPM::AMPM(string type) : Prefetcher(type)
     init_stats();
 }
 
-void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     uint64_t page = address >> LOG2_PAGE_SIZE;
     uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -110,6 +110,7 @@ void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, u
 
     uint32_t count = 0;
     vector<uint64_t> predicted_addrs;
+    vector<uint64_t> predicted_levels;
 
     /* prioritize posetive delta over negative delta */
     for(uint32_t index = 0; index < selected_pos.size(); ++index)
@@ -125,6 +126,7 @@ void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, u
         {
             uint64_t pf_addr = (page << LOG2_PAGE_SIZE) + (pref_offset << LOG2_BLOCK_SIZE);
             predicted_addrs.push_back(pf_addr);
+            predicted_levels.push_back(0);
             count++;
             stats.pred.pos_histogram[selected_pos[index]]++;
         }
@@ -142,6 +144,7 @@ void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, u
         {
             uint64_t pf_addr = (page << LOG2_PAGE_SIZE) + (pref_offset << LOG2_BLOCK_SIZE);
             predicted_addrs.push_back(pf_addr);
+            predicted_levels.push_back(0);
             count++;
             stats.pred.neg_histogram[selected_neg[index]]++;
         }
@@ -153,11 +156,12 @@ void AMPM::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, u
     if(knob::ampm_enable_pref_buffer)
     {
         buffer_prefetch(predicted_addrs);
-        issue_prefetch(pref_addr);
+        issue_prefetch(pref_addr, pref_level);
     }
     else
     {
         pref_addr = predicted_addrs;
+        pref_level = predicted_levels;
     }
     
     stats.pred.total += pref_addr.size();
@@ -197,12 +201,13 @@ void AMPM::buffer_prefetch(vector<uint64_t> predicted_addrs)
     }
 }
 
-void AMPM::issue_prefetch(vector<uint64_t> &pref_addr)
+void AMPM::issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint32_t count = 0;
 	while(!pref_buffer.empty() && count < knob::ampm_pref_degree)
 	{
 		pref_addr.push_back(pref_buffer.front());
+        pref_level.push_back(0);
 		pref_buffer.pop_front();
 		count++;
 	}

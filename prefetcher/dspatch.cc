@@ -99,7 +99,7 @@ void DSPatch::print_config()
 		<< endl;
 }
 
-void DSPatch::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void DSPatch::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint64_t page = address >> knob::dspatch_log2_region_size;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (knob::dspatch_log2_region_size - LOG2_BLOCK_SIZE)) - 1);
@@ -140,22 +140,23 @@ void DSPatch::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit
 		stats.pb.insert++;
 
 		/* trigger prefetch */
-		generate_prefetch(pc, page, offset, address, pref_addr);
+		generate_prefetch(pc, page, offset, address, pref_addr, pref_level);
 		if(knob::dspatch_enable_pref_buffer)
 		{
 			buffer_prefetch(pref_addr);
 			pref_addr.clear();
+            pref_level.clear();
 		}
 	}
 
 	/* slowly inject prefetches at every demand access, if buffer is turned on */
 	if(knob::dspatch_enable_pref_buffer)
 	{
-		issue_prefetch(pref_addr);
+		issue_prefetch(pref_addr, pref_level);
 	}
 }
 
-void DSPatch::generate_prefetch(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address, vector<uint64_t> &pref_addr)
+void DSPatch::generate_prefetch(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	Bitmap bmp_cov, bmp_acc, bmp_pred;
 	uint64_t signature = 0xdeadbeef;
@@ -193,6 +194,7 @@ void DSPatch::generate_prefetch(uint64_t pc, uint64_t page, uint32_t offset, uin
 		{
 			uint64_t addr = (page << knob::dspatch_log2_region_size) + (index << LOG2_BLOCK_SIZE);
 			pref_addr.push_back(addr);
+            pref_level.push_back(0);
 		}
 	}
 	stats.gen_pref.total += pref_addr.size();
@@ -254,12 +256,13 @@ void DSPatch::buffer_prefetch(vector<uint64_t> pref_addr)
 	stats.pref_buffer.spilled += (pref_addr.size() - count);
 }
 
-void DSPatch::issue_prefetch(vector<uint64_t> &pref_addr)
+void DSPatch::issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint32_t count = 0;
 	while(!pref_buffer.empty() && count < knob::dspatch_pref_degree)
 	{
 		pref_addr.push_back(pref_buffer.front());
+        pref_level.push_back(0);
 		pref_buffer.pop_front();
 		count++;
 	}

@@ -295,7 +295,7 @@ void Scooby::print_config()
 		<< endl;
 }
 
-void Scooby::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void Scooby::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint64_t page = address >> LOG2_PAGE_SIZE;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -334,7 +334,7 @@ void Scooby::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit,
 	state->acc_level = acc_level;
 
 	uint32_t count = pref_addr.size();
-	predict(address, page, offset, state, pref_addr);
+	predict(address, page, offset, state, pref_addr, pref_level);
 	stats.pref_issue.scooby += (pref_addr.size() - count);
 }
 
@@ -383,7 +383,7 @@ Scooby_STEntry* Scooby::update_local_state(uint64_t pc, uint64_t page, uint32_t 
 	}
 }
 
-uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr)
+uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	MYLOG("addr@%lx page %lx off %u state %x", base_address, page, offset, state->value());
 
@@ -436,11 +436,12 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 			if(new_addr)
 			{
 				pref_addr.push_back(addr);
+                pref_level.push_back(0); // TODO : Level prediction
 				track_in_st(page, predicted_offset, Actions[action_index]);
 				stats.predict.issue_dist[action_index]++;
 				if(pref_degree > 1)
 				{
-					gen_multi_degree_pref(page, offset, Actions[action_index], pref_degree, pref_addr);
+					gen_multi_degree_pref(page, offset, Actions[action_index], pref_degree, pref_addr, pref_level);
 				}
 				stats.predict.deg_histogram[pref_degree]++;
 				ptentry->consensus_vec = consensus_vec;
@@ -547,7 +548,7 @@ bool Scooby::track(uint64_t address, State *state, uint32_t action_index, Scooby
 	return new_addr;
 }
 
-void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr)
+void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	stats.predict.multi_deg_called++;
 	uint64_t addr = 0xdeadbeef;
@@ -561,6 +562,7 @@ void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t actio
 			{
 				addr = (page << LOG2_PAGE_SIZE) + (predicted_offset << LOG2_BLOCK_SIZE);
 				pref_addr.push_back(addr);
+                pref_level.push_back(0); // TODO Add level prediction
 				MYLOG("degree %u pred_off %d pred_addr %lx", degree, predicted_offset, addr);
 				stats.predict.multi_deg++;
 				stats.predict.multi_deg_histogram[degree]++;

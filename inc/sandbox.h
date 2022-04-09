@@ -74,7 +74,7 @@ private:
 	void init_non_evaluated_offsets();
 	void reset_eval();
 	void get_offset_list_sorted(vector<Score*> &pos_offsets, vector<Score*> &neg_offsets);
-	void generate_prefetch(vector<Score*> offset_list, uint32_t pref_degree, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr);
+	void generate_prefetch(vector<Score*> offset_list, uint32_t pref_degree, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void destroy_offset_list(vector<Score*> offset_list);
 	uint64_t generate_address(uint64_t page, uint32_t offset, int32_t delta, uint32_t lookahead = 1);
 	void end_of_round();
@@ -85,7 +85,7 @@ private:
 public:
 	SandboxPrefetcher(string type);
 	~SandboxPrefetcher();
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void dump_stats();
 	void print_config();
 };

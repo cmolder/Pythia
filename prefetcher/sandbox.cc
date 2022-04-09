@@ -98,7 +98,7 @@ void SandboxPrefetcher::reset_eval()
 	bf->clear();
 }
 
-void SandboxPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void SandboxPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint64_t page = address >> LOG2_PAGE_SIZE;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -180,9 +180,9 @@ void SandboxPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t
 	 * 2. Sorts both offset lists based on ABSOLUTE offset value, as Snadbox prefers smaller offsets for prefetching */
 	get_offset_list_sorted(pos_offsets, neg_offsets);
 	/* generate prefetches */
-	generate_prefetch(pos_offsets, pref_degree, page, offset, pref_addr);
+	generate_prefetch(pos_offsets, pref_degree, page, offset, pref_addr, pref_level);
 	uint32_t pos_pref = pref_addr.size();
-	generate_prefetch(neg_offsets, pref_degree, page, offset, pref_addr);
+	generate_prefetch(neg_offsets, pref_degree, page, offset, pref_addr, pref_level);
 	uint32_t neg_pref = pref_addr.size() - pos_pref;
 	/* destroy temporary lists */
 	destroy_offset_list(pos_offsets);
@@ -217,7 +217,7 @@ void SandboxPrefetcher::get_offset_list_sorted(vector<Score*> &pos_offsets, vect
 	std::sort(neg_offsets.begin(), neg_offsets.end(), [](Score *score1, Score *score2){return abs(score1->offset) < abs(score2->offset);});
 }
 
-void SandboxPrefetcher::generate_prefetch(vector<Score*> offset_list, uint32_t pref_degree, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr)
+void SandboxPrefetcher::generate_prefetch(vector<Score*> offset_list, uint32_t pref_degree, uint64_t page, uint32_t offset, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint32_t count = 0;
 	for(uint32_t index = 0; index < offset_list.size(); ++index)
@@ -235,6 +235,7 @@ void SandboxPrefetcher::generate_prefetch(vector<Score*> offset_list, uint32_t p
 				if(addr != 0xdeadbeef)
 				{
 					pref_addr.push_back(addr);
+                    pref_level.push_back(0);
 					count++;
 					record_pref_stats(offset_list[index]->offset, 1);
 				}

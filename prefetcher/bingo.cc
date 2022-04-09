@@ -125,8 +125,8 @@ void Bingo::eviction(uint64_t block_number) {
    }
 }
 
-int Bingo::prefetch(uint64_t block_number) {
-   int pf_issued = this->pf_streamer.prefetch(parent, block_number);
+int Bingo::prefetch(uint64_t block_number, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level) {
+   int pf_issued = this->pf_streamer.prefetch(parent, block_number, pref_addr, pref_level);
    if (this->debug_level >= 2)
       cerr << "[Bingo::prefetch] pf_issued=" << pf_issued << dec << endl;
    return pf_issued;
@@ -342,7 +342,7 @@ vector<int> Bingo::vote(const vector<vector<bool>> &x) {
 }
 
 /* Base-class virtual function */
-void Bingo::invoke_prefetcher(uint64_t pc, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr)
+void Bingo::invoke_prefetcher(uint64_t pc, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
    if (debug_level >= 2) {
       cerr << "CACHE::l1d_prefetcher_operate(addr=0x" << hex << addr << ", PC=0x" << pc << ", cache_hit=" << dec
@@ -358,7 +358,7 @@ void Bingo::invoke_prefetcher(uint64_t pc, uint64_t addr, uint8_t cache_hit, uin
    access(block_number, pc);
 
    /* issue prefetches */
-   prefetch(block_number);
+   prefetch(block_number, pref_addr, pref_level);
 
    if (debug_level >= 3) {
       log();

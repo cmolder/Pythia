@@ -86,7 +86,7 @@ private:
 public:
 	NextLinePrefetcher(string type);
 	~NextLinePrefetcher();
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void register_fill(uint64_t address);
 	void dump_stats();
 	void print_config();

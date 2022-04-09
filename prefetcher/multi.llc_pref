@@ -28,12 +28,14 @@ namespace knob
 	extern vector<string> llc_prefetcher_types;
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
+    extern bool           track_pc_pf_statistics;
 }
 
 // vector<Prefetcher*> prefetchers;
 
 void CACHE::llc_prefetcher_initialize()
 {
+    // Initialize prefetchers
 	for(uint32_t index = 0; index < knob::llc_prefetcher_types.size(); ++index)
 	{
 		if(!knob::llc_prefetcher_types[index].compare("none"))
@@ -152,35 +154,48 @@ void CACHE::llc_prefetcher_initialize()
 	}
 
 	assert(knob::llc_prefetcher_types.size() == prefetchers.size() || !knob::llc_prefetcher_types[0].compare("none"));
+    
+    // Initialize PC prefetch statistics tracking
+    // TODO
 }
 
 uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
 {
 	vector<uint64_t> pref_addr;
+    vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
 		if(knob::llc_prefetcher_types[index].compare("ipcp"))
 		{
-			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr);
+			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
 		}
 		// else /* means IPCP */
 		// {
 		// 	IPCP_LLC *pref_ipcp_LLC = (IPCP_LLC*)prefetchers[index];
 		// 	pref_ipcp_LLC->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr);
 		// }
-		if(knob::llc_prefetcher_types[index].compare("spp_dev2")
-			&& knob::llc_prefetcher_types[index].compare("spp_ppf_dev")
+        
+        // Don't issue prefetches for some prefetchers, as their code interacts
+        // with the caches directly.
+        if(knob::llc_prefetcher_types[index].compare("spp_ppf_dev")
 			&& knob::llc_prefetcher_types[index].compare("mlop")
-			&& knob::llc_prefetcher_types[index].compare("bingo")
-			//&& knob::llc_prefetcher_types[index].compare("ipcp")
+            && knob::llc_prefetcher_types[index].compare("triage")
+            // && knob::llc_prefetcher_types[index].compare("ipcp")
 			&& !pref_addr.empty())
 		{
 			for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
-				prefetch_line(ip, addr, pref_addr[addr_index], FILL_LLC, 0);
+                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
+				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_LLC, 0);
 			}
 		}
+        
+        // Add prefetches to PC statistics
+        // TODO
+        
+        // Clear address / level vectors
 		pref_addr.clear();
+        pref_level.clear();
 	}
 
 	return metadata_in;
@@ -231,6 +246,11 @@ uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t 
 			{
 				SISBPrefetcher *pref_sisb = (SISBPrefetcher*)prefetchers[index];
 				pref_sisb->register_fill(addr);
+			}
+            if(!prefetchers[index]->get_type().compare("triage"))
+			{
+				TriagePrefetcher *pref_triage = (TriagePrefetcher*)prefetchers[index];
+				pref_triage->register_fill(addr, prefetch, metadata_in);
 			}
 		}
 	}

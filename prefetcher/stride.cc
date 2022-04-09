@@ -35,7 +35,7 @@ void StridePrefetcher::print_config()
       ;
 }
 
-void StridePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void StridePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
    // uint64_t page = address >> LOG2_PAGE_SIZE;
    uint64_t cl_addr = address >> LOG2_BLOCK_SIZE;
@@ -89,7 +89,7 @@ void StridePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
    if(stride == tracker->last_stride)
    {
       stats.pref.stride_match++;
-      uint32_t count = generate_prefetch(address, stride, pref_addr);
+      uint32_t count = generate_prefetch(address, stride, pref_addr, pref_level);
       stats.pref.generated += count;
    }
 
@@ -100,7 +100,7 @@ void StridePrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t 
    trackers.push_front(tracker);
 }
 
-uint32_t StridePrefetcher::generate_prefetch(uint64_t address, int32_t stride, vector<uint64_t> &pref_addr)
+uint32_t StridePrefetcher::generate_prefetch(uint64_t address, int32_t stride, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
    uint64_t page = address >> LOG2_PAGE_SIZE;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -113,6 +113,7 @@ uint32_t StridePrefetcher::generate_prefetch(uint64_t address, int32_t stride, v
       {
          uint64_t addr = (page << LOG2_PAGE_SIZE) + (pref_offset << LOG2_BLOCK_SIZE);
          pref_addr.push_back(addr);
+         pref_level.push_back(0);
          count++;
       }
       else

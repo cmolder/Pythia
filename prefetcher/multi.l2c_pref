@@ -140,6 +140,7 @@ void CACHE::l2c_prefetcher_initialize()
 uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
 {
 	vector<uint64_t> pref_addr;
+    vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
 		if(knob::l2c_prefetcher_types[index].compare("ipcp"))
@@ -149,21 +150,21 @@ uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 		else /* means IPCP */
 		{
 			IPCP_L2 *pref_ipcp_L2 = (IPCP_L2*)prefetchers[index];
-			pref_ipcp_L2->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr);
+			pref_ipcp_L2->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr, pref_level);
 		}
-		if(knob::l2c_prefetcher_types[index].compare("spp_dev2")
-			&& knob::l2c_prefetcher_types[index].compare("spp_ppf_dev")
+		if(knob::l2c_prefetcher_types[index].compare("spp_ppf_dev")
 			&& knob::l2c_prefetcher_types[index].compare("mlop")
-			&& knob::l2c_prefetcher_types[index].compare("bingo")
 			&& knob::l2c_prefetcher_types[index].compare("ipcp")
 			&& !pref_addr.empty())
 		{
 			for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
-				prefetch_line(ip, addr, pref_addr[addr_index], FILL_L2, 0);
+                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_L2 : pref_level[addr_index]), 0);
+				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_L2, 0);
 			}
 		}
 		pref_addr.clear();
+        pref_level.clear();
 	}
 
 	return metadata_in;

@@ -68,12 +68,12 @@ private:
     void init_knobs();
     void init_stats();
     void buffer_prefetch(vector<uint64_t> predicted_addrs);
-    void issue_prefetch(vector<uint64_t> &pref_addr);
+    void issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 
 public:
     AMPM(string type);
     ~AMPM();
-    void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+    void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
     void dump_stats();
     void print_config();
 };

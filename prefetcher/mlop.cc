@@ -392,7 +392,7 @@ void MLOP::dump_stats()
 }
 
 /* Base-class virtual function */
-void MLOP::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr)
+void MLOP::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     if (type != LOAD)
         return;

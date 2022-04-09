@@ -52,18 +52,21 @@ void CACHE::l1d_prefetcher_initialize()
 void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type)
 {
 	vector<uint64_t> pref_addr;
+    vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < l1d_prefetchers.size(); ++index)
 	{
-		l1d_prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr);
+		l1d_prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
 		if(knob::l1d_prefetcher_types[index].compare("ipcp")
          && !pref_addr.empty())
 		{
 			for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
-				prefetch_line(ip, addr, pref_addr[addr_index], FILL_L1, 0);
+                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_L1 : pref_level[addr_index]), 0);
+				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_L1, 0);
 			}
 		}
 		pref_addr.clear();
+        pref_level.clear();
 	}
 }
 

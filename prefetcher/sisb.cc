@@ -29,7 +29,7 @@ SISBPrefetcher::~SISBPrefetcher()
 
 }
 
-void SISBPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void SISBPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     assert(pref_addr.size() == 0);
     // only consider demand misses
@@ -65,6 +65,7 @@ void SISBPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t ca
         pred <<= LOG2_BLOCK_SIZE;
         //int was_issued = parent->prefetch_line(pc, addr, pred, FILL_LLC, 0);
         pref_addr.push_back(pred);
+        pref_level.push_back(0);
         pred >>= LOG2_BLOCK_SIZE;
         //if (was_issued) {
             outstanding[pred] = pc;

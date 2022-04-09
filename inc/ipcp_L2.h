@@ -42,8 +42,8 @@ private:
 public:
    IPCP_L2(std::string type, CACHE *cache);
 	~IPCP_L2();
-   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr) {}
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, std::vector<uint64_t> &pref_addr);
+   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, std::vector<uint64_t> &pref_level) {}
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, std::vector<uint64_t> &pref_addr, std::vector<uint64_t> &pref_level);
 	void dump_stats();
 	void print_config();
 	void cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr);

@@ -56,12 +56,12 @@ private:
 private:
    void init_knobs();
    void init_stats();
-   uint32_t generate_prefetch(uint64_t address, int32_t stride, vector<uint64_t> &pref_addr);
+   uint32_t generate_prefetch(uint64_t address, int32_t stride, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 
 public:
    StridePrefetcher(string type);
    ~StridePrefetcher();
-   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
    void dump_stats();
    void print_config();
 };

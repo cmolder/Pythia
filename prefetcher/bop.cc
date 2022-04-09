@@ -58,7 +58,7 @@ void BOPrefetcher::print_config()
 	cout << endl << endl;
 }
 
-void BOPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void BOPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint64_t page = address >> LOG2_PAGE_SIZE;
 	uint32_t offset = (address >> LOG2_BLOCK_SIZE) & ((1ull << (LOG2_PAGE_SIZE - LOG2_BLOCK_SIZE)) - 1);
@@ -88,6 +88,7 @@ void BOPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cach
 		{
 			uint64_t addr = (page << LOG2_PAGE_SIZE) + (pf_offset << LOG2_BLOCK_SIZE);
 			pref_addr.push_back(addr);
+            pref_level.push_back(0);
 		}
 	}
 
@@ -95,7 +96,8 @@ void BOPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cach
 	{
 		buffer_prefetch(pref_addr);
 		pref_addr.clear();
-		issue_prefetch(pref_addr);
+        pref_level.clear();
+		issue_prefetch(pref_addr, pref_level);
 	}
 
 	stats.pref_issued += pref_addr.size();
@@ -181,12 +183,13 @@ void BOPrefetcher::buffer_prefetch(vector<uint64_t> pref_addr)
 	stats.pref_buffer.spilled += (pref_addr.size() - count);
 }
 
-void BOPrefetcher::issue_prefetch(vector<uint64_t> &pref_addr)
+void BOPrefetcher::issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	uint32_t count = 0;
 	while(!pref_buffer.empty() && count < knob::bop_pref_degree)
 	{
 		pref_addr.push_back(pref_buffer.front());
+        pref_level.push_back(0);
 		pref_buffer.pop_front();
 		count++;
 	}

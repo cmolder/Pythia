@@ -359,7 +359,7 @@ public:
       Super::set_mru(key);
    }
 
-   int prefetch(CACHE *cache, uint64_t block_address) {
+   int prefetch(CACHE *cache, uint64_t block_address, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level) {
       if (this->debug_level >= 2) {
          cerr << "PrefetchStreamer::prefetch(cache=" << cache->NAME << ", block_address=0x" << hex << block_address
          << ")" << dec << endl;
@@ -391,7 +391,9 @@ public:
             if (0 <= pf_offset && pf_offset < this->pattern_len && pattern[pf_offset] > 0) {
                uint64_t pf_address = (region_number * this->pattern_len + pf_offset) << LOG2_BLOCK_SIZE;
                if (cache->PQ.occupancy + cache->MSHR.occupancy < cache->MSHR.SIZE - 1 && cache->PQ.occupancy < cache->PQ.SIZE) {
-                  cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
+                  pref_addr.push_back(pf_address);
+                  pref_level.push_back((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]);
+                  //cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
                   pf_issued += 1;
                   pattern[pf_offset] = 0;
                } else {
@@ -434,7 +436,7 @@ class Bingo : public Prefetcher {
 public:
    Bingo(string type, CACHE *cache);
    ~Bingo();
-   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr);
+   void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
    void register_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr);
    void dump_stats();
    void print_config();
@@ -446,7 +448,7 @@ public:
    */
    void access(uint64_t block_number, uint64_t pc);
    void eviction(uint64_t block_number);
-   int prefetch(uint64_t block_number);
+   int prefetch(uint64_t block_number, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
    void set_debug_level(int debug_level);
    void log();
 

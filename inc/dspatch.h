@@ -143,18 +143,18 @@ private:
 	DSPatch_pref_candidate select_bitmap(DSPatch_SPTEntry *sptentry, Bitmap &bmp_selected);
 	DSPatch_PBEntry* search_pb(uint64_t page);
 	void buffer_prefetch(vector<uint64_t> pref_addr);
-	void issue_prefetch(vector<uint64_t> &pref_addr);
+	void issue_prefetch(vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	uint64_t create_signature(uint64_t pc, uint64_t page, uint32_t offset);
 	uint32_t get_spt_index(uint64_t signature);
 	uint32_t get_hash(uint32_t key);
 	void add_to_spt(DSPatch_PBEntry *pbentry);
 	DSPatch_pref_candidate dyn_selection(DSPatch_SPTEntry *sptentry, Bitmap &bmp_selected);
-	void generate_prefetch(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address, vector<uint64_t> &pref_addr);
+	void generate_prefetch(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 
 public:
 	DSPatch(string type);
 	~DSPatch();
-	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr);
+	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void dump_stats();
 	void print_config();
 	void update_bw(uint8_t bw);

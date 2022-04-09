@@ -141,7 +141,7 @@ uint32_t POWER7_Pref::get_stride_degree(Config config)
     }
 }
 
-void POWER7_Pref::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr)
+void POWER7_Pref::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     access_counter++;
     uint64_t cpu_cycle = get_cpu_cycle(m_parent_cache->cpu);
@@ -215,9 +215,9 @@ void POWER7_Pref::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache
 
     /* invoke each individual prefetcher */
     uint32_t pred_streamer = 0, pred_stride = 0;
-    streamer->invoke_prefetcher(pc, address, cache_hit, type, pref_addr);
+    streamer->invoke_prefetcher(pc, address, cache_hit, type, pref_addr, pref_level);
     pred_streamer = pref_addr.size();
-    stride->invoke_prefetcher(pc, address, cache_hit, type, pref_addr);
+    stride->invoke_prefetcher(pc, address, cache_hit, type, pref_addr, pref_level);
     pred_stride = pref_addr.size() - pred_streamer;
 
     stats.pred.streamer += pred_streamer;
