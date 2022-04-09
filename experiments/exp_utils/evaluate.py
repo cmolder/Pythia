@@ -11,13 +11,18 @@ import numpy as np
 from tqdm import tqdm
 
 def read_file(path, cpu=0, cache_level='LLC'):
-    expected_keys = ('ipc', 'total_miss', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst')
+    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst')
     data = {}
     with open(path, 'r') as f:
         for line in f:
             if 'Finished CPU' in line:
                 data['ipc'] = float(line.split()[9])
                 data['kilo_inst'] = int(line.split()[4]) / 1000
+            if 'DRAM_bw_pochs' in line:
+                data['dram_bw_epochs'] = int(line.split()[1])
+                
+            
+            # Per-core, cache-level statistics
             if f'Core_{cpu}_{cache_level}' not in line: # TODO : Implement multi-core support.
                 continue
             line = line.strip()
@@ -55,9 +60,10 @@ def get_statistics(path, baseline_path=None):
     pf_data = read_file(path)
         
     #print('[get_statistics DEBUG]', trace, stats['simpoint'], stats['prefetcher'], pf_data)
-    iss_prefetches, useful, useless, ipc, load_miss, rfo_miss, kilo_inst = (
+    iss_prefetches, useful, useless, ipc, load_miss, rfo_miss, dram_bw_epochs, kilo_inst = (
         pf_data['issued_prefetches'], pf_data['useful'], pf_data['useless'], 
-        pf_data['ipc'], pf_data['load_miss'], pf_data['rfo_miss'], pf_data['kilo_inst']
+        pf_data['ipc'], pf_data['load_miss'], pf_data['rfo_miss'], 
+        pf_data['dram_bw_epochs'], pf_data['kilo_inst']
     )
     pf_total_miss = load_miss + rfo_miss + useful
     total_miss = pf_total_miss
@@ -66,6 +72,7 @@ def get_statistics(path, baseline_path=None):
     if baseline_path:
         b_data = read_file(baseline_path)
         b_total_miss, b_ipc = b_data['total_miss'], b_data['ipc']
+        b_dram_bw_epochs = b_data['dram_bw_epochs']
         b_load_miss = b_data['load_miss']
         b_rfo_miss = b_data['rfo_miss']
         b_mpki = b_total_miss / b_data['kilo_inst']
@@ -85,9 +92,11 @@ def get_statistics(path, baseline_path=None):
         
     if baseline_path:
         mpki_reduction = (b_mpki - pf_mpki) / b_mpki * 100.
+        dram_bw_reduction = (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
         ipc_improvement = (ipc - b_ipc) / b_ipc * 100.
     else:
         mpki_reduction = np.nan
+        dram_bw_reduction = np.nan
         ipc_improvement = np.nan
         
     return {
@@ -100,6 +109,8 @@ def get_statistics(path, baseline_path=None):
         'coverage': cov,
         'mpki': pf_mpki,
         'mpki_reduction': mpki_reduction,
+        'dram_bw_epochs': dram_bw_epochs,
+        'dram_bw_reduction': dram_bw_reduction,
         'ipc': ipc,
         'ipc_improvement': ipc_improvement,
         'baseline_prefetcher': get_prefetcher_from_path(baseline_path) if baseline_path else None,
@@ -151,8 +162,11 @@ def generate_csv(results_dir, output_file,
 
             
     # Build statistics table
+    # If you edit the columns, preserve the ordering between the dict in get_statistics and
+    # this list.
     columns = ['full_trace', 'trace', 'simpoint', 'prefetcher', 'degree', 'accuracy', 'coverage', 'mpki',
-               'mpki_reduction', 'ipc', 'ipc_improvement', 'baseline_prefetcher', 'path', 'baseline_path']
+               'mpki_reduction',  'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
+               'baseline_prefetcher', 'path', 'baseline_path']
     stats = pd.DataFrame(columns=columns)
     
     with tqdm(total=n_paths, dynamic_ncols=True) as pbar:
