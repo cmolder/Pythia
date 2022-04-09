@@ -25,7 +25,8 @@ from exp_utils import defaults, condor, evaluate
 
 # TODO: Move to config
 default_max_degree = 8
-default_exp_dir = '/scratch/cluster/cmolder/prefetcher_degree_sweep/'
+default_exp_dir = '/scratch/cluster/cmolder/prefetcher_degree_sweep/exp/'
+default_eval_csv = './out/prefetcher_degree_sweep.csv'
 
 help_str = {
 'help': '''usage: {prog} command [<args>]
@@ -118,7 +119,7 @@ Note:
     not be available and the coverage statistic will only be approximate.
 '''.format(
     prog=sys.argv[0], 
-    default_output_file=defaults.default_output_file
+    default_output_file=default_eval_csv
 ),
 }
 
@@ -182,14 +183,20 @@ Eval
 """
 def eval_command():
     """Eval command
+    
+    Return the best degree prefetcher for each prefetcher and phase.
     """
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
-    parser.add_argument('-o', '--output-file', type=str, default=defaults.default_output_file)
+    parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
-    pass
+    evaluate.generate_best_degree_csv(
+        args.results_dir,
+        args.output_file,
+        dry_run=args.dry_run
+    )
 
 
 

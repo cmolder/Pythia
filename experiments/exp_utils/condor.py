@@ -53,10 +53,15 @@ def generate_run_name(trace_path, llc_num_sets, llc_prefetchers, llc_pref_degree
     """Generate a unique run name, given the trace, LLC number of sets, and LLC prefetchers."""
     trace_name = os.path.basename(trace_path).split('.')[0]
     
+    if len(llc_pref_degrees) == len(llc_prefetchers):
+        llc_pref_degrees_suffix = ",".join([str(d) for d in llc_pref_degrees])
+    else:
+        llc_pref_degrees_suffix = ",".join(['na' for d in llc_prefetchers])
+    
     return '-'.join((
         trace_name, 
         f'llc_pref_{",".join(llc_prefetchers)}', 
-        f'llc_pref_degrees_{",".join([str(d) for d in llc_pref_degrees])}' if len(llc_pref_degrees) > 0 else '',
+        f'llc_pref_degrees_{llc_pref_degrees_suffix}',
         f'llc_sets_{llc_num_sets}'
     ))
     

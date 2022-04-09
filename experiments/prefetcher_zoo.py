@@ -21,6 +21,11 @@ from tqdm import tqdm
 
 from exp_utils import defaults, condor, evaluate
 
+# TODO: Move to config
+default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/exp/'
+default_eval_csv = './out/prefetcher_zoo.csv'
+
+
 help_str = {
 'help': '''usage: {prog} command [<args>]
 
@@ -76,7 +81,7 @@ Options:
         If passed, builds the experiment but writes nothing to <experiment-dir>.
 '''.format(
     prog=sys.argv[0], 
-    default_exp_dir=defaults.default_exp_dir,
+    default_exp_dir=default_exp_dir,
     default_trace_dir=defaults.default_trace_dir,
     default_max_hybrid=defaults.default_max_hybrid,
     default_llc_sets=defaults.default_llc_sets,
@@ -94,7 +99,15 @@ Description:
 Options:
     -o / --output-file <output-file>
         Specifies what file path to save the stats CSV data to. This defaults to
-        `{default_output_file}`.
+        `{default_eval_csv}`.
+        
+    --best-degree-csv <best-degree-output-file>
+        If provided, will create <prefetcher>-best variants that use the tuned
+        version of each prefetcher, using the results from <best-degree-output-file>
+        in prefetcher_degree_sweep. 
+        
+        Must copy the relevant degree prefetcher result files from the degree sweep 
+        to <results-dir>.
         
     --dry-run
         If passed, builds the spreadsheet but writes nothing to <output-file>.
@@ -107,7 +120,7 @@ Note:
     not be available and the coverage statistic will only be approximate.
 '''.format(
     prog=sys.argv[0], 
-    default_output_file=defaults.default_output_file
+    default_eval_csv=default_eval_csv
 ),
 }
 
@@ -124,7 +137,7 @@ def condor_setup_command():
 
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('prefetchers', nargs='+', type=str)
-    parser.add_argument('-d', '--experiment-dir', type=str, default=defaults.default_exp_dir)
+    parser.add_argument('-d', '--experiment-dir', type=str, default=default_exp_dir)
     parser.add_argument('-t', '--trace-dir', type=str, default=defaults.default_trace_dir)
     parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
     parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
@@ -172,13 +185,16 @@ def eval_command():
     """
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
-    parser.add_argument('-o', '--output-file', type=str, default=defaults.default_output_file)
+    parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
+    parser.add_argument('--best-degree-csv', type=str)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
+    
     
     evaluate.generate_csv(
         args.results_dir,
         args.output_file,
+        best_degree_csv_file=args.best_degree_csv,
         dry_run=args.dry_run
     )
 

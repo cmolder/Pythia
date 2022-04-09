@@ -8,6 +8,7 @@ import os
 import glob
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 
 def read_file(path, cpu=0, cache_level='LLC'):
     expected_keys = ('ipc', 'total_miss', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst')
@@ -44,6 +45,7 @@ def get_statistics(path, baseline_path=None):
     trace = full_trace.split('_')[0]
     simpoint = full_trace.split('_')[1] if len(full_trace.split('_')) >= 2 else None # TODO : Handle spec-17 formatting
     prefetcher = get_prefetcher_from_path(path)
+    degree = get_prefetcher_degs_from_path(path)
     
     # Don't compare baseline to itself.
     if baseline_path and get_prefetcher_from_path(baseline_path) == prefetcher:
@@ -67,10 +69,10 @@ def get_statistics(path, baseline_path=None):
         b_load_miss = b_data['load_miss']
         b_rfo_miss = b_data['rfo_miss']
         b_mpki = b_total_miss / b_data['kilo_inst']
-        assert b_data['kilo_inst'] == pf_data['kilo_inst'], 'Traces did not run for the same amount of instructions.'
+        assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(baseline_path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
         
     if useful + useless == 0:
-        acc = 'N/A'
+        acc = 100.0 #'N/A'
     else:
         acc = useful / (useful + useless) * 100
         
@@ -93,6 +95,7 @@ def get_statistics(path, baseline_path=None):
         'trace': trace,
         'simpoint': simpoint,
         'prefetcher': prefetcher,
+        'degree': degree,
         'accuracy': acc,
         'coverage': cov,
         'mpki': pf_mpki,
@@ -106,43 +109,122 @@ def get_statistics(path, baseline_path=None):
     
     
 def get_prefetcher_from_path(path):
-    if 'multi' not in path:
-        return 'no'
-    else:
-        return os.path.basename(path).split('-')[-1].rstrip('.txt')
+    l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
+    
+    if llp == 'no':
+        return llp
+    
+    llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
+    llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
+    return llp
+
+    
+def get_prefetcher_degs_from_path(path):
+    l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
+    
+    if llp == 'no':
+        return (None,)
+    
+    _, llpd = llp.replace('spp_dev2', 'sppdev2').split('_')
+    llpd = tuple((None if d == 'na' else int(d)) for d in llpd.split(','))
+    
+    return llpd
     
 
-def generate_csv(results_dir, output_file, baseline_prefetcher='no', dry_run=False):
-    traces = defaultdict(dict)
+def generate_csv(results_dir, output_file, 
+                 best_degree_csv_file=None, dry_run=False):
+    traces = defaultdict(lambda : defaultdict(dict))
+    n_paths = len(glob.glob(os.path.join(results_dir, '*.txt')))
     
     for path in glob.glob(os.path.join(results_dir, '*.txt')):
         full_trace = os.path.basename(path).split('-')[0]
         prefetcher = get_prefetcher_from_path(path)
-          
-        traces[full_trace][prefetcher] = path
+        degrees = get_prefetcher_degs_from_path(path)
+        traces[full_trace][prefetcher][degrees] = path
+        
+    # If we have a best degree CSV file, we will filter out instances of the prefetchers
+    # found in the file on the ones with the best degree in each trace.
+    if best_degree_csv_file:
+        best_deg_df = pd.read_csv(best_degree_csv_file)
+        best_deg_df.index = best_deg_df.Trace
+        #print(best_deg_df)
 
             
-    columns = ['full_trace', 'trace', 'simpoint', 'prefetcher', 'accuracy', 'coverage', 'mpki',
+    # Build statistics table
+    columns = ['full_trace', 'trace', 'simpoint', 'prefetcher', 'degree', 'accuracy', 'coverage', 'mpki',
                'mpki_reduction', 'ipc', 'ipc_improvement', 'baseline_prefetcher', 'path', 'baseline_path']
     stats = pd.DataFrame(columns=columns)
     
-    for tr in traces:
-        assert baseline_prefetcher in traces[tr].keys(), f'Could not find baseline {baseline_prefetcher} run for trace {tr}'
-        
-        for pf in traces[tr]:
-            row = get_statistics(traces[tr][pf], baseline_path=traces[tr][baseline_prefetcher])
-            if row is None:
-                continue
+    with tqdm(total=n_paths, dynamic_ncols=True) as pbar:
+        for tr in traces:
+            assert 'no' in traces[tr].keys(), f'Could not find baseline "no" run for trace {tr}'
+            for pf in traces[tr]:
+                for d in traces[tr][pf]:
+                    #print('[DEBUG]', tr, pf, d)
+                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr]['no'][(None,)])
+                    pbar.update(1)
+                    
+                    # Filter missing rows
+                    if row is None:
+                        continue
+                    # Filter non-best degree prefetchers (if provided).
+                    if best_degree_csv_file and pf in best_deg_df.columns and eval(best_deg_df[pf].loc[tr]) != d:
+                        #print('[DEBUG] Skipping', pf, d, 'best is', best_deg_df[pf].loc[tr])
+                        continue
+
+                    assert all([k in columns for k in row.keys()]), f'Columns missing for row {tr}, {pf}, {d}'
+                    stats.loc[len(stats.index)] = row.values()
                 
-            assert all([k in columns for k in row.keys()])
-            stats.loc[len(stats.index)] = row.values()
-            
+    # Save statistics table
     if not dry_run:
-        print(f'Saving statistics to {output_file}...')
+        print(f'Saving statistics table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         stats.to_csv(output_file, index=False)
             
-        
-            
-        
 
+def generate_best_degree_csv(results_dir, output_file, 
+                             metric='ipc', dry_run=False):
+    traces = defaultdict(lambda : defaultdict(dict))
+    prefetchers = set()
+    best_degree = defaultdict(dict)
+    n_paths = len(glob.glob(os.path.join(results_dir, '*.txt')))
+    
+    for path in glob.glob(os.path.join(results_dir, '*.txt')):
+        full_trace = os.path.basename(path).split('-')[0]
+        prefetcher = get_prefetcher_from_path(path)
+        degrees = get_prefetcher_degs_from_path(path)
+ 
+        traces[full_trace][prefetcher][degrees] = path
+
+    # Build best degree dictionary
+    # - Compute the best_degree for each prefetcher on each trace.
+    with tqdm(total=n_paths, dynamic_ncols=True) as pbar:
+        for tr in traces.keys():
+            for pf in traces[tr].keys():
+                if pf == 'no':
+                    pbar.update(1)
+                    continue
+                prefetchers.add(pf)
+                    
+                scores = defaultdict(lambda : float('-inf'))
+                for d in traces[tr][pf].keys():
+                    pbar.update(1)    
+                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr]['no'][(None,)])
+                    if row is None:
+                        continue
+                    scores[d] = row[metric]
+
+                best_degree[tr][pf] = max(scores, key=scores.get)
+    
+    # Turn best_degree dictionary into a table
+    df = pd.DataFrame(columns=['Trace'] + list(prefetchers))
+    for tr in best_degree.keys():
+        row = best_degree[tr]
+        row['Trace'] = tr
+        df = df.append(best_degree[tr], ignore_index=True)
+    
+    # Save best degree table
+    if not dry_run:
+        print(f'Saving best degree table to {output_file}...')
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        df = df.to_csv(output_file, index=False)

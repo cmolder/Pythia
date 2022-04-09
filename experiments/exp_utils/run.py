@@ -42,13 +42,17 @@ def get_results_file(binary, traces, l1c_prefs=[], l2c_prefs=[], llc_prefs=[],
     
     bp, l1p, l2p, llp, llr, n_cores, n_sets = base_binary.split('-')
     
-    # TODO: Implement similarly for l1p, l2p
+    # Prefetcher degrees
+    l1pd = [str(d) for d in l1c_pref_degrees] if len(l1c_pref_degrees) == len(l1c_prefs) else ['na']*len(l1c_prefs)
+    l2pd = [str(d) for d in l2c_pref_degrees] if len(l2c_pref_degrees) == len(l2c_prefs) else ['na']*len(l2c_prefs)
+    llpd = [str(d) for d in llc_pref_degrees] if len(llc_pref_degrees) == len(llc_prefs) else ['na']*len(llc_prefs)
+    
     if l1p == 'multi':
-        l1p = '_'.join([*l1c_prefs, *[str(d) for d in l1c_pref_degrees]])
+        l1p = ','.join(l1c_prefs) + '_' + ','.join(l1pd)
     if l2p == 'multi':
-        l2p = '_'.join([*l2c_prefs, *[str(d) for d in l2c_pref_degrees]])
+        l2p = ','.join(l2c_prefs) + '_' + ','.join(l2pd)
     if llp == 'multi':
-        llp = '_'.join([*llc_prefs, *[str(d) for d in llc_pref_degrees]])
+        llp = ','.join(llc_prefs) + '_' + ','.join(llpd)
     
     return f'{base_traces}-{bp}-{l1p}-{l2p}-{llp}-{llr}-{n_cores}-{n_sets}.txt'
 
@@ -60,7 +64,7 @@ def get_prefetcher_knobs(prefetchers, pref_degrees=[], level='llc'):
         knobs.append(f'--{level}_prefetcher_types={t}')
         
         # NOTE: Will ignore the degree knob, if the prefetcher lacks one.
-        if t in pref_degree_knobs and len(pref_degrees) > 0:
+        if t in pref_degree_knobs and len(pref_degrees) == len(prefetchers):
             knobs.append(f'--{pref_degree_knobs[t]}={pref_degrees[i]}')
         
     return ' '.join(knobs)
