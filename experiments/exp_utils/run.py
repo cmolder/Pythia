@@ -68,3 +68,26 @@ def get_prefetcher_knobs(prefetchers, pref_degrees=[], level='llc'):
             knobs.append(f'--{pref_degree_knobs[t]}={pref_degrees[i]}')
         
     return ' '.join(knobs)
+
+
+def _is_cloudsuite(trace):
+    trace = os.path.basename(trace)
+    tokens = trace.split('_')
+    
+    return(len(tokens) == 3 and tokens[1].startswith('phase') and tokens[2].startswith('core'))
+
+
+def get_cloudsuite_knobs(traces):
+    """Parse the format of the filenames to determine if the run is using
+    a CloudSuite trace.
+    
+    (TODO: Do automatically by reading the file format).
+    """
+    is_cloudsuite = [_is_cloudsuite(t) for t in traces]
+    
+    assert all(i for i in is_cloudsuite) or all(~i for i in is_cloudsuite), 'Cannot mix CloudSuite and non-CloudSuite traces'
+    
+    if all(i for i in is_cloudsuite):
+        return '--knob_cloudsuite=true'
+    else:
+        return ''

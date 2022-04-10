@@ -44,11 +44,29 @@ def read_file(path, cpu=0, cache_level='LLC'):
 
     return data
     
+    
+def _get_trace_name(path):
+    """Get the trace name and simpoint name.
+    
+    For multicore traces (e.g. CloudSuite),
+    will return trace name as name + core.
+    
+    (TODO: Handle SPEC '17 formatting)
+    """
+    trace = os.path.basename(path).split('-')[0]
+    tokens = trace.split('_')
+    if len(tokens) == 1: # Gap        : e.g. bfs
+        return tokens[0], None
+    if len(tokens) == 2: # SPEC '06   : e.g. astar_313B
+        return tokens[0], tokens[1]
+    if len(tokens) == 3: # Cloudsuite : e.g. cassandra_phase0_core0
+        return tokens[0] + '_' + tokens[2], tokens[1] # Name + core, simpoint
+    
+    
 
 def get_statistics(path, baseline_path=None):
     full_trace = os.path.basename(path).split('-')[0]
-    trace = full_trace.split('_')[0]
-    simpoint = full_trace.split('_')[1] if len(full_trace.split('_')) >= 2 else None # TODO : Handle spec-17 formatting
+    trace, simpoint = get_trace_from_path(path)
     prefetcher = get_prefetcher_from_path(path)
     degree = get_prefetcher_degs_from_path(path)
     

@@ -221,8 +221,9 @@ def run_command():
     
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {llc_pref_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {llc_pref_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
         binary=binary,
+        cloudsuite_knobs=run.get_cloudsuite_knobs(args.execution_traces),
         llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees),
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,

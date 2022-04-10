@@ -34,7 +34,7 @@ namespace knob
 {
     extern uint64_t warmup_instructions;
     extern uint64_t simulation_instructions;
-    extern uint8_t  knob_cloudsuite;
+    extern bool     knob_cloudsuite;
     extern uint8_t  knob_low_bandwidth;
     extern bool     measure_ipc;
     extern uint32_t measure_ipc_epoch;
@@ -538,7 +538,7 @@ void print_knobs()
         << "champsim_seed " << champsim_seed << endl
         // << "low_bandwidth " << knob_low_bandwidth << endl
         // << "scramble_loads " << knob_scramble_loads << endl
-        // << "cloudsuite " << knob_cloudsuite << endl
+        << "cloudsuite " << knob::knob_cloudsuite << endl
         << "measure_ipc " << knob::measure_ipc << endl
         << "measure_ipc_epoch " << knob::measure_ipc_epoch << endl
         << "measure_dram_bw " << knob::measure_dram_bw << endl
