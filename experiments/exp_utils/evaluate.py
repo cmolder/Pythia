@@ -45,7 +45,7 @@ def read_file(path, cpu=0, cache_level='LLC'):
     return data
     
     
-def _get_trace_name(path):
+def get_trace_from_path(path):
     """Get the trace name and simpoint name.
     
     For multicore traces (e.g. CloudSuite),
