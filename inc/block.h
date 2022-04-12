@@ -22,6 +22,7 @@ class BLOCK {
              full_addr,
              tag,
              data,
+             ip,
              cpu,
              instr_id;
 
@@ -43,6 +44,7 @@ class BLOCK {
         full_addr = 0;
         tag = 0;
         data = 0;
+        ip = 0;
         cpu = 0;
         instr_id = 0;
 

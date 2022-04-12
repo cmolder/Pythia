@@ -91,3 +91,18 @@ def get_cloudsuite_knobs(traces):
         return '--knob_cloudsuite=true'
     else:
         return ''
+
+def get_pc_prefetcher_knobs(results_dir, results_file):
+    """Get the knobs required to track per-PC prefetch statistics,
+    including the toggle knob and output file path.
+    """
+    pc_pref_dir = os.path.join(results_dir, 'pc_pref_stats')
+    os.makedirs(pc_pref_dir, exist_ok=True)
+    
+    knobs = ' --measure_pc_prefetches=true'
+    
+    for level in ['l1d', 'l2c', 'llc']:
+        level_results_file = results_file.replace('.txt', f'_{level}.txt')
+        knobs += f' --pc_prefetch_file_{level}={pc_pref_dir}/{level_results_file}'
+    
+    return knobs

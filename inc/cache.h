@@ -1,6 +1,7 @@
 #ifndef CACHE_H
 #define CACHE_H
 
+#include <unordered_map>
 #include "memory_class.h"
 #include "prefetcher.h"
 
@@ -127,6 +128,9 @@ class CACHE : public MEMORY {
     /* Array of prefetchers associated with this cache */
     vector<Prefetcher*> prefetchers;
     vector<Prefetcher*> l1d_prefetchers;
+    
+    /* For tracking per-PC prefetch statistics */
+    unordered_map<uint64_t, uint64_t> per_pc_useful, per_pc_useless;
 
     /* For semi-perfect cache */
     deque<uint64_t> page_buffer;

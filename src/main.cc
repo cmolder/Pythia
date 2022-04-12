@@ -43,6 +43,10 @@ namespace knob
     extern uint64_t measure_dram_bw_epoch;
     extern bool     measure_cache_acc;
     extern uint64_t measure_cache_acc_epoch;
+    extern bool     measure_pc_prefetches;
+    extern string   pc_prefetch_file_l1d;
+    extern string   pc_prefetch_file_l2c;
+    extern string   pc_prefetch_file_llc;
     extern bool l1d_perfect;
     extern bool l2c_perfect;
     extern bool llc_perfect;
@@ -126,6 +130,39 @@ void print_roi_stats(uint32_t cpu, CACHE *cache)
     for(uint32_t i = 0; i < CACHE_ACC_LEVELS; ++i)
         cout<< "Core_" << cpu << "_" << cache->NAME << "_acc_level_" << i << " " << cache->acc_epoch_hist[i] << endl;
     cout << endl;
+    
+    // Save PC prefetch file
+    if(knob::measure_pc_prefetches && 
+      (cache->NAME == "L1D" || cache->NAME == "L2C" || cache->NAME == "LLC")) {
+        
+        ofstream useful_out;
+        if(cache->NAME == "L1D")
+            useful_out = ofstream(knob::pc_prefetch_file_l1d);
+        else if(cache->NAME == "L2C")
+            useful_out = ofstream(knob::pc_prefetch_file_l2c);
+        else if(cache->NAME == "LLC")
+            useful_out = ofstream(knob::pc_prefetch_file_llc);
+        else 
+            useful_out = ofstream("/dev/null");
+
+        
+        for(auto entry : cache->per_pc_useful) {
+            uint64_t pc = entry.first;
+            uint64_t useless;
+            if(cache->per_pc_useless.find(pc) == cache->per_pc_useless.end()) {
+                useless = 0;
+            } else {
+                useless = cache->per_pc_useless[pc];
+            }
+            useful_out << hex << pc << dec << " " << entry.second << " " << useless << endl;
+        }
+        for(auto entry : cache->per_pc_useless) {
+            uint64_t pc = entry.first;
+            if(cache->per_pc_useful.find(pc) == cache->per_pc_useful.end()) {
+                useful_out << hex << pc << dec << " 0 " << entry.second << endl;
+            }
+        }
+    }
 }
 
 void print_sim_stats(uint32_t cpu, CACHE *cache)
@@ -545,6 +582,10 @@ void print_knobs()
         << "measure_dram_bw_epoch " << knob::measure_dram_bw_epoch << endl
         << "measure_cache_acc " << knob::measure_cache_acc << endl
         << "measure_cache_acc_epoch " << knob::measure_cache_acc_epoch << endl
+        << "measure_pc_prefetches " << knob::measure_pc_prefetches << endl
+        << "pc_prefetch_file_l1d " << knob::pc_prefetch_file_l1d << endl
+        << "pc_prefetch_file_l2c " << knob::pc_prefetch_file_l2c << endl
+        << "pc_prefetch_file_llc " << knob::pc_prefetch_file_llc << endl
         << "l1d_perfect " << knob::l1d_perfect << endl
         << "l2c_perfect " << knob::l2c_perfect << endl
         << "llc_perfect " << knob::llc_perfect << endl

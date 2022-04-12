@@ -14,6 +14,7 @@ namespace knob
     extern bool llc_semi_perfect;
     extern uint32_t semi_perfect_cache_page_buffer_size;
     extern bool measure_cache_acc;
+    extern bool measure_pc_prefetches;
     extern uint32_t measure_cache_acc_epoch;
 }
 
@@ -646,6 +647,14 @@ void CACHE::handle_read()
                 // update prefetch stats and reset prefetch bit
                 if (block[set][way].prefetch)
                 {
+                    // Per-PC prefetch stats
+                    if(knob::measure_pc_prefetches) {
+                        if(per_pc_useful.find(block[set][way].ip) == per_pc_useful.end()) {
+                            per_pc_useful[block[set][way].ip] = 0;
+                        }
+                        per_pc_useful[block[set][way].ip]++;
+                    }
+                    
                     pf_useful++;
                     pf_useful_epoch++;
                     block[set][way].prefetch = 0;
@@ -1139,8 +1148,18 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet)
             assert(0);
     }
 #endif
-    if (block[set][way].prefetch && (block[set][way].used == 0))
+    if (block[set][way].prefetch && (block[set][way].used == 0)) {
+        
+        // Per-PC prefetch stats
+        if(knob::measure_pc_prefetches) {
+            if(per_pc_useless.find(block[set][way].ip) == per_pc_useless.end()) {
+                per_pc_useless[block[set][way].ip] = 0;
+            }
+            per_pc_useless[block[set][way].ip]++;
+        }
+        
         pf_useless++;
+    }
 
     if (block[set][way].valid == 0)
         block[set][way].valid = 1;
@@ -1163,6 +1182,7 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet)
     block[set][way].address = packet->address;
     block[set][way].full_addr = packet->full_addr;
     block[set][way].data = packet->data;
+    block[set][way].ip = packet->ip;
     block[set][way].cpu = packet->cpu;
     block[set][way].instr_id = packet->instr_id;
 

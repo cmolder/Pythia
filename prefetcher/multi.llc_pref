@@ -12,14 +12,14 @@
 #include "dspatch.h"
 #include "spp_dev2.h"
 #include "ppf_dev.h"
-#include "mlop.h"
+#include "mlop.h" // FIXME: Gives segfault
 #include "bingo.h"
 #include "stride.h"
 #include "ampm.h"
 #include "streamer.h"
 #include "pref_power7.h"
 #include "sisb.h"
-#include "triage.h"
+#include "triage.h"  // FIXME: Gives assertion error
 
 using namespace std;
 
