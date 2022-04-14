@@ -28,7 +28,6 @@ namespace knob
 	extern vector<string> llc_prefetcher_types;
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
-    extern bool           track_pc_pf_statistics;
 }
 
 // vector<Prefetcher*> prefetchers;
@@ -154,9 +153,6 @@ void CACHE::llc_prefetcher_initialize()
 	}
 
 	assert(knob::llc_prefetcher_types.size() == prefetchers.size() || !knob::llc_prefetcher_types[0].compare("none"));
-    
-    // Initialize PC prefetch statistics tracking
-    // TODO
 }
 
 uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
@@ -189,10 +185,7 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_LLC, 0);
 			}
 		}
-        
-        // Add prefetches to PC statistics
-        // TODO
-        
+
         // Clear address / level vectors
 		pref_addr.clear();
         pref_level.clear();

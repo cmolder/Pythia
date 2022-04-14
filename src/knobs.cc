@@ -33,9 +33,12 @@ namespace knob
 	bool     measure_cache_acc = true;
 	uint64_t measure_cache_acc_epoch = 1024;
     bool     measure_pc_prefetches = false;
-    string   pc_prefetch_file_l1d = string("/dev/null");
+    string   pc_prefetch_file_l1d = string("/dev/null"); // Per-PC prefetch statistics
     string   pc_prefetch_file_l2c = string("/dev/null");
     string   pc_prefetch_file_llc = string("/dev/null");
+    
+    /* multi_pc_trace */
+    string  pc_trace_llc = string("/dev/null");
 
 	/* next-line */
 	vector<int32_t>  next_line_deltas;
@@ -444,6 +447,12 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "pc_prefetch_file_llc"))
     {
 		knob::pc_prefetch_file_llc = string(value);
+    }
+    
+    /* multi_pc_trace */
+    else if (MATCH("", "pc_trace_llc"))
+    {
+		knob::pc_trace_llc = string(value);
     }
 
     /* next-line */

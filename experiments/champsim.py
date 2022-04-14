@@ -46,9 +46,11 @@ Description:
     {prog} build <prefetcher>
         Builds ChampSim binaries with an LLC <prefetcher>, where <prefetcher> is one of:
 
-        no            No prefetcher
-        multi         Runtime-configurable prefetcher (see multi.llc_pref for options)
-        all           All of the above.
+        no             No prefetcher
+        multi          Runtime-configurable prefetcher (see multi.llc_pref for options)
+        multi_pc_trace Prefetch using the chosen prefetcher for each PC, as defined in 
+                       a PC trace.
+        all            All of the above.
         
         Note: The replacement policy is SHiP for the LLC, and L1/L2 have no prefetcher.
 
@@ -100,6 +102,9 @@ Options:
     -t / --llc-pref <list-of-llc-prefetchers>
         List of LLC prefetchers to run. If two or more are proivded, runs them
         in a hybrid setting. By default, it will run no prefetcher.
+        
+    --pc-trace-llc <pc-trace-file>
+        File to a PC trace. Must be passed if the target is 'pc_trace'.
         
     --llc-pref-degrees <list-of-llc-prefetcher-degrees>
         List of degrees to run each LLC prefetcher. If the prefetcher does not
@@ -186,6 +191,7 @@ def run_command():
     parser.add_argument('-t', '--llc-pref', nargs='+', type=str, default=['no'])
     parser.add_argument('-c', '--cores', type=int, default=1)
     parser.add_argument('-s', '--sets', type=int, default=defaults.default_llc_sets)
+    parser.add_argument('--pc-trace-llc', type=str, default=None)
     parser.add_argument('--llc-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--results-dir', default=defaults.default_results_dir)
     parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
@@ -196,14 +202,22 @@ def run_command():
     # Assertion checks
     assert len(args.execution_traces) == args.cores, f'Provided {len(args.execution_traces)} traces for a {args.cores} core simulation.'   
     assert(not (len(args.llc_pref) > 1 and 'no' in args.llc_pref)), f'Cannot run "no" prefetcher in a hybrid setup: {args.llc_pref}'
-    #assert(all([t in defaults.default_prefetcher_candidates for t in args.targets])), f'At least one target in {args.targets} not in {defaults.default_prefetcher_candidates}'      
+    if args.llc_pref == ['pc_trace']:
+        assert args.pc_trace_llc is not None, 'Must pass a pc_trace file to <pc-trace-llc> if running pc_trace prefetcher.'
+    
 
     # Generate results directory
     results_dir = args.results_dir.rstrip('/')
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)
-
-    llc_pref_fn = 'no' if args.llc_pref == ['no'] else 'multi'
+        
+    # Choose llc prefetcher binary
+    if args.llc_pref == ['no']:
+        llc_pref_fn = 'no'
+    elif args.llc_pref == ['pc_trace']:
+        llc_pref_fn = 'multi_pc_trace'
+    else:
+        llc_pref_fn = 'multi'
     
     # Generate paths
     binary = run.get_binary(
@@ -221,11 +235,12 @@ def run_command():
     
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {llc_pref_knobs} {pc_pref_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {llc_pref_knobs} {pc_pref_knobs} {pc_trace_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
         binary=binary,
         cloudsuite_knobs=run.get_cloudsuite_knobs(args.execution_traces),
         llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees),
         pc_pref_knobs=run.get_pc_prefetcher_knobs(results_dir, results_file),
+        pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc}' if args.pc_trace_llc else '',
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,

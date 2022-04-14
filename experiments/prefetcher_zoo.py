@@ -19,7 +19,7 @@ import numpy as np
 from scipy import stats
 from tqdm import tqdm
 
-from exp_utils import defaults, condor, evaluate
+from exp_utils import defaults, condor, evaluate, pc_trace
 
 # TODO: Move to config
 default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/exp/'
@@ -32,6 +32,8 @@ help_str = {
 Available commands:
     condor_setup     Set up Prefetcher Zoo sweep on Condor
     eval             Parse and compute metrics on sweep results
+    pc_trace         Parse a per-PC statistics file and generate traces of the
+                     best prefetchers for each PC on each SimPoint
     help             Display this help message. Command-specific help messages
                      can be displayed with `{prog} help command`
 '''.format(prog=sys.argv[0]),
@@ -66,6 +68,12 @@ Options:
         The number of LLC cache sets that ChampSim will be simulating. By default,
         {default_llc_sets} sets are used (if the binary is available).
         
+    --pc-trace-dir <pc-trace-dir>
+        Directory to find PC traces. Must be passed if <prefetchers> is 'pc_trace'.
+        
+    --pc-trace-metric <pc-trace-accuracy>
+        The metric used to generate the PC traces. Defaults to {default_pc_trace_metric}.
+        
     --warmup-instructions <warmup-instructions>
         Number of instructions to warmup the simulation for. Defaults to
         {default_warmup_instructions}M instructions
@@ -86,7 +94,8 @@ Options:
     default_max_hybrid=defaults.default_max_hybrid,
     default_llc_sets=defaults.default_llc_sets,
     default_warmup_instructions=defaults.default_warmup_instructions,
-    default_sim_instructions=defaults.default_sim_instructions
+    default_sim_instructions=defaults.default_sim_instructions,
+    default_pc_trace_metric='accuracy'
 ),
     
 'eval': '''usage: {prog} eval <results-dir> [--output-file <output-file>] [--norm-baseline <baseline>]
@@ -109,6 +118,10 @@ Options:
         Must copy the relevant degree prefetcher result files from the degree sweep 
         to <results-dir>.
         
+    --pc
+        If provided, will compute per-PC prefetch stats on the LLC, using results
+        in <results-dir>/pc_pref_stats/
+        
     --dry-run
         If passed, builds the spreadsheet but writes nothing to <output-file>.
 
@@ -121,6 +134,22 @@ Note:
 '''.format(
     prog=sys.argv[0], 
     default_eval_csv=default_eval_csv
+),
+'pc_trace': '''usage: {prog} pc_trace <pc-stats-file> <output-dir> [-m / --metric <metric>]
+
+Description:
+    {prog} pc_trace <pc-stats-file> <output-dir>
+        Parses a PC stats file, and for each PC in each trace, determines the best
+        prefetcher under <metric>. These traces are saved to the output dir, for use
+        in the multi_pc_trace prefetcher.
+        
+Options:
+    -m / --metric <metric>
+        Specifies what metric to evaluate prefetchers by. Currently, the options are:
+        {metric_options}
+'''.format(
+    prog=sys.argv[0],
+    metric_options=pc_trace.metrics
 ),
 }
 
@@ -142,6 +171,8 @@ def condor_setup_command():
     parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
     parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
     parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--pc-trace-dir', type=str, default=None)
+    parser.add_argument('--pc-trace-metric', type=str, default='accuracy')
     parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
     parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
     parser.add_argument('--dry-run', action='store_true')
@@ -162,6 +193,9 @@ def condor_setup_command():
     print('    Max hybrid     :', args.hybrid)
     print('    # LLC sets     :', args.llc_sets)
     
+    if args.prefetchers == ('pc_trace',):
+        assert args.pc_trace_dir is not None, 'Must pass a PC trace directory if sweeping on pc_trace'
+    
     condor.build_sweep(
         args.trace_dir,
         args.prefetchers,
@@ -169,6 +203,7 @@ def condor_setup_command():
         llc_num_sets=args.llc_sets,
         exp_dir=args.experiment_dir,
         champsim_dir=champsim_dir,
+        pc_trace_dir=args.pc_trace_dir,
         num_instructions=args.num_instructions,
         warmup_instructions=args.warmup_instructions,
         dry_run=args.dry_run,
@@ -187,17 +222,49 @@ def eval_command():
     parser.add_argument('results_dir', type=str)
     parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
     parser.add_argument('--best-degree-csv', type=str)
+    parser.add_argument('--pc', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
-    
+    print('Generating cumulative run statistics...')
     evaluate.generate_csv(
         args.results_dir,
         args.output_file,
         best_degree_csv_file=args.best_degree_csv,
         dry_run=args.dry_run
     )
-
+    
+    if args.pc:
+        print('Generating per-PC run statistics...')
+        evaluate.generate_pc_csv(
+            args.results_dir,
+            args.output_file.replace('.csv', '_pc_llc.csv'),
+            level='llc',
+            best_degree_csv_file=args.best_degree_csv,
+            dry_run=args.dry_run
+        )
+        
+        
+"""
+PC Trace
+"""
+def pc_trace_command():
+    """PC trace command
+    """ 
+    parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
+    parser.add_argument('pc_stats_file', type=str)
+    parser.add_argument('output_dir', type=str)
+    parser.add_argument('-m', '--metric', type=str, default='accuracy')
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args(sys.argv[2:])
+    
+    pc_trace.build_pc_traces(
+        args.pc_stats_file,
+        args.output_dir,
+        args.metric,
+        level='llc',
+        dry_run=args.dry_run
+    )
 
 
 """
@@ -222,6 +289,7 @@ Main
 """
 commands = {
     'condor_setup': condor_setup_command,
+    'pc_trace': pc_trace_command,
     'eval': eval_command,
     'help': help_command,
 }

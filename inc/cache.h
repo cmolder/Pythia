@@ -131,6 +131,7 @@ class CACHE : public MEMORY {
     
     /* For tracking per-PC prefetch statistics */
     unordered_map<uint64_t, uint64_t> per_pc_useful, per_pc_useless;
+    //unordered_map<pair<uint64_t, uint8_t>> per_pc_miss; // Indexed by (PC, type) - TODO: How to get? Need to blame misses on PCs.
 
     /* For semi-perfect cache */
     deque<uint64_t> page_buffer;

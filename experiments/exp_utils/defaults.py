@@ -8,8 +8,8 @@ default_llc_repl_fn = 'ship'
 default_llc_ways = 16
 default_llc_sets = 2048
 
-prefetcher_names = ['no', 'multi']
-prefetcher_fns = ['no', 'multi']
+prefetcher_names = ['no', 'multi', 'multi_pc_trace']
+prefetcher_fns = ['no', 'multi', 'multi_pc_trace']
 
 default_results_dir = './out/'
 default_config_file = './config/default_sweep.ini'

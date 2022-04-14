@@ -7,7 +7,7 @@ Author: Carson Molder
 import os
 import glob
 from itertools import combinations, product
-from exp_utils import defaults, run
+from exp_utils import defaults, run, pc_trace, evaluate
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -36,6 +36,8 @@ def generate_condor_script(out, dry_run, **params):
     # Add optional parameters
     if 'llc_pref_degrees' in params.keys() and params['llc_pref_degrees'] is not None:
         cfg += f'\\\n    --llc-pref-degrees {params["llc_pref_degrees"]}'
+    if 'pc_trace_file' in params.keys() and params['pc_trace_file'] is not None:
+        cfg += f'\\\n    --pc-trace-llc {params["pc_trace_file"]}'
     
     if not dry_run:
         with open(out, 'w') as f:
@@ -72,6 +74,8 @@ def build_run(tr_path, llc_prefetchers,
               llc_num_sets=defaults.default_llc_sets,
               exp_dir=defaults.default_exp_dir,
               champsim_dir=defaults.default_champsim_dir,
+              pc_trace_dir=None,
+              pc_trace_metric='accuracy',
               num_instructions=defaults.default_sim_instructions,
               warmup_instructions=defaults.default_warmup_instructions,
               dry_run=False, 
@@ -85,7 +89,6 @@ def build_run(tr_path, llc_prefetchers,
             
         llc_prefetchers: List[string]
             List of prefetchers that are in multi.llc_pref, for knob
-            
             
         llc_num_sets: int
             Number of LLC sets
@@ -150,14 +153,26 @@ def build_run(tr_path, llc_prefetchers,
         
     if verbose:
         print(f'ChampSim simulation parameters for {run_name}:')
-        print(f'    targets        : {" ".join(targets)}')
+        print(f'    targets        : {" ".join(llc_prefetchers)}')
         print(f'    experiment dir : {exp_dir}')
         print(f'    champsim path  : {champsim_dir}')
         print(f'    results dir    : {results_dir}')
         print(f'    # cores        : {1}')
         print(f'    # instructions : {num_instructions} million')
         print(f'    # warmup insts : {warmup_instructions} million')
+        
+    # Add PC trace path, if we are running the pc_trace prefetcher.
+    if llc_prefetchers == ('pc_trace',):
+        assert pc_trace_dir is not None
+        full_trace = evaluate.get_full_trace_from_path(os.path.basename(tr_path).split('.')[0])
+        pc_trace_file = os.path.join(
+            pc_trace_dir, 
+            pc_trace.get_pc_trace_file(full_trace, pc_trace_metric, level='llc'))
+        
+        if verbose:
+            print(f'    pc_trace file  : {pc_trace_file}' )
     
+    # Generate Condor script
     generate_condor_script(
         script_file,
         dry_run,
@@ -168,6 +183,7 @@ def build_run(tr_path, llc_prefetchers,
         num_sets=llc_num_sets,
         llc_prefetchers=' '.join(llc_prefetchers),
         llc_pref_degrees=' '.join([str(d) for d in llc_pref_degrees]) if len(llc_pref_degrees) > 0 else None,
+        pc_trace_file=None if llc_prefetchers !=  ('pc_trace',) else pc_trace_file,
         results_dir=results_dir,
         num_instructions=num_instructions,
         warmup_instructions=warmup_instructions
@@ -181,6 +197,8 @@ def build_sweep(trace_dir, llc_prefetchers,
                 llc_num_sets=defaults.default_llc_sets,
                 exp_dir=defaults.default_exp_dir,
                 champsim_dir=defaults.default_champsim_dir,
+                pc_trace_dir=None,
+                pc_trace_metric='accuracy',
                 num_instructions=defaults.default_sim_instructions,
                 warmup_instructions=defaults.default_warmup_instructions,
                 dry_run=False, 
@@ -199,6 +217,8 @@ def build_sweep(trace_dir, llc_prefetchers,
                     llc_num_sets=llc_num_sets,
                     exp_dir=exp_dir,
                     champsim_dir=champsim_dir,
+                    pc_trace_dir=pc_trace_dir,
+                    pc_trace_metric=pc_trace_metric,
                     num_instructions=num_instructions,
                     warmup_instructions=warmup_instructions,
                     dry_run=dry_run, 
