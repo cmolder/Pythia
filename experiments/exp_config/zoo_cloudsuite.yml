@@ -22,9 +22,9 @@ paths:
     exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_cloudsuite/'
     trace_dir: '/scratch/cluster/cmolder/traces/cloudsuite/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
-conda:
-    source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
-    env: 'tensorflow'
+# conda:
+#     source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
+#     env: 'tensorflow'
 condor:
     user: 'cmolder@cs.utexas.edu'
     group: 'GRAD'

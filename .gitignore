@@ -21,6 +21,7 @@ results/
 tracer/obj-intel64/
 tags
 *.out
+*.bak
 libbf/
 .ipynb_checkpoints/
 __pycache__/

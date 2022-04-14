@@ -16,7 +16,9 @@ paths:
     trace_dir: '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
     pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_08_combined/pc_trace/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
-    conda: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
+# conda:
+#     source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
+#     env: 'tensorflow'
 condor:
     user: 'cmolder@cs.utexas.edu'
     group: 'GRAD'
