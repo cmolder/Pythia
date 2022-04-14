@@ -6,17 +6,13 @@ Build and run singlecore versions of ChampSim.
 Authors: Quang Duong and Carson Molder
 """
 
+# Try not to import anything outside Python default libraries.
 import argparse
 import os
 import sys
 import shutil
 import itertools
 from collections import defaultdict
-
-import pandas as pd
-import numpy as np
-from scipy import stats
-from tqdm import tqdm
 
 from exp_utils import defaults, build, run
 

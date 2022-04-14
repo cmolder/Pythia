@@ -19,83 +19,40 @@ import numpy as np
 from scipy import stats
 from tqdm import tqdm
 
-from exp_utils import defaults, condor, evaluate, pc_trace
+from exp_utils import condor, config, evaluate, pc_trace
 
-# TODO: Move to config
-default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/exp/'
+# Defaults (TODO: Move to yml or launch args)
 default_eval_csv = './out/prefetcher_zoo.csv'
-
+default_pc_trace_metric = 'num_useful'
 
 help_str = {
 'help': '''usage: {prog} command [<args>]
 
 Available commands:
-    condor_setup     Set up Prefetcher Zoo sweep on Condor
-    eval             Parse and compute metrics on sweep results
-    pc_trace         Parse a per-PC statistics file and generate traces of the
-                     best prefetchers for each PC on each SimPoint
-    help             Display this help message. Command-specific help messages
-                     can be displayed with `{prog} help command`
+    condor    Set up Prefetcher Zoo sweep on Condor
+    eval      Parse and compute metrics on sweep results
+    pc_trace  Parse a per-PC statistics file and generate traces of the
+              best prefetchers for each PC on each SimPoint
+    help      Display this help message. Command-specific help messages
+              can be displayed with `{prog} help command`
 '''.format(prog=sys.argv[0]),
 
 # TODO : Move a bunch of these args to the exp_config.
-'condor_setup': '''usage: {prog} condor_setup <prefetchers> [-h / --hybrid <max-hybrid-count>]
+'condor': '''usage: {prog} condor <config-file> [-v / --verbose] [-d / --dry-run]
 
 Description:
-    {prog} condor_setup <prefetchers>
-        Sets up a Prefetching Zoo sweep for use on Condor. <prefetchers> is any set of LLC prefetchers
-        defined in prefetcher/multi.llc_pref, separated by a space (" ").
+    {prog} condor <config-file>
+        Sets up a Prefetching Zoo sweep for use on Condor. <config-file> is a path to a 
+        .yml file with the config (example: experiments/exp_utils/zoo.yml)
         
 Options:
-    -d / --experiment-dir <experiment-dir>
-        The directory to put the Condor scripts, results, etc.
-        
-        Default: {default_exp_dir}
-        
-    -t / --trace-dir <trace-dir>
-        The directory where ChampSim traces will be found.
-        
-        Default {default_trace_dir}
-    
-    -h / --hybrid <max-hybrid-counts>
-        Will build all combinations of LLC <prefetchers>, up to <max-hybrid-counts> running
-        at the same time. For example, -h 2 will build configurations for all 2 hybrids, single prefetchers,
-        and no prefetcher.
-        
-        Default: {default_max_hybrid}
-        
-    -s / --llc-sets <num-llc-sets>
-        The number of LLC cache sets that ChampSim will be simulating. By default,
-        {default_llc_sets} sets are used (if the binary is available).
-        
-    --pc-trace-dir <pc-trace-dir>
-        Directory to find PC traces. Must be passed if <prefetchers> is 'pc_trace'.
-        
-    --pc-trace-metric <pc-trace-accuracy>
-        The metric used to generate the PC traces. Defaults to {default_pc_trace_metric}.
-        
-    --warmup-instructions <warmup-instructions>
-        Number of instructions to warmup the simulation for. Defaults to
-        {default_warmup_instructions}M instructions
-
-    --num-instructions <num-instructions>
-        Number of instructions to run the simulation for. Defaults to
-        {default_sim_instructions}M instructions
-        
     -v / --verbose
         If passed, prints extra details about the experiment setup.
         
-    --dry-run
+    -d / --dry-run
         If passed, builds the experiment but writes nothing to <experiment-dir>.
 '''.format(
     prog=sys.argv[0], 
-    default_exp_dir=default_exp_dir,
-    default_trace_dir=defaults.default_trace_dir,
-    default_max_hybrid=defaults.default_max_hybrid,
-    default_llc_sets=defaults.default_llc_sets,
-    default_warmup_instructions=defaults.default_warmup_instructions,
-    default_sim_instructions=defaults.default_sim_instructions,
-    default_pc_trace_metric='accuracy'
 ),
     
 'eval': '''usage: {prog} eval <results-dir> [--output-file <output-file>] [--norm-baseline <baseline>]
@@ -103,7 +60,7 @@ Options:
 Description:
     {prog} eval <results-dir>
         Runs the evaluation procedure on the ChampSim result files found in <results-dir>
-        and outputs a CSV at the specified output path.
+        (i.e. champsim_results/) and outputs a CSV at the specified output path.
 
 Options:
     -o / --output-file <output-file>
@@ -155,60 +112,37 @@ Options:
 
 
 """
-Condor Setup
+Condor
 """
-def condor_setup_command():
-    """Condor Setup command
+def condor_command():
+    """Condor command
     """
     if len(sys.argv) < 3:
-        print(help_str['condor_setup'])
+        print(help_str['condor'])
         exit(-1)
-
+        
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
-    parser.add_argument('prefetchers', nargs='+', type=str)
-    parser.add_argument('-d', '--experiment-dir', type=str, default=default_exp_dir)
-    parser.add_argument('-t', '--trace-dir', type=str, default=defaults.default_trace_dir)
-    parser.add_argument('-h', '--hybrid', type=int, default=defaults.default_max_hybrid)
-    parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
+    parser.add_argument('config_file', type=str)
     parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--pc-trace-dir', type=str, default=None)
-    parser.add_argument('--pc-trace-metric', type=str, default='accuracy')
-    parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
-    parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
-    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('-d', '--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
-    
-    
-    champsim_dir = defaults.default_champsim_dir if not os.environ.get('PYTHIA_HOME') else os.environ.get('PYTHIA_HOME')
+    cfg = config.read_config(args.config_file)
     
     print('Setting up Condor Prefetcher Zoo experiment:')
-    print('    ChampSim dir   :', champsim_dir)
-    print('    Experiment dir :', args.experiment_dir)
-    print('    Trace dir      :', args.trace_dir)
-    print('    # instructions :', args.num_instructions, 'million')
-    print('    # warmup       :', args.warmup_instructions, 'million')
+    print('    ChampSim:')
+    print('        # sim inst    :', cfg.champsim.sim_instructions, 'million')
+    print('        # warmup inst :', cfg.champsim.warmup_instructions, 'million')
+    print('    Directories:')
+    print('        ChampSim   :', cfg.paths.champsim_dir)
+    print('        Experiment :', cfg.paths.exp_dir)
+    print('        Traces     :', cfg.paths.trace_dir)
+    print('    LLC:')
+    print('        Sets             :', cfg.llc.sets)
+    print('        Pref. candidates :', ', '.join(cfg.llc.pref_candidates))
+    print('        Max hybrid       :', cfg.llc.max_hybrid)
+    print()
     
-    print('Cache / prefetcher setup:')
-    print('    Prefetchers    :', ', '.join(args.prefetchers))
-    print('    Max hybrid     :', args.hybrid)
-    print('    # LLC sets     :', args.llc_sets)
-    
-    if args.prefetchers == ('pc_trace',):
-        assert args.pc_trace_dir is not None, 'Must pass a PC trace directory if sweeping on pc_trace'
-    
-    condor.build_sweep(
-        args.trace_dir,
-        args.prefetchers,
-        max_hybrid=args.hybrid,
-        llc_num_sets=args.llc_sets,
-        exp_dir=args.experiment_dir,
-        champsim_dir=champsim_dir,
-        pc_trace_dir=args.pc_trace_dir,
-        num_instructions=args.num_instructions,
-        warmup_instructions=args.warmup_instructions,
-        dry_run=args.dry_run,
-        verbose=args.verbose
-    )
+    condor.build_sweep(cfg, dry_run=args.dry_run, verbose=args.verbose)
 
 
 
@@ -254,7 +188,7 @@ def pc_trace_command():
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('pc_stats_file', type=str)
     parser.add_argument('output_dir', type=str)
-    parser.add_argument('-m', '--metric', type=str, default='accuracy')
+    parser.add_argument('-m', '--metric', type=str, default=default_pc_trace_metric)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
@@ -288,7 +222,7 @@ def help_command():
 Main
 """
 commands = {
-    'condor_setup': condor_setup_command,
+    'condor': condor_command,
     'pc_trace': pc_trace_command,
     'eval': eval_command,
     'help': help_command,

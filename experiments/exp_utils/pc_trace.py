@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from tqdm import tqdm
 
-metrics = ['num_useful', 'accuracy']
+metrics = ['num_useful', 'marginal_useful', 'accuracy']
 
 
 def get_pc_trace_file(trace, metric, level='llc'):
@@ -55,7 +55,8 @@ def build_pc_traces(pc_stats_file, output_dir, metric, level='llc', dry_run=Fals
                 best_pf = pc_data[pc_data.accuracy == pc_data.accuracy.max()]
                 best_pf = best_pf[best_pf.num_useful == best_pf.num_useful.max()]
                 best_pf = best_pf.sample(n = 1)
-            # Max Useful:
+                
+            # Num Useful:
             # 1. Pick the prefetcher with the largest number of useful prefetches
             # 2. On a tie, pick the prefetcher with the highest accuracy
             # 3. If still tied, pick one at random
@@ -64,6 +65,16 @@ def build_pc_traces(pc_stats_file, output_dir, metric, level='llc', dry_run=Fals
                 best_pf = best_pf[best_pf.accuracy == best_pf.accuracy.max()]
                 best_pf = best_pf.sample(n = 1)
                 
+            # Marginal Useful:
+            # 1. Pick the prefetcher with the largest (useful - useless) prefetches
+            # 2. On a tie, pick the prefetcher with most useful prefetches
+            # 3. If still tied, pick one at random
+            elif metric == 'marginal_useful':
+                pc_data['marginal_useful'] = pc_data.num_useful - pc_data.num_useless
+                best_pf = pc_data[pc_data.marginal_useful == pc_data.marginal_useful.max()]
+                best_pf = pc_data[pc_data.num_useful == pc_data.num_useful.max()]
+                best_pf = best_pf.sample(n = 1)
+                    
             best_prefetcher[pc] = best_pf.prefetcher.item()
             best_degree[pc] = best_pf.degree.item()
             

@@ -1,7 +1,7 @@
 #!/bin/bash
 cd {champsim_dir}
 source {conda_source}
-conda activate tensorflow
+conda activate {conda_env}
 ./experiments/champsim.py run {trace_file} \
     -c {num_cores} -s {num_sets} -t {llc_prefetchers} \
     --results-dir {results_dir} \

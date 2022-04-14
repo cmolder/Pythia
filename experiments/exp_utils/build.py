@@ -3,6 +3,8 @@ Utility functions for building versions of Pythia fork of ChampSim.
 
 Author: Carson Molder
 """
+
+# Try not to import anything outside Python default libraries.
 import os
 import shutil
 from exp_utils import defaults

@@ -1,6 +1,6 @@
-+Group="GRAD"
-+Project="ARCHITECTURE"
-+ProjectDescription="Prefetcher Zoo"
++Group="{condor_group}"
++Project="{condor_project}"
++ProjectDescription="{condor_desc}"
 
 universe=vanilla
 getenv=true

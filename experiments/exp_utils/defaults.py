@@ -1,3 +1,4 @@
+# Try not to import anything outside Python default libraries.
 import os
 
 binary_base = './bin/perceptron-no-no-{llc_pref_fn}-{llc_repl_fn}-{n_cores}core'
@@ -31,6 +32,8 @@ default_prefetcher_candidates = [
     'spp_dev2', # SPP
     'triage',   # Triage
 ]
+    
+default_pc_trace_metric = 'num_useful'
     
 default_condor_user = 'cmolder@cs.utexas.edu'
 default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/'

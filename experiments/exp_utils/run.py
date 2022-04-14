@@ -3,6 +3,8 @@ Utility functions for running versions of Pythia fork of ChampSim.
 
 Author: Carson Molder
 """
+
+# Try not to import anything outside Python default libraries.
 import os
 from exp_utils import defaults
 
@@ -12,15 +14,16 @@ pref_degree_knobs = {
     'bop'     : 'bop_pref_degree',
     'dspatch' : 'dspatch_pref_degree',
     'mlop'    : 'mlop_pref_degree',
-    #'scooby'  : 'scooby_pref_degree',       # Default - it can be dynamic
+    #'scooby'  : 'scooby_pref_degree',      # Default - it can be dynamic
     'sisb'    : 'sisb_pref_degree',
     'sms'     : 'sms_pref_degree',
-    'spp_dev2': 'spp_pref_degree',
+    #'spp_dev2': 'spp_pref_degree',         # Has no effect on SPP.
     'streamer': 'streamer_pref_degree',
     'triage'  : 'triage_max_allowed_degree' # Maximum - it is dynamic
     
     # Sandbox, Bingo have no degree knobs
     # Pythia has dynamic degrees by default.
+    # SPP's degree knob has no effect.
 }
 
 def get_binary(**kwargs):

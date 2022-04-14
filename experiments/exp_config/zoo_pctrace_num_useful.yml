@@ -1,0 +1,27 @@
+# TODO: Replace exp_utils/defaults with .yml config files
+# (Maybe keep around string suffixes and such)
+
+champsim:
+    warmup_instructions: 10
+    sim_instructions: 50
+llc:
+    ways: 16 # TODO - Implement in build
+    sets: 2048
+    repl_fn: 'ship'
+    pref_candidates:
+        - 'pc_trace'
+    max_hybrid: 2
+paths:
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_pctrace_num_useful/'
+    trace_dir: '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
+    pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_08_combined/pc_trace/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+conda:
+    source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
+    env: 'tensorflow'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Prefetcher Zoo'
+pc_trace_metric: 'num_useful'
