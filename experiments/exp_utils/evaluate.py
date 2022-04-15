@@ -328,12 +328,14 @@ def generate_best_degree_csv(results_dir, output_file,
                 scores = defaultdict(lambda : float('-inf'))
                 for d in traces[tr][pf].keys():
                     pbar.update(1)    
-                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr]['no'][(None,)])
+                    row = get_statistics(traces[tr][pf][d], baseline_path=None)
+                    #print('[DEBUG]', tr, pf, d, row[metric])
                     if row is None:
                         continue
                     scores[d] = row[metric]
 
                 best_degree[tr][pf] = max(scores, key=scores.get)
+                #print('[DEBUG]', tr, pf, 'best_degree =', best_degree[tr][pf])
     
     # Turn best_degree dictionary into a table
     df = pd.DataFrame(columns=['Trace'] + list(prefetchers))

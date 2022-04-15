@@ -12,9 +12,9 @@ llc:
         - 'pc_trace'
     max_hybrid: 2
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_pctrace_num_useful/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_14_pctrace_marginal_useful/'
     trace_dir: '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
-    pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_08_combined/pc_trace/'
+    pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_14_2hyb/pc_traces/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 # conda:
 #     source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'

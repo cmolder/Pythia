@@ -37,7 +37,6 @@ Available commands:
               can be displayed with `{prog} help command`
 '''.format(prog=sys.argv[0]),
 
-# TODO : Move a bunch of these args to the exp_config.
 'condor': '''usage: {prog} condor <config-file> [-v / --verbose] [-d / --dry-run]
 
 Description:

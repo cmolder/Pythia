@@ -158,15 +158,17 @@ def build_run(cfg, tr_path, llc_prefetchers,
         print(f'    # warmup insts : {cfg.champsim.warmup_instructions} million')
         
     # Add PC trace path, if we are running the pc_trace prefetcher.
-    if llc_prefetchers == ['pc_trace']:
-        assert pc_trace_dir is not None
+    if llc_prefetchers == ('pc_trace',):
         full_trace = evaluate.get_full_trace_from_path(os.path.basename(tr_path).split('.')[0])
         pc_trace_file = os.path.join(
             cfg.paths.pc_trace_dir, 
-            pc_trace.get_pc_trace_file(full_trace, pc_trace_metric, level='llc'))
+            pc_trace.get_pc_trace_file(full_trace, cfg.pc_trace_metric, level='llc')
+        )
         
         if verbose:
-            print(f'    pc_trace file  : {pc_trace_file}' )
+            print(f'    pc_trace file  : {pc_trace_file}' )    
+    else:
+        pc_trace_file = None
     
     # Generate Condor script
     generate_condor_script(
@@ -180,7 +182,7 @@ def build_run(cfg, tr_path, llc_prefetchers,
         num_sets=cfg.llc.sets,
         llc_prefetchers=' '.join(llc_prefetchers),
         llc_pref_degrees=' '.join([str(d) for d in llc_pref_degrees]) if len(llc_pref_degrees) > 0 else None,
-        pc_trace_file=None if llc_prefetchers != ['pc_trace'] else pc_trace_file,
+        pc_trace_file=pc_trace_file,
         results_dir=results_dir,
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
@@ -193,8 +195,8 @@ def build_sweep(cfg, dry_run=False, verbose=False):
     """Build an evaluation sweep, for prefetcher_zoo.py
     """  
     # Assertion checks
-    if cfg.llc.pref_candidates == ['pc_trace']:
-        assert pc_trace_dir in cfg.paths.keys(), 'Must add a PC trace directory to paths.pc_trace_dir if sweeping on pc_trace'
+    if cfg.llc.pref_candidates == ('pc_trace',):
+        assert 'pc_trace_dir' in cfg.paths.keys(), 'Must add a PC trace directory to paths.pc_trace_dir if sweeping on pc_trace'
         assert cfg.pc_trace_metric in pc_trace.metrics, f'PC trace metric {cfg.pc_trace_metric} not in options {pc_trace.metrics}'
     
     condor_paths = []
@@ -213,14 +215,14 @@ def build_sweep(cfg, dry_run=False, verbose=False):
                     condor_paths.append(c_path)
                     pbar.update(1)
         
-        # Build no prefetcher baseline
-        c_path = build_run(
-            cfg, path, ['no'],              
-            dry_run=dry_run, 
-            verbose=verbose
-        )
-        condor_paths.append(c_path)
-        pbar.update(1)
+            # Build no prefetcher baseline
+            c_path = build_run(
+                cfg, path, ['no'],              
+                dry_run=dry_run, 
+                verbose=verbose
+            )
+            condor_paths.append(c_path)
+            pbar.update(1)
         
     print(f'Generated {len(condor_paths)} runs')
         

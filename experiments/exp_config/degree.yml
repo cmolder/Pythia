@@ -28,4 +28,4 @@ condor:
     user: 'cmolder@cs.utexas.edu'
     group: 'GRAD'                
     project: 'ARCHITECTURE'      
-    description: 'Prefetcher Zoo'
+    description: 'Prefetcher Degree Sweep'

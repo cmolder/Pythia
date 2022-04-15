@@ -25,6 +25,7 @@ from exp_utils import config, condor, evaluate
 
 # Defaults (TODO: Move to yml or launch args)
 default_eval_csv = './out/prefetcher_degree_sweep.csv'
+default_metric = 'ipc'
 
 help_str = {
 'help': '''usage: {prog} command [<args>]
@@ -58,12 +59,17 @@ Options:
 Description:
     {prog} eval <results-dir>
         Runs the evaluation procedure on the ChampSim result files found in <results-dir>
-        and outputs a CSV at the specified output path.
+        and outputs a CSV at the specified output path. Determines the best degree for
+        each prefetcher combination.
 
 Options:
     -o / --output-file <output-file>
-        Specifies what file path to save the stats CSV data to. This defaults to
-        `{default_output_file}`.
+        Specifies what file path to save the stats CSV data to. 
+        Default: `{default_output_file}`
+        
+    -m / --metric <metric>
+        Specifies the metric to compare prefetching degrees to.
+        Default: `{default_metric}`
         
     --dry-run
         If passed, builds the spreadsheet but writes nothing to <output-file>.
@@ -76,7 +82,8 @@ Note:
     not be available and the coverage statistic will only be approximate.
 '''.format(
     prog=sys.argv[0], 
-    default_output_file=default_eval_csv
+    default_output_file=default_eval_csv,
+    default_metric=default_metric,
 ),
 }
 
@@ -128,12 +135,14 @@ def eval_command():
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
     parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
+    parser.add_argument('-m', '--metric', type=str, default=default_metric)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
     evaluate.generate_best_degree_csv(
         args.results_dir,
         args.output_file,
+        metric=args.metric,
         dry_run=args.dry_run
     )
 

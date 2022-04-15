@@ -29,12 +29,12 @@ using namespace std;
 
 namespace knob
 {
-    // Automatically picks the LLC prefetcher types based on what is inside the pc_trace.
+    // Automatically pick the LLC prefetcher types based on what is inside the pc_trace.
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
     extern string         pc_trace_llc;
     
-    // Prefetcher degree knobs (others are unsupported for now.)
+    // Prefetcher degree knobs, for setting default degree (others are unsupported for now.)
     extern uint32_t sms_pref_degree;
     extern uint32_t spp_pref_degree;
     extern uint32_t bop_pref_degree;
@@ -62,11 +62,10 @@ void parse_pc_trace() {
     string line;
     string token;
     
-    // TODO : Clean up this code or break it out into a separate funcion.
     while(getline(pc_trace, line)) {
         stringstream line_stream(line); 
         
-        for(int i = 0; i < 3; i++) { // Parse line (format: pc pref1,pref2,...,prefn deg1,deg2,...,degn)
+        for(int i = 0; i < 3; i++) { // Parse line (format: `pc pref1,pref2,...,prefn deg1,deg2,...,degn`)
             getline(line_stream, token, ' ');
             stringstream token_stream(token);
             
@@ -229,13 +228,13 @@ void set_prefetch_degree(uint64_t pc) {
     /* Set the prefetch degree of the prefetchers targeted by the PC */
     for (int i = 0; i < pc_prefetchers[pc].size(); i++) {
         if (pc_prefetchers[pc][i] == "sms") {
-            knob::sms_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["sms"]
+            knob::sms_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["sms"];
         } else if (pc_prefetchers[pc][i] == "spp_dev2") {
-            knob::spp_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["spp_dev2"] // SPP degree knob doesn't do anything.
+            knob::spp_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["spp_dev2"]; // SPP degree knob doesn't do anything.
         } else if (pc_prefetchers[pc][i] == "bop") {
-            knob::bop_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["bop"]
+            knob::bop_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["bop"];
         } else if (pc_prefetchers[pc][i] == "sisb") {
-            knob::sisb_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["sisb"]
+            knob::sisb_pref_degree = pc_degrees[pc][i] > 0 ? pc_degrees[pc][i] : default_pref_degrees["sisb"];
         }
     }
 }
@@ -270,10 +269,10 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 	{
         string pref_name = prefetchers[index]->get_type();
         
-        // Invoke prefetcher
-        if(pref_name == "ipcp") {
-			// TODO: Reimplement IPCP
-		} else {
+        // Invoke the prefetcher
+        //if(true) {                            // All prefetchers
+        if(does_prefetch_pc(pref_name, ip)) { // Only those for this PC
+        //if(pref_name == ?? || does_prefetch_pc(pref_name, ip)) { // Only those for this PC, or those whose logic isn't PC localized + doesn't depend on fills.
             prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
         }
 
@@ -282,15 +281,17 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
             not_prefetched++;
         else prefetched++;
         
-        // Only issue prefetches for the prefetchers assigned to the PC.
+        // Issue prefetches, if the PC is using this prefetcher.
         //
         // Other prefetchers will *think* they issued the prefetch,
         // but it will have no effect in the real cache.
         if (does_prefetch_pc(pref_name, ip)) {
-            prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
+            for (uint32_t addr_index = 0; addr_index < pref_addr.size(); addr_index++) {
+                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
+            }
         } else {
-            // TODO : Inform the non-assigned prefetchers of a fill. (TODO : Debug)
-            // Scooby and some others use fills for their predictor.
+            // TODO : Inform the non-assigned prefetchers of a fill?
+            // Scooby, SMS, Bingo, BOP, and possibly some others use fills to update their logic (see above).
             // Maybe implement a per-prefetcher ATD that tracks the cache it would have had.
         }
         
