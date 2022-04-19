@@ -143,26 +143,30 @@ uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
     vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
-		if(knob::l2c_prefetcher_types[index].compare("ipcp"))
-		{
-			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr);
-		}
-		else /* means IPCP */
-		{
+        string pref_name = knob::llc_prefetcher_types[index];
+        if(pref_name == "ipcp") 
+        {
 			IPCP_L2 *pref_ipcp_L2 = (IPCP_L2*)prefetchers[index];
 			pref_ipcp_L2->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr, pref_level);
-		}
-		if(knob::l2c_prefetcher_types[index].compare("spp_ppf_dev")
-			&& knob::l2c_prefetcher_types[index].compare("mlop")
-			&& knob::l2c_prefetcher_types[index].compare("ipcp")
-			&& !pref_addr.empty())
-		{
-			for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
+        } else {
+            prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
+        }
+        
+        // Don't issue prefetches for some prefetchers, as their code interacts
+        // with the caches directly.
+        if(pref_name != "spp_ppf_dev" 
+           && pref_name != "mlop" 
+           && pref_name != "ipcp" 
+           && !pref_addr.empty())
+        {
+            for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
                 prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_L2 : pref_level[addr_index]), 0);
 				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_L2, 0);
 			}
-		}
+        }
+        
+        // Clear address / level vectors
 		pref_addr.clear();
         pref_level.clear();
 	}
