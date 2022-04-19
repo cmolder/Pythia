@@ -116,7 +116,7 @@ LearningEngineFeaturewise::~LearningEngineFeaturewise()
 	}
 }
 
-uint32_t LearningEngineFeaturewise::chooseAction(State *state, float &max_to_avg_q_ratio, vector<bool> &consensus_vec)
+uint32_t LearningEngineFeaturewise::chooseAction(State *state, float &value, float &max_to_avg_q_ratio, vector<bool> &consensus_vec)
 {
 	stats.action.called++;
 	uint32_t action = 0;
@@ -148,6 +148,7 @@ uint32_t LearningEngineFeaturewise::chooseAction(State *state, float &max_to_avg
 		assert(false);
 	}
 
+    value = consultQ(state, action); // Return Q(s, a) by reference 
 	return action;
 }
 

@@ -256,6 +256,8 @@ namespace knob
 	int32_t  scooby_reward_hbw_tracker_hit = -2;
 	vector<int32_t> scooby_last_pref_offset_conf_thresholds_hbw;
 	vector<int32_t> scooby_dyn_degrees_type2_hbw;
+    bool     scooby_enable_dyn_level = false; // Prefetch in L2 if high-confidence, LLC if low-confidence
+    float    scooby_dyn_level_threshold = 0.0; // TODO : Possibly use an automatic scheme instead? 
 
 	/* Learning Engine */
 	bool     le_enable_trace;

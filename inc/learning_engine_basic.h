@@ -73,7 +73,7 @@ public:
 	LearningEngineBasic(Prefetcher *p, float alpha, float gamma, float epsilon, uint32_t actions, uint32_t states, uint64_t seed, std::string policy, std::string type, bool zero_init, uint64_t early_exploration_window);
 	~LearningEngineBasic();
 
-	uint32_t chooseAction(uint32_t state);
+	uint32_t chooseAction(uint32_t state, float &value);
 	void learn(uint32_t state1, uint32_t action1, int32_t reward, uint32_t state2, uint32_t action2);
 	void dump_stats();
 };

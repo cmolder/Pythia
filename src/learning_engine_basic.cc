@@ -100,7 +100,7 @@ LearningEngineBasic::~LearningEngineBasic()
 	}
 }
 
-uint32_t LearningEngineBasic::chooseAction(uint32_t state)
+uint32_t LearningEngineBasic::chooseAction(uint32_t state, float &value)
 {
 	stats.action.called++;
 	assert(state < m_states);
@@ -135,6 +135,7 @@ uint32_t LearningEngineBasic::chooseAction(uint32_t state)
 		action_trace_interval = 0;
 	}
 
+    value = consultQ(state, action); // Return Q(s, a) by reference 
 	return action;
 }
 

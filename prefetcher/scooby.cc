@@ -82,6 +82,8 @@ namespace knob
 	extern int32_t  scooby_reward_hbw_tracker_hit;
 	extern vector<int32_t> scooby_last_pref_offset_conf_thresholds_hbw;
 	extern vector<int32_t> scooby_dyn_degrees_type2_hbw;
+    extern bool     scooby_enable_dyn_level; // Prefetch in L2 if high-confidence, LLC if low-confidence
+    extern float    scooby_dyn_level_threshold;
 
 	/* Learning Engine knobs */
 	extern bool     le_enable_trace;
@@ -254,6 +256,8 @@ void Scooby::print_config()
 		<< "scooby_reward_hbw_tracker_hit " << knob::scooby_reward_hbw_tracker_hit << endl
 		<< "scooby_last_pref_offset_conf_thresholds_hbw " << array_to_string(knob::scooby_last_pref_offset_conf_thresholds_hbw) << endl
 		<< "scooby_dyn_degrees_type2_hbw " << array_to_string(knob::scooby_dyn_degrees_type2_hbw) << endl
+        << "scooby_enable_dyn_level" << knob::scooby_enable_dyn_level << endl
+        << "scooby_dyn_level_threshold" << knob::scooby_dyn_level_threshold << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl
@@ -391,13 +395,14 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 
 	/* query learning engine to get the next prediction */
 	uint32_t action_index = 0;
+    float action_value = 0.0;
 	uint32_t pref_degree = knob::scooby_pref_degree;
 	vector<bool> consensus_vec; // only required for featurewise engine
 
 	if (knob::scooby_enable_featurewise_engine)
 	{
 		float max_to_avg_q_ratio = 1.0;
-		action_index = brain_featurewise->chooseAction(state, max_to_avg_q_ratio, consensus_vec);
+		action_index = brain_featurewise->chooseAction(state, action_value, max_to_avg_q_ratio, consensus_vec);
 		if(knob::scooby_enable_dyn_degree)
 		{
 			pref_degree = get_dyn_pref_degree(max_to_avg_q_ratio, page, Actions[action_index]);
@@ -411,7 +416,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 	{
 		uint32_t state_index = state->value();
 		assert(state_index < knob::scooby_max_states);
-		action_index = brain->chooseAction(state_index);
+		action_index = brain->chooseAction(state_index, action_value);
 		if(knob::scooby_enable_state_action_stats)
 		{
 			update_stats(state_index, action_index, pref_degree);
@@ -435,8 +440,16 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 			bool new_addr = track(addr, state, action_index, &ptentry);
 			if(new_addr)
 			{
+                // Prefetch address
 				pref_addr.push_back(addr);
-                pref_level.push_back(0); // TODO : Level prediction
+                
+                // Prefetch level (0 = default, if knob disabled, otherwise L2 or LLC based on confidence.)
+                if(knob::scooby_enable_dyn_level) {
+                    pref_level.push_back(action_value > knob::scooby_dyn_level_threshold ? FILL_L2 : FILL_LLC);
+                } else {
+                    pref_level.push_back(0);
+                }
+                
 				track_in_st(page, predicted_offset, Actions[action_index]);
 				stats.predict.issue_dist[action_index]++;
 				if(pref_degree > 1)
