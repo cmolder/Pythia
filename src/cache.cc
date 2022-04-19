@@ -15,6 +15,7 @@ namespace knob
     extern uint32_t semi_perfect_cache_page_buffer_size;
     extern bool measure_cache_acc;
     extern bool measure_pc_prefetches;
+    extern bool measure_addr_prefetches;
     extern uint32_t measure_cache_acc_epoch;
 }
 
@@ -654,6 +655,14 @@ void CACHE::handle_read()
                         }
                         per_pc_useful[block[set][way].ip]++;
                     }
+                    // Per-prefetch address stats
+                    if(knob::measure_addr_prefetches) {
+                        // TODO: Use address (block address) or full_addr?
+                        if(per_addr_useless.find(block[set][way].address) == per_addr_useless.end()) {
+                            per_addr_useless[block[set][way].address] = 0;
+                        }
+                        per_addr_useless[block[set][way].address]++;
+                    }
                     
                     pf_useful++;
                     pf_useful_epoch++;
@@ -1157,7 +1166,14 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet)
             }
             per_pc_useless[block[set][way].ip]++;
         }
-        
+        // Per-address prefetch stats
+        if(knob::measure_addr_prefetches) {
+            // TODO: Use address (block address) or full_addr?
+            if(per_addr_useless.find(block[set][way].address) == per_addr_useless.end()) {
+                per_addr_useless[block[set][way].address] = 0;
+            }
+            per_addr_useless[block[set][way].address]++;
+        }
         pf_useless++;
     }
 

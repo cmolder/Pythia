@@ -1,5 +1,6 @@
 #define _BSD_SOURCE
 
+#include <unordered_map>
 #include <getopt.h>
 #include "ooo_cpu.h"
 #include "uncore.h"
@@ -44,9 +45,13 @@ namespace knob
     extern bool     measure_cache_acc;
     extern uint64_t measure_cache_acc_epoch;
     extern bool     measure_pc_prefetches;
+    extern bool     measure_addr_prefetches;
     extern string   pc_prefetch_file_l1d;
     extern string   pc_prefetch_file_l2c;
     extern string   pc_prefetch_file_llc;
+    extern string   addr_prefetch_file_l1d;
+    extern string   addr_prefetch_file_l2c;
+    extern string   addr_prefetch_file_llc;
     extern bool l1d_perfect;
     extern bool l2c_perfect;
     extern bool llc_perfect;
@@ -63,6 +68,28 @@ uint32_t PAGE_TABLE_LATENCY = 0, SWAP_LATENCY = 0;
 queue <uint64_t > page_queue;
 map <uint64_t, uint64_t> page_table, inverse_table, recent_page, unique_cl[NUM_CPUS];
 uint64_t previous_ppage, num_adjacent_page, num_cl[NUM_CPUS], allocated_pages, num_page[NUM_CPUS], minor_fault[NUM_CPUS], major_fault[NUM_CPUS];
+
+void dump_localized_statistics(unordered_map<uint64_t, uint64_t> useful_map, unordered_map<uint64_t, uint64_t> useless_map, string path) {
+    ofstream fout = ofstream(path);
+    
+    for(auto entry : useful_map) {
+        uint64_t target = entry.first;
+        uint64_t useless;
+        if(useless_map.find(target) == useless_map.end()) {
+            useless = 0;
+        } else {
+            useless = useless_map[target];
+        }
+        fout << hex << target << dec << " " << entry.second << " " << useless << endl;
+    }
+    
+    for(auto entry : useless_map) {
+        uint64_t target = entry.first;
+        if(useful_map.find(target) == useful_map.end()) {
+            fout << hex << target << dec << " 0 " << entry.second << endl;
+        }
+    }
+}
 
 void record_roi_stats(uint32_t cpu, CACHE *cache)
 {
@@ -132,36 +159,35 @@ void print_roi_stats(uint32_t cpu, CACHE *cache)
     cout << endl;
     
     // Save PC prefetch file
+    string path;
     if(knob::measure_pc_prefetches && 
       (cache->NAME == "L1D" || cache->NAME == "L2C" || cache->NAME == "LLC")) {
-        
-        ofstream useful_out;
         if(cache->NAME == "L1D")
-            useful_out = ofstream(knob::pc_prefetch_file_l1d);
+            path = knob::pc_prefetch_file_l1d;
         else if(cache->NAME == "L2C")
-            useful_out = ofstream(knob::pc_prefetch_file_l2c);
+            path = knob::pc_prefetch_file_l2c;
         else if(cache->NAME == "LLC")
-            useful_out = ofstream(knob::pc_prefetch_file_llc);
+            path = knob::pc_prefetch_file_llc;
         else 
-            useful_out = ofstream("/dev/null");
-
+            path = "/dev/null";
         
-        for(auto entry : cache->per_pc_useful) {
-            uint64_t pc = entry.first;
-            uint64_t useless;
-            if(cache->per_pc_useless.find(pc) == cache->per_pc_useless.end()) {
-                useless = 0;
-            } else {
-                useless = cache->per_pc_useless[pc];
-            }
-            useful_out << hex << pc << dec << " " << entry.second << " " << useless << endl;
-        }
-        for(auto entry : cache->per_pc_useless) {
-            uint64_t pc = entry.first;
-            if(cache->per_pc_useful.find(pc) == cache->per_pc_useful.end()) {
-                useful_out << hex << pc << dec << " 0 " << entry.second << endl;
-            }
-        }
+        cout << "Dumping per-PC statistics to " << path << endl;
+        dump_localized_statistics(cache->per_pc_useful, cache->per_pc_useless, path);
+    }
+    // Save address prefetch file
+    if(knob::measure_addr_prefetches && 
+      (cache->NAME == "L1D" || cache->NAME == "L2C" || cache->NAME == "LLC")) {
+        if(cache->NAME == "L1D")
+            path = knob::addr_prefetch_file_l1d;
+        else if(cache->NAME == "L2C")
+            path = knob::addr_prefetch_file_l2c;
+        else if(cache->NAME == "LLC")
+            path = knob::addr_prefetch_file_llc;
+        else 
+            path = "/dev/null";
+        
+        cout << "Dumping per-address statistics to " << path << endl;
+        dump_localized_statistics(cache->per_addr_useful, cache->per_addr_useless, path);
     }
 }
 
@@ -586,6 +612,10 @@ void print_knobs()
         << "pc_prefetch_file_l1d " << knob::pc_prefetch_file_l1d << endl
         << "pc_prefetch_file_l2c " << knob::pc_prefetch_file_l2c << endl
         << "pc_prefetch_file_llc " << knob::pc_prefetch_file_llc << endl
+        << "measure_addr_prefetches " << knob::measure_addr_prefetches << endl
+        << "addr_prefetch_file_l1d " << knob::addr_prefetch_file_l1d << endl
+        << "addr_prefetch_file_l2c " << knob::addr_prefetch_file_l2c << endl
+        << "addr_prefetch_file_llc " << knob::addr_prefetch_file_llc << endl
         << "l1d_perfect " << knob::l1d_perfect << endl
         << "l2c_perfect " << knob::l2c_perfect << endl
         << "llc_perfect " << knob::llc_perfect << endl

@@ -33,9 +33,13 @@ namespace knob
 	bool     measure_cache_acc = true;
 	uint64_t measure_cache_acc_epoch = 1024;
     bool     measure_pc_prefetches = false;
+    bool     measure_addr_prefetches = false;
     string   pc_prefetch_file_l1d = string("/dev/null"); // Per-PC prefetch statistics
     string   pc_prefetch_file_l2c = string("/dev/null");
     string   pc_prefetch_file_llc = string("/dev/null");
+    string   addr_prefetch_file_l1d = string("/dev/null"); // Per-address prefetch statistics
+    string   addr_prefetch_file_l2c = string("/dev/null");
+    string   addr_prefetch_file_llc = string("/dev/null");
     
     /* multi_pc_trace */
     string  pc_trace_llc = string("/dev/null");
@@ -436,6 +440,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     {
 		knob::measure_pc_prefetches = !strcmp(value, "true") ? true : false;
     }
+    else if (MATCH("", "measure_addr_prefetches"))
+    {
+		knob::measure_addr_prefetches = !strcmp(value, "true") ? true : false;
+    }
     else if (MATCH("", "pc_prefetch_file_l1d"))
     {
 		knob::pc_prefetch_file_l1d = string(value);
@@ -447,6 +455,18 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "pc_prefetch_file_llc"))
     {
 		knob::pc_prefetch_file_llc = string(value);
+    }
+    else if (MATCH("", "addr_prefetch_file_l1d"))
+    {
+		knob::addr_prefetch_file_l1d = string(value);
+    }
+    else if (MATCH("", "addr_prefetch_file_l2c"))
+    {
+		knob::addr_prefetch_file_l2c = string(value);
+    }
+    else if (MATCH("", "addr_prefetch_file_llc"))
+    {
+		knob::addr_prefetch_file_llc = string(value);
     }
     
     /* multi_pc_trace */
