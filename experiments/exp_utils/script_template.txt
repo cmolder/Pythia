@@ -1,7 +1,10 @@
 #!/bin/bash
 cd {champsim_dir}
 ./experiments/champsim.py run {trace_file} \
-    -c {num_cores} -s {num_sets} -t {llc_prefetchers} \
+    -c {cores} \
+    --l1d-pref {l1d_pref} \
+    --l2c-pref {l2c_pref} \
+    --llc-pref {llc_pref} --llc-repl {llc_repl}  --llc-sets {llc_sets} \
     --results-dir {results_dir} \
     --num-instructions {num_instructions} \
     --warmup-instructions {warmup_instructions}

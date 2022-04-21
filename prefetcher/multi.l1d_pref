@@ -55,7 +55,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
     vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < l1d_prefetchers.size(); ++index)
 	{
-        string pref_name = knob::llc_prefetcher_types[index];
+        string pref_name = knob::l1d_prefetcher_types[index];
         
 		l1d_prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
         

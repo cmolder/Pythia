@@ -1,42 +1,20 @@
 # Try not to import anything outside Python default libraries.
-import os
+# Do not edit these to run programs, instead using the proper arguments, options, config files.
 
-binary_base = './bin/perceptron-no-no-{llc_pref_fn}-{llc_repl_fn}-{n_cores}core'
+binary_base = './bin/{branch_pred}-{l1d_pref}-{l2c_pref}-{llc_pref}-{llc_repl}-{n_cores}core'
 llc_sets_suffix = '-{llc_n_sets}llc_sets'
 llc_ways_suffx = '-{llc_n_ways}llc_ways'
 
-default_llc_repl_fn = 'ship'
+l1d_pref_fns = ['no', 'multi']
+l2c_pref_fns = ['no', 'multi']
+llc_pref_fns = ['no', 'multi', 'multi_pc_trace']
+llc_repl_fns = ['ship', 'srrip', 'drrip', 'lru']
+
 default_llc_ways = 16
 default_llc_sets = 2048
 
-prefetcher_names = ['no', 'multi', 'multi_pc_trace']
-prefetcher_fns = ['no', 'multi', 'multi_pc_trace']
-
 default_results_dir = './out/'
-default_config_file = './config/default_sweep.ini'
+default_knobs_file = './config/default_sweep.ini'
 default_output_file = './out/stats.csv'
 default_warmup_instructions = 10
 default_sim_instructions = 50
-
-# TODO: The below are legacy and need to be removed
-# (should be defined in experiments/exp_config/*.yml)
-default_max_hybrid = 2
-
-default_prefetcher_candidates = [
-    'no',       # No prefetcher
-    'bingo',    # Bingo
-    'bop',      # Best Offset
-    'scooby',   # Pythia
-    'sisb',     # Idealized ISB
-    'sms',      # SMS
-    'spp_dev2', # SPP
-    'triage',   # Triage
-]
-    
-default_pc_trace_metric = 'num_useful'
-    
-default_condor_user = 'cmolder@cs.utexas.edu'
-default_exp_dir = '/scratch/cluster/cmolder/prefetcher_zoo/'
-default_trace_dir = '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
-default_champsim_dir = '/u/cmolder/GitHub/Pythia/'
-default_conda_source = '/u/cmolder/miniconda3/etc/profile.d/conda.sh'

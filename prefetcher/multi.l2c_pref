@@ -143,7 +143,7 @@ uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
     vector<uint64_t> pref_level;
 	for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
-        string pref_name = knob::llc_prefetcher_types[index];
+        string pref_name = knob::l2c_prefetcher_types[index];
         if(pref_name == "ipcp") 
         {
 			IPCP_L2 *pref_ipcp_L2 = (IPCP_L2*)prefetchers[index];
