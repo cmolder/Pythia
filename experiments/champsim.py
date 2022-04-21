@@ -196,7 +196,7 @@ Build
 def build_command():
     """Build command
     """
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print(help_str['build'])
         exit(-1)
 

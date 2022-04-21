@@ -76,18 +76,29 @@ def generate_run_name(trace_path, llc_sets,
     else:
         llc_pref_degrees_suffix = ",".join(['na' for d in llc_pref])
     
-    return '-'.join((
-        trace_name, 
-        f'bp_{branch_pred}',
-        f'l1c_pref_{",".join(l1d_pref)}',
-        f'l2c_pref_{",".join(l2c_pref)}',
-        f'l2c_pref_degrees_{l2c_pref_degrees_suffix}',
-        f'llc_pref_{",".join(llc_pref)}', 
-        f'llc_pref_degrees_{llc_pref_degrees_suffix}',
-        f'llc_sets_{llc_sets}',
-        f'llc_repl_{llc_repl}'
-    ))
+    # More verbose
+    # return '-'.join((
+    #     trace_name, 
+    #     f'bp_{branch_pred}',
+    #     f'l1c_pref_{",".join(l1d_pref)}',
+    #     f'l2c_pref_{",".join(l2c_pref)}',
+    #     f'l2c_pref_degrees_{l2c_pref_degrees_suffix}',
+    #     f'llc_pref_{",".join(llc_pref)}', 
+    #     f'llc_pref_degrees_{llc_pref_degrees_suffix}',
+    #     f'llc_sets_{llc_sets}',
+    #     f'llc_repl_{llc_repl}'
+    # ))
     
+    # Matches binary
+    return '-'.join((
+        trace_name,
+        branch_pred,
+        ','.join(l1d_pref),
+        ','.join(l2c_pref) + '_' + l2c_pref_degrees_suffix,
+        ','.join(llc_pref) + '_' + llc_pref_degrees_suffix,
+        llc_repl,
+        f'{llc_sets}llc_sets'
+    ))
 
 
 def build_run(cfg, tr_path, 

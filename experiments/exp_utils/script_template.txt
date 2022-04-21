@@ -4,7 +4,7 @@ cd {champsim_dir}
     -c {cores} \
     --l1d-pref {l1d_pref} \
     --l2c-pref {l2c_pref} \
-    --llc-pref {llc_pref} --llc-repl {llc_repl}  --llc-sets {llc_sets} \
+    --llc-pref {llc_pref} --llc-repl {llc_repl} --llc-sets {llc_sets} \
     --results-dir {results_dir} \
     --num-instructions {num_instructions} \
     --warmup-instructions {warmup_instructions}
