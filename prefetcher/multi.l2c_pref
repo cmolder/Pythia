@@ -145,7 +145,7 @@ uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 	{
 		if(knob::l2c_prefetcher_types[index].compare("ipcp"))
 		{
-			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr);
+			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
 		}
 		else /* means IPCP */
 		{
