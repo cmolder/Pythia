@@ -75,3 +75,17 @@ TODO: Description
 ## prefetcher_degree_sweep.py eval
 
 TODO: Description
+
+---
+# Pythia Level (pythia_level.py)
+Sweep on a variant of Pythia that prefetches into the LLC (instead of L2) when its confidence in a prefetch candidate is low. 
+
+This is done by comparing the Q-value to a threshold, and issuing the prefetch to the LLC instead of L2 if the Q-value is below that threshold.
+
+## pythia_level.py condor
+
+TODO: Description
+
+## pythia_level.py eval
+
+TODO: Description

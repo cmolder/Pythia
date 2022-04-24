@@ -256,8 +256,8 @@ void Scooby::print_config()
 		<< "scooby_reward_hbw_tracker_hit " << knob::scooby_reward_hbw_tracker_hit << endl
 		<< "scooby_last_pref_offset_conf_thresholds_hbw " << array_to_string(knob::scooby_last_pref_offset_conf_thresholds_hbw) << endl
 		<< "scooby_dyn_degrees_type2_hbw " << array_to_string(knob::scooby_dyn_degrees_type2_hbw) << endl
-        << "scooby_enable_dyn_level" << knob::scooby_enable_dyn_level << endl
-        << "scooby_dyn_level_threshold" << knob::scooby_dyn_level_threshold << endl
+        << "scooby_enable_dyn_level " << knob::scooby_enable_dyn_level << endl
+        << "scooby_dyn_level_threshold " << knob::scooby_dyn_level_threshold << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl
@@ -443,18 +443,23 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
                 // Prefetch address
 				pref_addr.push_back(addr);
                 
-                // Prefetch level (0 = default, if knob disabled, otherwise L2 or LLC based on confidence.)
+                // Prefetch level (0 = default, if knob disabled, otherwise  or default (high confidence) or LLC (low confidence.)
                 if(knob::scooby_enable_dyn_level) {
-                    pref_level.push_back(action_value > knob::scooby_dyn_level_threshold ? FILL_L2 : FILL_LLC);
+                    pref_level.push_back(action_value > knob::scooby_dyn_level_threshold ? 0 : FILL_LLC);
+                    
+                    if (action_value > knob::scooby_dyn_level_threshold)
+                        stats.confidence.high_conf++;
+                    else stats.confidence.low_conf++;
                 } else {
                     pref_level.push_back(0);
+                    stats.confidence.high_conf++;
                 }
                 
 				track_in_st(page, predicted_offset, Actions[action_index]);
 				stats.predict.issue_dist[action_index]++;
 				if(pref_degree > 1)
 				{
-					gen_multi_degree_pref(page, offset, Actions[action_index], pref_degree, pref_addr, pref_level);
+					gen_multi_degree_pref(page, offset, Actions[action_index], action_value, pref_degree, pref_addr, pref_level);
 				}
 				stats.predict.deg_histogram[pref_degree]++;
 				ptentry->consensus_vec = consensus_vec;
@@ -561,7 +566,8 @@ bool Scooby::track(uint64_t address, State *state, uint32_t action_index, Scooby
 	return new_addr;
 }
 
-void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
+void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, float action_value, uint32_t pref_degree,
+                                   vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	stats.predict.multi_deg_called++;
 	uint64_t addr = 0xdeadbeef;
@@ -575,7 +581,19 @@ void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t actio
 			{
 				addr = (page << LOG2_PAGE_SIZE) + (predicted_offset << LOG2_BLOCK_SIZE);
 				pref_addr.push_back(addr);
-                pref_level.push_back(0); // TODO Add level prediction
+                
+                // Prefetch level (0 = default, if knob disabled, otherwise  or default (high confidence) or LLC (low confidence.)
+                if(knob::scooby_enable_dyn_level) {
+                    pref_level.push_back(action_value > knob::scooby_dyn_level_threshold ? 0 : FILL_LLC);
+                    
+                    if (action_value > knob::scooby_dyn_level_threshold)
+                        stats.confidence.high_conf++;
+                    else stats.confidence.low_conf++;
+                } else {
+                    pref_level.push_back(0);
+                    stats.confidence.high_conf++;
+                }
+                
 				MYLOG("degree %u pred_off %d pred_addr %lx", degree, predicted_offset, addr);
 				stats.predict.multi_deg++;
 				stats.predict.multi_deg_histogram[degree]++;
@@ -1076,6 +1094,8 @@ void Scooby::dump_stats()
 		<< endl
 
 		<< "scooby_pref_issue_scooby " << stats.pref_issue.scooby << endl
+        << "scooby_low_conf_pref " << stats.confidence.low_conf << endl
+        << "scooby_high_conf_pref " << stats.confidence.high_conf << endl
 		// << "scooby_pref_issue_shaggy " << stats.pref_issue.shaggy << endl
 		<< endl;
 

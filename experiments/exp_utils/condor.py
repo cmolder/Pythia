@@ -45,6 +45,10 @@ def generate_condor_script(out, dry_run, **params):
         cfg += f' \\\n    --track-pc'
     if 'track_addr'  in params.keys() and params['track_addr'] is True:
         cfg += f' \\\n    --track-addr'
+    if 'run_name' in params.keys() and params['run_name'] is not None:
+        cfg +=  f' \\\n    --run-name {params["run_name"]}'
+    if 'extra_knobs' in params.keys() and params['extra_knobs'] is not None:
+        cfg += f' \\\n    --extra-knobs "{params["extra_knobs"]}"'
     
     if not dry_run:
         with open(out, 'w') as f:
@@ -62,7 +66,8 @@ def generate_run_name(trace_path, llc_sets,
                       branch_pred, llc_repl,
                       l1d_pref=[],
                       l2c_pref=[], l2c_pref_degrees=[],
-                      llc_pref=[], llc_pref_degrees=[]):
+                      llc_pref=[], llc_pref_degrees=[],
+                      extra_suffix=''):
     """Generate a unique run name, given the trace, and prefetchers+degrees."""
     trace_name = os.path.basename(trace_path).split('.')[0]
     
@@ -90,7 +95,7 @@ def generate_run_name(trace_path, llc_sets,
     # ))
     
     # Matches binary
-    return '-'.join((
+    out = '-'.join((
         trace_name,
         branch_pred,
         ','.join(l1d_pref),
@@ -99,12 +104,17 @@ def generate_run_name(trace_path, llc_sets,
         llc_repl,
         f'{llc_sets}llc_sets'
     ))
+    if extra_suffix != '':
+        out += '-' + extra_suffix
+    return out
 
 
 def build_run(cfg, tr_path, 
               l1d_pref=['no'],
               l2c_pref=['no'], l2c_pref_degrees=[],
               llc_pref=['no'], llc_pref_degrees=[],
+              extra_knobs='',
+              extra_suffix='',
               dry_run=False, 
               verbose=False):
     """Build a single run and its necessary files. Return
@@ -150,7 +160,8 @@ def build_run(cfg, tr_path,
         l2c_pref=l2c_pref,
         l2c_pref_degrees=l2c_pref_degrees,
         llc_pref=llc_pref, 
-        llc_pref_degrees=llc_pref_degrees
+        llc_pref_degrees=llc_pref_degrees,
+        extra_suffix=extra_suffix
     )
     
     # Setup initial output directories/files per experiment
@@ -230,8 +241,11 @@ def build_run(cfg, tr_path,
         llc_pref_degrees=' '.join([str(d) for d in llc_pref_degrees]) if len(llc_pref_degrees) > 0 else None,
         llc_repl=cfg.llc.repl,
         
+        run_name = run_name,
         pc_trace_file=pc_trace_file,
         results_dir=results_dir,
+
+        extra_knobs=extra_knobs,
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
         track_pc=cfg.champsim.track_pc_pref,
@@ -307,7 +321,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
     condor_paths = []
     paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
     
-      # Get all combinations of hybrids up to <max_hybrid>
+    # Get all combinations of hybrids up to <max_hybrid>
     l1d_prefs = [p for h in range(1, cfg.l1d.max_hybrid+1) for p in combinations(cfg.l1d.pref_candidates, h)] + [('no',)]
     l2c_prefs = [p for h in range(1, cfg.l2c.max_hybrid+1) for p in combinations(cfg.l2c.pref_candidates, h)] + [('no',)]
     llc_prefs = [p for h in range(1, cfg.llc.max_hybrid+1) for p in combinations(cfg.llc.pref_candidates, h)] + [('no',)]
@@ -338,6 +352,72 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
                     condor_paths.append(c_path)
                     pbar.update(1)
 
+    print(f'Generated {len(condor_paths)} runs')
+    
+    # Write condor paths to <exp_dir>/condor_configs_champsim.txt
+    if not dry_run:
+        condor_out_path = os.path.join(cfg.paths.exp_dir, 'condor_configs_champsim.txt')
+        print(f'Saving condor configs to {condor_out_path}...')
+        generate_condor_list(condor_out_path, condor_paths)
+
+def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
+    """Build a level-aware Pythia sweep, for pythia_level.py
+    """
+    condor_paths = []
+    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
+    
+    # Get all combinations of hybrids up to <max_hybrid>
+    l1d_prefs = [p for h in range(1, cfg.l1d.max_hybrid+1) for p in combinations(cfg.l1d.pref_candidates, h)] + [('no',)]
+    l2c_prefs = [p for h in range(1, cfg.l2c.max_hybrid+1) for p in combinations(cfg.l2c.pref_candidates, h)] + [('no',)]
+    llc_prefs = [p for h in range(1, cfg.llc.max_hybrid+1) for p in combinations(cfg.llc.pref_candidates, h)] + [('no',)]
+    
+    print('Generating runs...')
+    with tqdm(dynamic_ncols=True, unit='run') as pbar:
+        for path in paths:
+            for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
+                for thresh in cfg.pythia.scooby_dyn_level_threshold:
+                    
+                    if all([p == ('no',) for p in (l1p, l2p, llp)]):
+                        continue
+                        
+                    #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
+                    c_path = build_run(
+                        cfg, path,
+                        l1d_pref=l1p,
+                        l2c_pref=l2p,
+                        llc_pref=llp,
+                        extra_knobs=f'--scooby_enable_dyn_level=true --scooby_dyn_level_threshold={thresh}',
+                        extra_suffix=f'threshold_{thresh}',
+                        dry_run=dry_run, 
+                        verbose=verbose
+                    )
+                    
+                    condor_paths.append(c_path)
+                    pbar.update(1)
+                    
+                # Add run for disabled level prefetching
+                c_path = build_run(
+                    cfg, path,
+                    l1d_pref=l1p,
+                    l2c_pref=l2p,
+                    llc_pref=llp,
+                    extra_knobs=f'--scooby_enable_dyn_level=false',
+                    dry_run=dry_run, 
+                    verbose=verbose
+                )
+                
+                # Add run for disabled level prefetching
+                c_path = build_run(
+                    cfg, path,
+                    l1d_pref=['no'],
+                    l2c_pref=['no'],
+                    llc_pref=['no'],
+                    dry_run=dry_run, 
+                    verbose=verbose
+                )
+                condor_paths.append(c_path)
+                pbar.update(1)
+                
     print(f'Generated {len(condor_paths)} runs')
     
     # Write condor paths to <exp_dir>/condor_configs_champsim.txt

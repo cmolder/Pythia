@@ -1236,6 +1236,14 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 		knob::scooby_dyn_degrees_type2_hbw = get_array_int(value);
 	}
+    else if (MATCH("", "scooby_enable_dyn_level"))
+	{
+		knob::scooby_enable_dyn_level = !strcmp(value, "true") ? true : false;
+	}
+    else if (MATCH("", "scooby_dyn_level_threshold"))
+    {
+        knob::scooby_dyn_level_threshold = stof(value);
+    }
 
 	/* Learning Engine */
 	else if (MATCH("", "le_enable_trace"))

@@ -1,0 +1,39 @@
+champsim:
+    warmup_instructions: 25
+    sim_instructions: 100
+    track_pc_pref: false
+    track_addr_pref: false
+    branch_pred: 'perceptron'
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates: ['scooby']
+    max_hybrid: 1
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates: []
+    max_hybrid: 1
+pythia:
+    scooby_dyn_level_threshold:
+        - -25.0
+        - -20.0
+        - -15.0
+        - -10.0
+        - -5.0
+        - 0.0
+        - 5.0
+        - 10.0
+        - 15.0
+        - 20.0
+        - 25.0
+paths:
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini/'
+    trace_dir: '/scratch/cluster/cmolder/traces/spec06mini/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Multi-level Pythia'
