@@ -1,13 +1,19 @@
-# TODO: Replace exp_utils/defaults with .yml config files
-# (Maybe keep around string suffixes and such)
-
 champsim:
-    warmup_instructions: 10
-    sim_instructions: 50
+    warmup_instructions: 25
+    sim_instructions: 100
+    track_pc_pref: true
+    track_addr_pref: false
+    branch_pred: 'perceptron'
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates: []
+    max_hybrid: 1
+    max_degree: 1
 llc:
-    ways: 16 # TODO - Implement in build
     sets: 2048
-    repl_fn: 'ship'
+    repl: 'ship'
     pref_candidates:
         - 'bingo'    # Bingo
         - 'bop'      # Best Offset
@@ -18,12 +24,9 @@ llc:
     max_hybrid: 2
     max_degree: 8
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_14_2hyb/'
-    trace_dir: '/scratch/cluster/cmolder/traces/prefetcher_zoo/champsim/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_21_2hyb/'
+    trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
-# conda:
-#     source: '/u/cmolder/miniconda3/etc/profile.d/conda.sh'
-#     env: 'tensorflow'
 condor:
     user: 'cmolder@cs.utexas.edu'
     group: 'GRAD'                

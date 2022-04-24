@@ -1,6 +1,6 @@
 champsim:
-    warmup_instructions: 25
-    sim_instructions: 100
+    warmup_instructions: 10
+    sim_instructions: 50
     track_pc_pref: true
     track_addr_pref: false
     branch_pred: 'perceptron'
@@ -24,8 +24,8 @@ llc:
         #- 'reeses'   # Reese's
     max_hybrid: 2
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_spec06/'
-    trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_gap/'
+    trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
     user: 'cmolder@cs.utexas.edu'

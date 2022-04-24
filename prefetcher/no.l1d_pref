@@ -5,7 +5,7 @@ void CACHE::l1d_prefetcher_initialize()
 
 }
 
-void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type)
+void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint64_t instr_id)
 {
 
 }

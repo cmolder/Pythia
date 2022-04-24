@@ -259,13 +259,18 @@ void CACHE::llc_prefetcher_initialize()
 // actually issue the prefetch.
 //
 // If the PC isn't in the pc_prefetch table, issue no prefetch.
-uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
 {
-	vector<uint64_t> pref_addr;
-    vector<uint64_t> pref_level;
-    
     // Set prefetcher degrees (for those that issue a prefetch on this PC)
     set_prefetch_degree(ip);
+    
+    // Log query_prefetched, query_not_prefetch stats
+    if (pc_prefetchers[ip].size() == 0)
+        not_prefetched++;
+    else prefetched++;
+    
+    vector<uint64_t> pref_addr;
+    vector<uint64_t> pref_level;
     
     for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
@@ -277,19 +282,16 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
         //if(pref_name == ?? || does_prefetch_pc(pref_name, ip)) { // Only those for this PC, or those whose logic isn't PC localized + doesn't depend on fills.
             prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
         }
-
-        // Log query_prefetched, query_not_prefetch stats
-        if (pc_prefetchers[ip].size() == 0)
-            not_prefetched++;
-        else prefetched++;
-        
+ 
         // Issue prefetches, if the PC is using this prefetcher.
         //
         // Other prefetchers will *think* they issued the prefetch,
         // but it will have no effect in the real cache.
         if (does_prefetch_pc(pref_name, ip)) {
             for (uint32_t addr_index = 0; addr_index < pref_addr.size(); addr_index++) {
-                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
+                uint32_t pf_metadata = 0;
+                //pf_metadata += 1 << index;
+                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), pf_metadata);
             }
         } else {
             // TODO : Inform the non-assigned prefetchers of a fill?
@@ -309,10 +311,16 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 }
 
 // TODO: Need to inform prefetchers of their shadow prefetches.
+//       Use the metadata (pf_metadata) to track which prefetchers issued the prefetch address,
+//       and bring it back here.
+//
+//       Good news, this is called on *every* cache fill, so we can watch for replacements!
 uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
 {
 	if(prefetch)
 	{
+        //cout << "[DEBUG] llc_prefetcher_cache_fill metadata_in=" << metadata_in << "\n";
+        
 		for(uint32_t index = 0; index < prefetchers.size(); ++index)
 		{
 			if(!prefetchers[index]->get_type().compare("scooby"))

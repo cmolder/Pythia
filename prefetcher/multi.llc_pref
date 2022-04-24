@@ -26,15 +26,25 @@ using namespace std;
 namespace knob
 {
 	extern vector<string> llc_prefetcher_types;
+    extern bool           dump_prefetch_trace;
+    extern string         prefetch_trace_llc;
+    
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
     extern bool           scooby_enable_dyn_level;
 }
 
 // vector<Prefetcher*> prefetchers;
+ofstream pf_trace_out;
 
 void CACHE::llc_prefetcher_initialize()
 {
+    // Initialize prefetch trace tracking (if active)
+    if (knob::dump_prefetch_trace) {
+        pf_trace_out.open(knob::prefetch_trace_llc);
+        assert(pf_trace_out.is_open());
+    }
+    
     // Initialize prefetchers
 	for(uint32_t index = 0; index < knob::llc_prefetcher_types.size(); ++index)
 	{
@@ -157,41 +167,76 @@ void CACHE::llc_prefetcher_initialize()
 	assert(knob::llc_prefetcher_types.size() == prefetchers.size() || !knob::llc_prefetcher_types[0].compare("none"));
 }
 
-uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
 {
 	vector<uint64_t> pref_addr;
     vector<uint64_t> pref_level;
+    
+    vector<uint64_t> all_pref_addr;
+    vector<uint64_t> all_pref_level;
+
 	for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
-		if(knob::llc_prefetcher_types[index].compare("ipcp"))
-		{
-			prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
-		}
-		// else /* means IPCP */
-		// {
-		// 	IPCP_LLC *pref_ipcp_LLC = (IPCP_LLC*)prefetchers[index];
-		// 	pref_ipcp_LLC->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr);
-		// }
+        string pref_name = knob::llc_prefetcher_types[index];
+        if(pref_name == "ipcp") 
+        {
+            // 	IPCP_LLC *pref_ipcp_LLC = (IPCP_LLC*)prefetchers[index];
+            // 	pref_ipcp_LLC->invoke_prefetcher(ip, addr, cache_hit, type, metadata_in, pref_addr);
+        } else {
+            prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
+        }
         
         // Don't issue prefetches for some prefetchers, as their code interacts
         // with the caches directly.
-        if(knob::llc_prefetcher_types[index].compare("spp_ppf_dev")
-			&& knob::llc_prefetcher_types[index].compare("mlop")
-            && knob::llc_prefetcher_types[index].compare("triage")
-            // && knob::llc_prefetcher_types[index].compare("ipcp")
-			&& !pref_addr.empty())
-		{
-			for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
+        if(pref_name != "spp_ppf_dev" 
+           && pref_name != "mlop" 
+           && pref_name != "triage" 
+           && !pref_addr.empty())
+        {
+            for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
                 prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
 				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_LLC, 0);
 			}
-		}
+        }
+
+        
+        // Extend the all_pref_addr/level vectors, which track
+        // prefetches for ALL prefetchers that are active in this call
+        // 
+        // Only used for trace building.
+        if(knob::dump_prefetch_trace && pf_trace_out.is_open()) {
+            for(auto addr : pref_addr) {
+                all_pref_addr.push_back(addr);
+            }
+            for (auto level : pref_level) {
+                all_pref_level.push_back(level);
+            }
+        }
+
 
         // Clear address / level vectors
 		pref_addr.clear();
         pref_level.clear();
 	}
+    
+    // Dump information to trace (if doing so)
+    // Skip prefetches, I-cache misses, TLB misses (all have instr_id == 0)
+    if(knob::dump_prefetch_trace && pf_trace_out.is_open() && type != PREFETCH && instr_id != 0){
+        pf_trace_out << dec << instr_id  << " " << hex << ip;
+        
+        string padding = " ";
+        for (auto addr : all_pref_addr) {
+            pf_trace_out << padding << hex << addr;
+            padding = ",";
+        }
+        padding = " ";
+        for (auto level : all_pref_level) {
+            pf_trace_out << padding << dec << level;
+            padding = ",";
+        }
+        pf_trace_out << "\n";
+    }
 
 	return metadata_in;
 }
@@ -273,6 +318,11 @@ void CACHE::llc_prefetcher_final_stats()
 	{
 		prefetchers[index]->dump_stats();
 	}
+    
+    // Close the ofstream
+    if(pf_trace_out.is_open()){
+        pf_trace_out.close();
+    }
 }
 
 void CACHE::llc_prefetcher_print_config()
