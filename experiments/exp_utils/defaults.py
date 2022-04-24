@@ -7,7 +7,7 @@ llc_ways_suffx = '-{llc_n_ways}llc_ways'
 
 l1d_pref_fns = ['no', 'multi']
 l2c_pref_fns = ['no', 'multi']
-llc_pref_fns = ['no', 'multi', 'multi_pc_trace']
+llc_pref_fns = ['no', 'multi', 'multi_pc_trace', 'from_file']
 llc_repl_fns = ['ship', 'srrip', 'drrip', 'lru']
 
 default_llc_ways = 16

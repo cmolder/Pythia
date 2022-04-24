@@ -31,6 +31,8 @@ def get_llc_pref_fn(llc_prefs):
         return 'no'
     elif llc_prefs == ['pc_trace']:
         return 'multi_pc_trace'
+    elif llc_prefs == ['from_file']:
+        return 'from_file'
     return 'multi'
 
 def get_l2c_pref_fn(l2c_prefs):
@@ -81,7 +83,7 @@ def get_prefetcher_knobs(prefetchers, pref_degrees=[], level='llc'):
     assert (pref_degrees == [] or len(pref_degrees) == len(prefetchers)), 'Must pass one degree for each prefetcher, if providing degrees'
     
     knobs = []
-    for i, t in enumerate(prefetchers):
+    for i, t in enumerate(prefetchers):    
         knobs.append(f'--{level}_prefetcher_types={t}')
         
         # NOTE: Will ignore the degree knob, if the prefetcher lacks one.
@@ -113,7 +115,7 @@ def get_cloudsuite_knobs(traces):
     else:
         return ''
 
-def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr=False):
+def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr=False, track_pref=False):
     """Get the knobs required to track per-PC and per-address
     prefetch statistics, including the toggle knob and output file path.
     """
@@ -129,6 +131,11 @@ def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr
         addr_pref_dir = os.path.join(results_dir, 'addr_pref_stats')
         os.makedirs(addr_pref_dir, exist_ok=True)
         knobs += '--measure_addr_prefetches=true '
+        
+    if track_pref:
+        pref_trace_dir = os.path.join(results_dir, 'pref-traces')
+        os.makedirs(pref_trace_dir, exist_ok=True)
+        knobs += '--dump_prefetch_trace=true '
     
     for level in ['l1d', 'l2c', 'llc']:
         level_results_file = results_file.replace('.txt', f'_{level}.txt')
@@ -137,5 +144,7 @@ def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr
             knobs += f' --pc_prefetch_file_{level}={pc_pref_dir}/{level_results_file}'
         if track_addr:
             knobs += f' --addr_prefetch_file_{level}={addr_pref_dir}/{level_results_file}'
+        if track_pref and level == 'llc':
+            knobs += f' --prefetch_trace_{level}={pref_trace_dir}/{level_results_file}'
     
     return knobs

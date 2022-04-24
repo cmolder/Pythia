@@ -9,12 +9,32 @@ If you need help, you can run:
 - `./experiments/<experiment.py> help <command>` to get help for a certain command.
 
 ---
+# Prerequisites
+- [Python 3](https://www.python.org/)
+    - Running and building (via champsim.py) needs no additional libraries.
+    - For other scripts:
+        - Need Python 3.9 or older
+        - Need Pandas, Numpy, Scipy, tqdm, attrdict, PyYAML libraries
+- Installing dependencies (Anaconda / Miniconda):
+    1. Install [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+    2. [Create a Conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands)
+    3. [Activate the environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment)
+    4. Inside the environment, run these commands:
+        - `conda install -c conda-forge "python=3.9" pandas numpy scipy tqdm`
+        - `pip install attrdict PyYAML`
+
+---
 # ChampSim (champsim.py)
 Contains useful commands for building specific ChampSim binaries and running them.
 
 ## champsim.py build
+Builds a ChampSim binary. The L1D, L2, and LLC prefetchers are configurable, as well as the number of cores, LLC sets, branch predictor, and LLC replacement policy.
 
-TODO: Description
+Details about prefetchers:
+- **no**: No prefetcher
+- **multi**: Designed so that a single binary contains all prefetchers, and the prefetchers can be chosen at runtime. Each level has a different set of prefetchers inside its "multi" prefetcher.
+- **multi_pc_trace**: Similar to the "multi" prefetcher, but automatically chooses the prefetchers on a per-PC basis, using a *PC trace* that maps PCs to the prefetchers that should prefetch it. (see prefetcher_zoo.py pc_trace to generate PC traces). (LLC only)
+- **from_file**: Issues prefetches by reading from a *prefetch address trace*, instead of an online prefetcher scheme. (Under construction, currently buggy) (LLC only)
 
 ## champsim.py run
 

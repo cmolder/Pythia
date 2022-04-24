@@ -73,6 +73,7 @@ Options:
         multi          Runtime-configurable prefetcher (see multi.llc_pref for options)
         multi_pc_trace Prefetch using the chosen prefetcher for each PC, as defined in 
                        a PC trace.
+        from_file      Prefetch using per-instruction addresses in a prefetch address trace. (Under construction, currently buggy)
                        
    --llc-repl <llc-replacement>
         Choose the LLC replacement policy, where <llc-replacement> is one of:
@@ -144,6 +145,9 @@ Options:
             
         -a / --track-addr
             Track per-address prefetch statistics, and save them to a file inside <results-dir>/addr-pref-stats.
+            
+        -d / --track-pref
+            Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces. (Under construction, currently buggy)
 
     Prefetcher options:
         -t / --llc-pref <list-of-llc-prefetchers>
@@ -166,7 +170,10 @@ Options:
         --l2c-pref-degrees <list-of-l2c-prefetcher-degrees>
         
         --pc-trace-llc <pc-trace-file>
-            File to a PC trace. Must be passed if the target is 'pc_trace'.
+            File to a PC trace. Must be passed if the LLC prefetcher is 'pc_trace'.
+            
+        --pref-trace-llc <pref-trace-file>
+            File to a prefetch address traced. Must be passed if the LLC prefetcher is 'from_file'. (Under construction, currently buggy)
             
     Replacement options:
         --llc-repl <llc-replacement>
@@ -225,7 +232,7 @@ def build_command():
     if args.l2c_pref not in defaults.l2c_pref_fns:
         print('Invalid l2c prefetcher', args.l2c_pref)
         exit(-1)
-    if args.llc_pref not in defaults.l2c_pref_fns:
+    if args.llc_pref not in defaults.llc_pref_fns:
         print('Invalid llc prefetcher', args.llc_pref)
         exit(-1)
 
@@ -268,6 +275,7 @@ def run_command():
     parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
     parser.add_argument('-p', '--track-pc', action='store_true')
     parser.add_argument('-a', '--track-addr', action='store_true')
+    parser.add_argument('-d', '--track-pref', action='store_true')
     
     # Prefetcher options
     parser.add_argument('-t', '--llc-pref', nargs='+', type=str, default=['no'])
@@ -276,6 +284,7 @@ def run_command():
     parser.add_argument('--llc-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--l2c-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--pc-trace-llc', type=str, default=None)
+    parser.add_argument('--pref-trace-llc', type=str, default=None)
     # No support for l1d degree
     
     # Replacement options
@@ -292,7 +301,9 @@ def run_command():
     assert(not (len(args.l2c_pref) > 1 and 'no' in args.l2c_pref)), f'Cannot run "no" prefetcher in an L2C hybrid setup: {args.l2c_pref}'
     assert(not (len(args.l1d_pref) > 1 and 'no' in args.l1d_pref)), f'Cannot run "no" prefetcher in an L1D hybrid setup: {args.l1d_pref}'
     if args.llc_pref == ['pc_trace']:
-        assert args.pc_trace_llc is not None, 'Must pass a pc_trace file to <pc-trace-llc> if running pc_trace prefetcher.'
+        assert args.pc_trace_llc is not None, 'Must pass a pc trace to <pc-trace-llc> if running pc_trace prefetcher.'
+    if args.llc_pref == ['from_file']:
+        assert args.pref_trace_llc is not None, 'Must pass a prefetch address trace to <pref-trace-llc> if running from_file prefetcher.'
     
 
     # Generate results directory
@@ -301,9 +312,9 @@ def run_command():
         os.makedirs(results_dir, exist_ok=True)
         
     # Choose llc prefetcher binary
-    l1d_pref_fn = run.get_llc_pref_fn(args.l1d_pref)
+    l1d_pref_fn = run.get_l1d_pref_fn(args.l1d_pref)
     l2c_pref_fn = run.get_l2c_pref_fn(args.l2c_pref)
-    llc_pref_fn = run.get_l1d_pref_fn(args.llc_pref)
+    llc_pref_fn = run.get_llc_pref_fn(args.llc_pref)
 
     
     # Generate paths
@@ -328,14 +339,15 @@ def run_command():
     
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} {out_trace_knobs} {pc_trace_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} {out_trace_knobs} {pc_trace_knobs} {pref_trace_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
         binary=binary,
         cloudsuite_knobs=run.get_cloudsuite_knobs(args.execution_traces),
         l1d_pref_knobs=run.get_prefetcher_knobs(args.l1d_pref, level='l1d'),
         l2c_pref_knobs=run.get_prefetcher_knobs(args.l2c_pref, pref_degrees=args.l2c_pref_degrees, level='l2c'),
         llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees, level='llc'),
-        out_trace_knobs=run.get_output_trace_knobs(results_dir, results_file, track_pc=args.track_pc, track_addr=args.track_addr),
+        out_trace_knobs=run.get_output_trace_knobs(results_dir, results_file, track_pc=args.track_pc, track_addr=args.track_addr, track_pref=args.track_pref),
         pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc}' if args.pc_trace_llc else '',
+        pref_trace_knobs=f' --prefetch_trace_llc={args.pref_trace_llc}' if args.pref_trace_llc else '',
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,

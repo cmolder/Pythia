@@ -32,6 +32,8 @@ namespace knob
 	uint64_t measure_dram_bw_epoch = 256;
 	bool     measure_cache_acc = true;
 	uint64_t measure_cache_acc_epoch = 1024;
+    
+    /* Prefetch statistics, per-PC and per-address */
     bool     measure_pc_prefetches = false;
     bool     measure_addr_prefetches = false;
     string   pc_prefetch_file_l1d = string("/dev/null"); // Per-PC prefetch statistics
@@ -40,6 +42,11 @@ namespace knob
     string   addr_prefetch_file_l1d = string("/dev/null"); // Per-address prefetch statistics
     string   addr_prefetch_file_l2c = string("/dev/null");
     string   addr_prefetch_file_llc = string("/dev/null");
+    
+    /* Prefetch address traces */
+    bool     dump_prefetch_trace = false;
+    string   prefetch_trace_llc = string("/dev/null");
+    uint32_t from_file_max_allowed_degree = 16;
     
     /* multi_pc_trace */
     string  pc_trace_llc = string("/dev/null");
@@ -468,6 +475,21 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     {
 		knob::addr_prefetch_file_llc = string(value);
     }
+    
+    /* prefetch trace */
+    else if (MATCH("", "dump_prefetch_trace"))
+    {
+        knob::dump_prefetch_trace = !strcmp(value, "true") ? true : false;
+    }
+    else if (MATCH("", "prefetch_trace_llc"))
+    {
+        knob::prefetch_trace_llc = string(value);
+    }
+    else if (MATCH("", "from_file_max_allowed_degree"))
+    {
+        knob::from_file_max_allowed_degree = atoi(value);
+    }
+
     
     /* multi_pc_trace */
     else if (MATCH("", "pc_trace_llc"))

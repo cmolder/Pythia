@@ -235,7 +235,7 @@ def build_run(cfg, tr_path,
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
         track_pc=cfg.champsim.track_pc_pref,
-        trac_addr=cfg.champsim.track_addr_pref,
+        track_addr=cfg.champsim.track_addr_pref,
     )
 
     # Add condor file to the list

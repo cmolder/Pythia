@@ -257,7 +257,7 @@ void CACHE::llc_prefetcher_initialize()
 // actually issue the prefetch.
 //
 // If the PC isn't in the pc_prefetch table, issue no prefetch.
-uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in)
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
 {
     // Set prefetcher degrees (for those that issue a prefetch on this PC)
     set_prefetch_degree(ip);

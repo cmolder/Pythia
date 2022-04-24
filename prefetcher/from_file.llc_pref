@@ -1,0 +1,149 @@
+/* Reads addresses to prefetch from a file.
+*
+* Author: Quang Duong
+* Ported by Carson Molder to the Pythia version of ChampSim.
+*/
+
+#include "ooo_cpu.h"
+#include "cache.h"
+
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <assert.h>
+#include <cstdlib>
+#include <unordered_map>
+#include <vector>
+#include <limits>
+
+using namespace std;
+
+namespace knob
+{
+    extern uint32_t from_file_max_allowed_degree;
+    extern string   prefetch_trace_llc;
+}
+
+unordered_map<uint64_t, vector<uint64_t>> pref_addrs;
+unordered_map<uint64_t, vector<uint64_t>> pref_levels;
+
+
+
+
+void CACHE::llc_prefetcher_initialize() 
+{
+    cout << "CPU " << cpu << " LLC from_file prefetcher" << endl;
+    cout << "from_file_max_allowed_degree " << knob::from_file_max_allowed_degree << endl;
+    cout << "prefetch_trace_llc " << knob::prefetch_trace_llc << endl;
+    
+    ifstream pf_trace_in;
+    pf_trace_in.open(knob::prefetch_trace_llc);
+    assert(pf_trace_in.is_open());
+    
+    uint64_t line_no = 0;
+    
+    uint64_t instr_id;
+    string line;
+    string token;
+
+    while(getline(pf_trace_in, line)) {
+        stringstream line_stream(line);
+        
+        int i = 0;
+        while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
+            stringstream token_stream(token);
+            
+            if (i == 0) { // Get instruction ID
+                instr_id = stol(token);
+                // if (pref_addrs.find(instr_id) != pref_addrs.end()) {
+                //     cout << "warning, duplicate instruction id " << dec << instr_id << "\n";
+                //     pref_addrs[instr_id].clear();
+                //     pref_levels[instr_id].clear();
+                // }
+                //cout << " instr_id=" << dec << instr_id;
+            } else if (i == 1) { // Get PC
+                //cout << " pc=" << token;
+            } else if (i == 2) { // Get addresses
+                string addr_str;
+                uint64_t addr;
+                while (getline(token_stream, addr_str, ',')) {
+                    addr = stol(addr_str, nullptr, 16);
+                    //cout << " addr=" << hex << addr_str;
+                    pref_addrs[instr_id].push_back(addr);
+                }
+            } else if (i == 3) { // Get levels
+                string level_str;
+                uint64_t level;
+                while (getline(token_stream, level_str, ',')) {
+                    level = stol(level_str);
+                    //cout << " level=" << dec << level_str;
+                    pref_levels[instr_id].push_back(level);
+                }
+            }
+            i++;
+        }
+        //cout << "\n";
+        
+
+        if (pref_levels[instr_id].size() > knob::from_file_max_allowed_degree) {
+            cerr << "Exceeded max prefetch degree of " << knob::from_file_max_allowed_degree << " on line " << line_no << " for instr_id " << instr_id << endl;
+        }
+
+        line_no++;
+    }
+    
+    pf_trace_in.close();
+}
+
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
+{
+    if(instr_id == 0) //No prefetches for instructions with id 0 (prefetches and code misses)
+        return metadata_in; 
+
+    //cout << "instr_id=" << instr_id;
+    if (pref_addrs.find(instr_id) != pref_addrs.end()) {
+        for(int i = 0; i < pref_addrs[instr_id].size(); i++) {
+            //cout << " addr=" << hex << pref_addrs[instr_id][i] << " level=" << dec << pref_levels[instr_id][i];
+            prefetch_line(ip, addr, pref_addrs[instr_id][i], (pref_levels[instr_id][i] == 0 ? FILL_LLC : pref_levels[instr_id][i]), 0);
+        }
+    }
+    //cout << "\n";
+
+    return metadata_in;
+}
+
+uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+    return metadata_in;
+}
+
+void CACHE::llc_prefetcher_final_stats()
+{
+    cout << "CPU " << cpu << " LLC from file prefetcher final stats" << endl;
+}
+
+
+uint32_t CACHE::llc_prefetcher_prefetch_hit(uint64_t addr, uint64_t ip, uint32_t metadata_in)
+{
+    return metadata_in;
+}
+
+void CACHE::llc_prefetcher_print_config()
+{
+	
+}
+
+void CACHE::llc_prefetcher_broadcast_bw(uint8_t bw_level)
+{
+
+}
+
+void CACHE::llc_prefetcher_broadcast_ipc(uint8_t ipc)
+{
+
+}
+
+void CACHE::llc_prefetcher_broadcast_acc(uint32_t acc_level)
+{
+    
+}
