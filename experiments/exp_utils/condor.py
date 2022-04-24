@@ -48,7 +48,7 @@ def generate_condor_script(out, dry_run, **params):
     if 'run_name' in params.keys() and params['run_name'] is not None:
         cfg +=  f' \\\n    --run-name {params["run_name"]}'
     if 'extra_knobs' in params.keys() and params['extra_knobs'] is not None:
-        cfg += f' \\\n    --extra-knobs "{params["extra_knobs"]}"'
+        cfg += f' \\\n    --extra-knobs "\'{params["extra_knobs"]}\'"'
     
     if not dry_run:
         with open(out, 'w') as f:
@@ -67,7 +67,7 @@ def generate_run_name(trace_path, llc_sets,
                       l1d_pref=[],
                       l2c_pref=[], l2c_pref_degrees=[],
                       llc_pref=[], llc_pref_degrees=[],
-                      extra_suffix=''):
+                      extra_suffix=None):
     """Generate a unique run name, given the trace, and prefetchers+degrees."""
     trace_name = os.path.basename(trace_path).split('.')[0]
     
@@ -104,7 +104,7 @@ def generate_run_name(trace_path, llc_sets,
         llc_repl,
         f'{llc_sets}llc_sets'
     ))
-    if extra_suffix != '':
+    if extra_suffix is not None:
         out += '-' + extra_suffix
     return out
 
@@ -113,8 +113,8 @@ def build_run(cfg, tr_path,
               l1d_pref=['no'],
               l2c_pref=['no'], l2c_pref_degrees=[],
               llc_pref=['no'], llc_pref_degrees=[],
-              extra_knobs='',
-              extra_suffix='',
+              extra_suffix=None,
+              extra_knobs=None,
               dry_run=False, 
               verbose=False):
     """Build a single run and its necessary files. Return
@@ -402,18 +402,6 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                     l2c_pref=l2p,
                     llc_pref=llp,
                     extra_knobs=f'--scooby_enable_dyn_level=false',
-                    dry_run=dry_run, 
-                    verbose=verbose
-                )
-                condor_paths.append(c_path)
-                pbar.update(1)
-                
-                # Add run for disabled level prefetching
-                c_path = build_run(
-                    cfg, path,
-                    l1d_pref=['no'],
-                    l2c_pref=['no'],
-                    llc_pref=['no'],
                     dry_run=dry_run, 
                     verbose=verbose
                 )
