@@ -155,7 +155,8 @@ Options:
             Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces. (Under construction, currently buggy) 
                 
         --extra-knobs <knob-string>
-            Any additional knobs to pass to ChampSim. Pass them in the form of a string, e.g. `--knobs "--sisb_pref_degree=4"`.
+            Any additional knobs to pass to ChampSim. Pass them in the form of a string with BOTH double quotes
+            and single quotes, e.g. `--knobs "'--sisb_pref_degree=4'"`.
             They must match the ChampSim knob format ("--<knob>=<value>").
 
     Prefetcher options:
@@ -286,7 +287,7 @@ def run_command():
     parser.add_argument('-p', '--track-pc', action='store_true')
     parser.add_argument('-a', '--track-addr', action='store_true')
     parser.add_argument('-d', '--track-pref', action='store_true')
-    parser.add_argument('--extra-knobs', type=str, default='')
+    parser.add_argument('--extra-knobs', type=str, default=None)
     
     # Prefetcher options
     parser.add_argument('-t', '--llc-pref', nargs='+', type=str, default=['no'])
@@ -295,7 +296,7 @@ def run_command():
     parser.add_argument('--llc-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--l2c-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--pc-trace-llc', type=str, default=None)
-    parser.add_argument('--pref-trace-llc', type=str, default=None)
+    parser.add_argument('--pref-trace-llc', default=None)
     # No support for l1d degree
     
     # Replacement options
@@ -303,6 +304,8 @@ def run_command():
     
     # Branch prediction options
     parser.add_argument('--branch-pred', type=str, default='perceptron')
+    
+    print(sys.argv[2:])
 
     args = parser.parse_args(sys.argv[2:])
     
@@ -364,7 +367,7 @@ def run_command():
         out_trace_knobs=run.get_output_trace_knobs(results_dir, results_file, track_pc=args.track_pc, track_addr=args.track_addr, track_pref=args.track_pref),
         pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc}' if args.pc_trace_llc else '',
         pref_trace_knobs=f' --prefetch_trace_llc={args.pref_trace_llc}' if args.pref_trace_llc else '',
-        extra_knobs=args.extra_knobs,
+        extra_knobs=args.extra_knobs[1:-1], # Index to remove single quotes on edge
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,
