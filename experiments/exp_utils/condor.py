@@ -405,6 +405,8 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                     dry_run=dry_run, 
                     verbose=verbose
                 )
+                condor_paths.append(c_path)
+                pbar.update(1)
                 
                 # Add run for disabled level prefetching
                 c_path = build_run(
