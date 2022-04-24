@@ -8,6 +8,7 @@ Authors: Quang Duong and Carson Molder
 
 # Try not to import anything outside Python default libraries.
 import argparse
+import glob
 import os
 import sys
 import shutil
@@ -131,6 +132,10 @@ Options:
         --results-dir <results-dir>
             Specifies what directory to save the ChampSim results file in. This
             defaults to `{default_results_dir}`.
+            
+        --run-name <run-name>
+            Optionally name the run. If not given, the script will determine
+            one from the parameters.
 
         --warmup-instructions <warmup-instructions>
             Number of instructions to warmup the simulation for. Defaults to
@@ -147,7 +152,11 @@ Options:
             Track per-address prefetch statistics, and save them to a file inside <results-dir>/addr-pref-stats.
             
         -d / --track-pref
-            Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces. (Under construction, currently buggy)
+            Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces. (Under construction, currently buggy) 
+                
+        --extra-knobs <knob-string>
+            Any additional knobs to pass to ChampSim. Pass them in the form of a string, e.g. `--knobs "--sisb_pref_degree=4"`.
+            They must match the ChampSim knob format ("--<knob>=<value>").
 
     Prefetcher options:
         -t / --llc-pref <list-of-llc-prefetchers>
@@ -182,10 +191,6 @@ Options:
     Branch prediction options:
         --branch-pred <branch-predictor>
             Branch predictor to use. By default, Branch Perceptron ("perceptron") is used.
-        
-
-    
-
 '''.format(
     prog=sys.argv[0], 
     default_knobs_file=defaults.default_knobs_file,
@@ -239,6 +244,10 @@ def build_command():
     # Build ChampSims with different core / set counts.
     cores = set(args.cores)
     llc_sets = set(args.llc_sets)
+    
+    # Remove Jupyter notebook checkpoints (can conflict with actual files).
+    for d in glob.glob('*/.ipynb_checkpoints/'):
+        shutil.rmtree(d)
 
     for c in cores:
         for s in llc_sets:
@@ -271,11 +280,13 @@ def run_command():
     parser.add_argument('-c', '--cores', type=int, default=1)
     parser.add_argument('-s', '--llc-sets', type=int, default=defaults.default_llc_sets)
     parser.add_argument('--results-dir', default=defaults.default_results_dir)
+    parser.add_argument('--run-name', default=None)
     parser.add_argument('--warmup-instructions', default=defaults.default_warmup_instructions)
     parser.add_argument('--num-instructions', default=defaults.default_sim_instructions)
     parser.add_argument('-p', '--track-pc', action='store_true')
     parser.add_argument('-a', '--track-addr', action='store_true')
     parser.add_argument('-d', '--track-pref', action='store_true')
+    parser.add_argument('--extra-knobs', type=str, default='')
     
     # Prefetcher options
     parser.add_argument('-t', '--llc-pref', nargs='+', type=str, default=['no'])
@@ -327,19 +338,24 @@ def run_command():
         n_cores=args.cores, 
         llc_n_sets=args.llc_sets, 
     )
-    results_file = run.get_results_file(
-        binary, args.execution_traces, # Infer branch predictor, llc replacement from binary path.
-        l1d_prefs=args.l1d_pref,
-        l2c_prefs=args.l2c_pref,
-        llc_prefs=args.llc_pref,
-        l2c_pref_degrees=args.l2c_pref_degrees,
-        llc_pref_degrees=args.llc_pref_degrees
-    )
+    
+    if not args.run_name:
+        results_file = run.get_results_file(
+            binary, args.execution_traces, # Infer branch predictor, llc replacement from binary path.
+            l1d_prefs=args.l1d_pref,
+            l2c_prefs=args.l2c_pref,
+            llc_prefs=args.llc_pref,
+            l2c_pref_degrees=args.l2c_pref_degrees,
+            llc_pref_degrees=args.llc_pref_degrees
+        )
+    else:
+        results_file = args.run_name + '.txt'
+        
     assert os.path.exists(binary), f'ChampSim binary not found, (looked for {binary})'
     
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} {out_trace_knobs} {pc_trace_knobs} {pref_trace_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
+    cmd = '{binary} --config={config} --warmup_instructions={warm}000000 --simulation_instructions={sim}000000 {cloudsuite_knobs} {l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} {out_trace_knobs} {pc_trace_knobs} {pref_trace_knobs} {extra_knobs} -traces {trace} > {results}/{results_file} 2>&1'.format(
         binary=binary,
         cloudsuite_knobs=run.get_cloudsuite_knobs(args.execution_traces),
         l1d_pref_knobs=run.get_prefetcher_knobs(args.l1d_pref, level='l1d'),
@@ -348,6 +364,7 @@ def run_command():
         out_trace_knobs=run.get_output_trace_knobs(results_dir, results_file, track_pc=args.track_pc, track_addr=args.track_addr, track_pref=args.track_pref),
         pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc}' if args.pc_trace_llc else '',
         pref_trace_knobs=f' --prefetch_trace_llc={args.pref_trace_llc}' if args.pref_trace_llc else '',
+        extra_knobs=args.extra_knobs,
         #period=args.stat_printing_period,
         warm=args.warmup_instructions,
         sim=args.num_instructions,
