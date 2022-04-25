@@ -17,6 +17,9 @@ llc:
     max_hybrid: 1
 pythia:
     scooby_dyn_level_threshold:
+        - -100.0
+        - -75.0
+        - -50.0
         - -25.0
         - -20.0
         - -15.0
@@ -28,6 +31,9 @@ pythia:
         - 15.0
         - 20.0
         - 25.0
+        - 50.0
+        - 75.0
+        - 100.0
 paths:
     exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini/'
     trace_dir: '/scratch/cluster/cmolder/traces/spec06mini/champsim/'

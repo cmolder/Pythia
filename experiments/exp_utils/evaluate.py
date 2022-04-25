@@ -16,8 +16,16 @@ from tqdm import tqdm
 File I/O helpers
 """
 def read_file(path, cpu=0, cache_level='LLC'):
-    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst')
+    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst') 
+
     data = {}
+    
+    # Optional data (not checked in expected_keys)
+    pythia_dyn_level = False
+    data['pythia_level_threshold'] = None
+    data['pythia_low_conf_prefetches'] = None
+    data['pythia_high_conf_prefetches'] = None
+    
     with open(path, 'r') as f:
         for line in f:
             if 'Finished CPU' in line:
@@ -25,6 +33,14 @@ def read_file(path, cpu=0, cache_level='LLC'):
                 data['kilo_inst'] = int(line.split()[4]) / 1000
             if 'DRAM_bw_pochs' in line:
                 data['dram_bw_epochs'] = int(line.split()[1])
+            if 'scooby_enable_dyn_level 1' in line:
+                pythia_dyn_level = True
+            if 'scooby_dyn_level_threshold' in line and pythia_dyn_level:
+                data['pythia_level_threshold'] = float(line.split()[1])
+            if 'scooby_low_conf_pref' in line:
+                data['pythia_low_conf_prefetches'] = int(line.split()[1])
+            if 'scooby_high_conf_pref' in line:
+                data['pythia_high_conf_prefetches'] = int(line.split()[1])
                 
             
             # Per-core, cache-level statistics
@@ -71,11 +87,11 @@ def get_statistics(path, baseline_path=None):
     """
     full_trace = os.path.basename(path).split('-')[0]
     trace, simpoint = get_trace_from_path(path)
-    prefetcher = get_prefetcher_from_path(path)
-    degree = get_prefetcher_degs_from_path(path)
+    l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
+    l2c_pref_degree, llc_pref_degree = get_prefetcher_degs_from_path(path)
     
     # Don't compare baseline to itself.
-    if baseline_path and get_prefetcher_from_path(baseline_path) == prefetcher:
+    if baseline_path and get_prefetcher_from_path(baseline_path) == (l1d_pref, l2c_pref, llc_pref):
         return None 
     
     # Get statistics
@@ -88,8 +104,14 @@ def get_statistics(path, baseline_path=None):
     iss_prefetches, useful, useless, ipc, load_miss, rfo_miss, dram_bw_epochs, kilo_inst = (
         pf_data['issued_prefetches'], pf_data['useful'], pf_data['useless'], 
         pf_data['ipc'], pf_data['load_miss'], pf_data['rfo_miss'], 
-        pf_data['dram_bw_epochs'], pf_data['kilo_inst']
+        pf_data['dram_bw_epochs'], pf_data['kilo_inst'],
     )
+    pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches = (
+        pf_data['pythia_level_threshold'],  pf_data['pythia_high_conf_prefetches'],
+        pf_data['pythia_low_conf_prefetches']
+    )
+    
+    
     pf_total_miss = load_miss + rfo_miss + useful
     total_miss = pf_total_miss
     pf_mpki = (load_miss + rfo_miss) / kilo_inst
@@ -128,10 +150,16 @@ def get_statistics(path, baseline_path=None):
         'full_trace': full_trace,
         'trace': trace,
         'simpoint': simpoint,
-        'prefetcher': prefetcher,
-        'degree': degree,
+        'l1d_pref': l1d_pref,
+        'l2c_pref': l2c_pref,
+        'llc_pref': llc_pref,
+        'l2c_pref_degree': l2c_pref_degree,
+        'llc_pref_degree': llc_pref_degree,
+        'pythia_level_threshold': pythia_level_threshold,
         'accuracy': acc,
         'coverage': cov,
+        'pythia_low_conf_prefetches': pythia_low_conf_prefetches,
+        'pythia_high_conf_prefetches': pythia_high_conf_prefetches,
         'mpki': pf_mpki,
         'mpki_reduction': mpki_reduction,
         'dram_bw_epochs': dram_bw_epochs,
@@ -149,8 +177,8 @@ def get_pc_statistics(path):
     """
     full_trace = os.path.basename(path).split('-')[0]
     trace, simpoint = get_trace_from_path(path)
-    prefetcher = get_prefetcher_from_path(path)
-    degree = get_prefetcher_degs_from_path(path)
+    l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
+    l2c_pref_degree, llc_pref_degree = get_prefetcher_degs_from_path(path)
     
     # Get statistics
     pc_data = read_pc_file(path)
@@ -171,8 +199,11 @@ def get_pc_statistics(path):
             'full_trace': full_trace,
             'trace': trace,
             'simpoint': simpoint,
-            'prefetcher': prefetcher,
-            'degree': degree,
+            'l1d_pref': l1d_pref,
+            'l2c_pref': l2c_pref,
+            'llc_pref': llc_pref,
+            'l2c_pref_degree': l2c_pref_degree,
+            'llc_pref_degree': llc_pref_degree,
             'num_useful': useful,
             'num_useless': useless,
             'accuracy': accuracy
@@ -217,12 +248,15 @@ def get_prefetcher_from_path(path):
     """
     l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
     
-    if llp in ['no', 'multi_pc_trace']:
-        return llp
+    if llp not in ['no', 'multi_pc_trace']:
+        llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
+        llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
+    if l2p not in ['no']:
+        l2p, _ = l2p.replace('spp_dev2', 'sppdev2').split('_')
+        l2p  = l2p.replace(',','_').replace('sppdev2', 'spp_dev2')
     
-    llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
-    llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
-    return llp
+    
+    return l1p, l2p, llp
     
     
 def get_prefetcher_degs_from_path(path):
@@ -230,14 +264,30 @@ def get_prefetcher_degs_from_path(path):
     """
     l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
     
-    if llp in ['no', 'multi_pc_trace']:
-        return (None,)
+    l2pd, llpd = (None,), (None,)
     
-    _, llpd = llp.replace('spp_dev2', 'sppdev2').split('_')
-    llpd = tuple((None if d == 'na' else int(d)) for d in llpd.split(','))
+    if l2p not in ['no']:
+        _, l2pd = l2p.replace('spp_dev2', 'sppdev2').split('_')
+        l2pd = tuple((None if d == 'na' else int(d)) for d in l2pd.split(','))
+    if llp not in ['no', 'multi_pc_trace']:
+        _, llpd = llp.replace('spp_dev2', 'sppdev2').split('_')
+        llpd = tuple((None if d == 'na' else int(d)) for d in llpd.split(','))
     
-    return llpd
+    return l2pd, llpd
+
+def get_pythia_level_threshold(path):
+    """Get the level threshold for Pythia,
+    if is is being used.
+    """
+    if not any(p == 'scooby' for p in get_prefetcher_from_path(path)):
+        return None
     
+    if 'threshold' in path:
+        path_ = path[path.index('threshold'):]
+        path_ = path_.replace('threshold_', '').replace('.txt', '')
+        return float(path_)
+    
+    return None
 
 """
 CSV file creators
@@ -259,19 +309,28 @@ def generate_csv(results_dir, output_file,
     # Build trace paths
     for path in glob.glob(os.path.join(results_dir, '*.txt')):
         full_trace = os.path.basename(path).split('-')[0]
-        prefetcher = get_prefetcher_from_path(path)
-        degrees = get_prefetcher_degs_from_path(path)
-        traces[full_trace][prefetcher][degrees] = path
+        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
+        l2c_pref_deg, llc_pref_deg = get_prefetcher_degs_from_path(path)
+        pyt_level_th = get_pythia_level_threshold(path)
+        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_deg, llc_pref_deg, pyt_level_th)] = path
+        
         
     # Build statistics table
     # If you edit the columns, preserve the ordering between the dict in get_statistics and this list.
-    columns = ['full_trace', 'trace', 'simpoint', 'prefetcher', 'degree', 'accuracy', 'coverage', 'mpki',
-               'mpki_reduction',  'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
+    columns = ['full_trace', 'trace', 'simpoint', 
+               'l1d_pref', 'l2c_pref', 'llc_pref',
+               'l2c_pref_degree', 'llc_pref_degree', 
+               'pythia_level_threshold', 
+               'accuracy', 'coverage', 
+               'pythia_low_conf_prefetches', 'pythia_high_conf_prefetches',
+               'mpki', 'mpki_reduction', 
+               'dram_bw_epochs', 'dram_bw_reduction', 
+               'ipc', 'ipc_improvement',
                'baseline_prefetcher', 'path', 'baseline_path']
     stats = []
     with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
         for tr in traces:
-            assert 'no' in traces[tr].keys(), f'Could not find baseline "no" run for trace {tr}'
+            assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline "no" run for trace {tr}'
             for pf in traces[tr]:
                 for d in traces[tr][pf]:
                     pbar.update(1)
@@ -281,7 +340,7 @@ def generate_csv(results_dir, output_file,
                         #print('[DEBUG] Skipping', pf, d, 'best is', best_deg_df[pf].loc[tr])
                         continue
                         
-                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr]['no'][(None,)])         
+                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None)])         
 
                     # Filter missing rows
                     if row is None:
@@ -375,7 +434,9 @@ def generate_pc_csv(results_dir, output_file, level='llc',
        
     # Build statistics table
     # If you edit the columns, preserve the ordering between the dict in get_statistics and this list.
-    columns = ['pc', 'full_trace', 'trace', 'simpoint', 'prefetcher', 'degree',
+    columns = ['pc', 'full_trace', 'trace', 'simpoint', 
+               'l1d_pref', 'l2c_pref', 'llc_pref',
+               'l2c_pref_degree', 'llc_pref_degree', 
                'num_useful', 'num_useless', 'accuracy']
     stats = []
     with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
