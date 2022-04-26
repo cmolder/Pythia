@@ -1,6 +1,6 @@
 champsim:
-    warmup_instructions: 10
-    sim_instructions: 50
+    warmup_instructions: 25
+    sim_instructions: 100
     track_pc_pref: true
     track_addr_pref: false
     branch_pred: 'perceptron'
@@ -24,9 +24,10 @@ llc:
         #- 'reeses'   # Reese's
     max_hybrid: 2
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/exp_gap/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap/'
     trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
+    degree_csv: '/u/cmolder/GitHub/Pythia/out/prefetcher_degree_sweep/2022_04_25_2hyb_gap.csv' # Optional
 condor:
     user: 'cmolder@cs.utexas.edu'
     group: 'GRAD'

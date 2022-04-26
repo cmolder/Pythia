@@ -24,8 +24,8 @@ llc:
     max_hybrid: 2
     max_degree: 8
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_25_2hyb_spec06/'
-    trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_25_2hyb_gap/'
+    trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
     user: 'cmolder@cs.utexas.edu'
