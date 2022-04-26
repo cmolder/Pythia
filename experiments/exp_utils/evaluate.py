@@ -97,7 +97,7 @@ stats_columns = [
     'LLC_pref', 'LLC_pref_degree', 'LLC_accuracy', 'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
     'dram_bw_epochs', 'dram_bw_reduction', 
     'ipc', 'ipc_improvement',
-    'pythia_level_threshold', 'pythia_high_conf_prefetches', 'pythia_low_conf_prefetches'
+    'pythia_level_threshold', 'pythia_high_conf_prefetches', 'pythia_low_conf_prefetches',
     'path', 'baseline_path'
 ]
 def get_statistics(path, baseline_path=None):
@@ -333,7 +333,7 @@ def generate_csv(results_dir, output_file, dry_run=False):
                     row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None)])         
                     if row is None: # Filter missing rows
                         continue
-                        
+
                     assert all([k in stats_columns for k in row.keys()]), f'Columns missing for row {tr}, {pf}, {d}'
                     stats.append(row)
                     
