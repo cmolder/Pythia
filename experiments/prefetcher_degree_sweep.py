@@ -24,7 +24,7 @@ from tqdm import tqdm
 from exp_utils import config, condor, evaluate
 
 # Defaults (TODO: Move to yml or launch args)
-default_eval_csv = './out/prefetcher_degree_sweep.csv'
+default_eval_csv = './out/prefetcher_degree_sweep/prefetcher_degree_sweep.csv'
 default_metric = 'ipc'
 
 help_str = {
@@ -105,7 +105,7 @@ def condor_command():
     args = parser.parse_args(sys.argv[2:])
     cfg = config.read_config(args.config_file)
     
-    print('Setting up Condor Prefetcher Zoo experiment:')
+    print('Setting up Condor Prefetcher Degree Sweep experiment:')
     print('    ChampSim:')
     print('        # sim inst        :', cfg.champsim.sim_instructions, 'million')
     print('        # warmup inst     :', cfg.champsim.warmup_instructions, 'million')

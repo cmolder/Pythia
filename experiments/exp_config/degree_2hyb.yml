@@ -1,7 +1,7 @@
 champsim:
     warmup_instructions: 25
     sim_instructions: 100
-    track_pc_pref: true
+    track_pc_pref: false
     track_addr_pref: false
     branch_pred: 'perceptron'
 l1d:
@@ -24,7 +24,7 @@ llc:
     max_hybrid: 2
     max_degree: 8
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_21_2hyb/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_25_2hyb_spec06/'
     trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
