@@ -24,7 +24,6 @@ def read_file(path, cpu=0):
                      'L1D_load_miss', 'L2C_load_miss', 'LLC_load_miss', 
                      'L1D_rfo_miss', 'L2C_rfo_miss', 'LLC_rfo_miss',
                      'kilo_inst')
-
     data = {}
     
     # Optional data (not checked in expected_keys)
@@ -98,7 +97,7 @@ stats_columns = [
     'LLC_pref', 'LLC_pref_degree', 'LLC_accuracy', 'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
     'dram_bw_epochs', 'dram_bw_reduction', 
     'ipc', 'ipc_improvement',
-    'pythia_level_threshold', 'pythia_low_conf_prefetches', 'pythia_high_conf_prefetches',
+    'pythia_level_threshold', 'pythia_high_conf_prefetches', 'pythia_low_conf_prefetches'
     'path', 'baseline_path'
 ]
 def get_statistics(path, baseline_path=None):
@@ -123,13 +122,15 @@ def get_statistics(path, baseline_path=None):
     results['full_trace'] = full_trace
     results['trace'] = trace
     results['simpoint'] = simpoint
+    results['pythia_level_threshold'] = pf_data['pythia_level_threshold']
+    results['pythia_high_conf_prefetches'] = pf_data['pythia_high_conf_prefetches']
+    results['pythia_low_conf_prefetches'] = pf_data['pythia_low_conf_prefetches']
     
     if baseline_path:
         b_data = read_file(baseline_path)
         b_ipc, b_dram_bw_epochs, b_kilo_inst = (
             b_data['ipc'], b_data['dram_bw_epochs'], b_data['kilo_inst']
         )
-    
     
     pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches = (
         pf_data['pythia_level_threshold'], pf_data['pythia_high_conf_prefetches'],
@@ -212,7 +213,7 @@ def get_pc_statistics(path):
     pc_data = read_pc_file(path)
     pc_out = []
     
-    for pc in pc_data.keys():
+    for pc in pc_data.keys(): 
         row = {k : np.nan for k in pc_columns}
         row['pc'] = pc
         row['full_trace'] = full_trace
@@ -226,7 +227,6 @@ def get_pc_statistics(path):
         pc_out.append(row)
         
     return pc_out
-    
     
 
 """
@@ -268,7 +268,6 @@ def get_prefetcher_from_path(path):
     if l2p not in ['no']:
         l2p, _ = l2p.replace('spp_dev2', 'sppdev2').split('_')
         l2p  = l2p.replace(',','_').replace('sppdev2', 'spp_dev2')
-    
     
     return l1p, l2p, llp
     
@@ -320,20 +319,18 @@ def generate_csv(results_dir, output_file, dry_run=False):
         l2c_pref_deg, llc_pref_deg = get_prefetcher_degs_from_path(path)
         pyt_level_th = get_pythia_level_threshold(path)
         traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_deg, llc_pref_deg, pyt_level_th)] = path
-        
+
         
     # Build statistics table
     stats = []
     with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
         for tr in traces:
-            assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline "no" run for trace {tr}'
+            assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline ("no", "no", "no") run for trace {tr}'
             for pf in traces[tr]:
                 for d in traces[tr][pf]:
                     pbar.update(1)
 
-                        
                     row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None)])         
-
                     if row is None: # Filter missing rows
                         continue
                         
@@ -348,7 +345,7 @@ def generate_csv(results_dir, output_file, dry_run=False):
         stats.to_csv(output_file, index=False)
             
             
-def generate_best_degree_csv(results_dir, output_file, 
+def generate_best_degree_csv(results_dir, output_file,
                              metric='ipc', dry_run=False):
     """Generate the best degree for each prefetcher on each run.
     """
@@ -361,9 +358,9 @@ def generate_best_degree_csv(results_dir, output_file,
     # Build trace paths
     for path in paths:
         full_trace = os.path.basename(path).split('-')[0]
-        prefetcher = get_prefetcher_from_path(path)
-        degrees = get_prefetcher_degs_from_path(path)
-        traces[full_trace][prefetcher][degrees] = path
+        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
+        l2c_pref_degrees, llc_pref_degrees = get_prefetcher_degs_from_path(path)
+        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_degrees, llc_pref_degrees)] = path
 
     # Build best degree dictionary
     # - Compute the best_degree for each prefetcher on each trace.
@@ -399,49 +396,34 @@ def generate_best_degree_csv(results_dir, output_file,
         print(f'Saving best degree table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         df = df.to_csv(output_file, index=False)
-        
-        
-def generate_pc_csv(results_dir, output_file, level='llc', 
-                    dry_run=False, best_degree_csv_file=None):
+       
+                
+def generate_pc_csv(results_dir, output_file, level='llc', dry_run=False):
     """Generate statistics on each PC for each prefetcher on each run.
     """
     traces = defaultdict(lambda : defaultdict(dict))
     paths = glob.glob(os.path.join(results_dir, 'pc_pref_stats', f'*_{level}.txt'))
     n_paths = len(paths)
     
-    # If we have a best degree CSV file, we will filter out instances of the prefetchers
-    # found in the file on the ones with the best degree in each trace.
-    if best_degree_csv_file:
-        best_deg_df = pd.read_csv(best_degree_csv_file)
-        best_deg_df.index = best_deg_df.Trace
-    
     # Build trace paths
     for path in paths:
         full_trace = os.path.basename(path).split('-')[0]
-        prefetcher = get_prefetcher_from_path(path)
-        degrees = get_prefetcher_degs_from_path(path)
+        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
+        l2c_pref_degrees, llc_pref_degrees = get_prefetcher_degs_from_path(path)
         
-        traces[full_trace][prefetcher][degrees] = path
+        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_degrees, llc_pref_degrees)] = path
        
     # Build statistics table
-    # If you edit the columns, preserve the ordering between the dict in get_statistics and this list.
-    columns = ['pc', 'full_trace', 'trace', 'simpoint', 
-               'l1d_pref', 'l2c_pref', 'llc_pref',
-               'l2c_pref_degree', 'llc_pref_degree', 
-               'num_useful', 'num_useless', 'accuracy']
     stats = []
     with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
         for tr in traces.keys():
             for pf in traces[tr].keys():
-                if pf == 'no':
+                if pf == (('no',), ('no',), ('no',)):
                     pbar.update(1)
                     continue
                 
                 for d in traces[tr][pf].keys():
                     pbar.update(1)
-                    # Filter non-best degree prefetchers (if provided).
-                    if best_degree_csv_file and pf in best_deg_df.columns and eval(best_deg_df[pf].loc[tr]) != d:
-                        continue
                         
                     rows = get_pc_statistics(traces[tr][pf][d])
                     stats.extend(rows)

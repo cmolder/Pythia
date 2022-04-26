@@ -4,6 +4,7 @@ Utility functions for setting up Condor experiments on Pythia.
 Author: Carson Molder
 """
 
+import pandas as pd
 import os
 import glob
 from tqdm import tqdm
@@ -262,6 +263,9 @@ def build_sweep(cfg, dry_run=False, verbose=False):
     if cfg.llc.pref_candidates == ('pc_trace',):
         assert 'pc_trace_dir' in cfg.paths.keys(), 'Must add a PC trace directory to paths.pc_trace_dir if sweeping on pc_trace'
         assert cfg.pc_trace_metric in pc_trace.metrics, f'PC trace metric {cfg.pc_trace_metric} not in options {pc_trace.metrics}'
+        
+    # Get best degrees (if provided)
+    degrees = pd.read_csv(cfg.paths.degree_csv) if 'degree_csv' in cfg.paths else None
     
     condor_paths = []
     paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
@@ -275,10 +279,22 @@ def build_sweep(cfg, dry_run=False, verbose=False):
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
         for path in paths:
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                #print('[DEBUG]', path, l1p, l2p, llp)
+                
+                trace_name = evaluate.get_full_trace_from_path(path).split('.')[0]
+                
+                if not isinstance(degrees, type(None)):
+                    l2c_pref_degree = list(eval(degrees[degrees.Trace == trace_name][str(('_'.join(l1p), '_'.join(l2p), '_'.join(llp)))].item())[0]) if l2p != ('no',) else []
+                    llc_pref_degree = list(eval(degrees[degrees.Trace == trace_name][str(('_'.join(l1p), '_'.join(l2p), '_'.join(llp)))].item())[1]) if llp != ('no',) else []
+                else:
+                    l2c_pref_degree, llc_pref_degree = [], []
+                
+                #print('[DEBUG]', trace_name, l1p, l2p, llp, l2c_pref_degree, llc_pref_degree)
+                
                 c_path = build_run(
                     cfg, path, 
                     l1d_pref=l1p, l2c_pref=l2p, llc_pref=llp,    
+                    l2c_pref_degrees=l2c_pref_degree,
+                    llc_pref_degrees=llc_pref_degree,
                     dry_run=dry_run, 
                     verbose=verbose
                 )

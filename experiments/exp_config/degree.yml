@@ -1,7 +1,7 @@
 champsim:
     warmup_instructions: 25
     sim_instructions: 100
-    track_pc_pref: true
+    track_pc_pref: false
     track_addr_pref: false
     branch_pred: 'perceptron'
 l1d:

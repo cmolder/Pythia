@@ -22,7 +22,7 @@ from tqdm import tqdm
 from exp_utils import condor, config, evaluate, pc_trace
 
 # Defaults (TODO: Move to yml or launch args)
-default_eval_csv = './out/prefetcher_zoo.csv'
+default_eval_csv = './out/prefetcher_zoo/prefetcher_zoo.csv'
 default_pc_trace_metric = 'num_useful'
 
 help_str = {
@@ -65,15 +65,7 @@ Options:
     -o / --output-file <output-file>
         Specifies what file path to save the stats CSV data to. This defaults to
         `{default_eval_csv}`.
-        
-    --best-degree-csv <best-degree-output-file>
-        If provided, will create <prefetcher>-best variants that use the tuned
-        version of each prefetcher, using the results from <best-degree-output-file>
-        in prefetcher_degree_sweep. 
-        
-        Must copy the relevant degree prefetcher result files from the degree sweep 
-        to <results-dir>.
-        
+              
     --pc
         If provided, will compute per-PC prefetch stats on the LLC, using results
         in <results-dir>/pc_pref_stats/
@@ -137,6 +129,7 @@ def condor_command():
     print('        ChampSim          :', cfg.paths.champsim_dir)
     print('        Experiment        :', cfg.paths.exp_dir)
     print('        Traces            :', cfg.paths.trace_dir)
+    print('        Degree CSV file   :', cfg.paths.degree_csv if 'degree_csv' in cfg.paths else 'None')
     print('    L1D:')
     print('        Pref. candidates  :', ', '.join(cfg.l1d.pref_candidates))
     print('        Max hybrid        :', cfg.l1d.max_hybrid)
@@ -163,7 +156,6 @@ def eval_command():
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
     parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
-    parser.add_argument('--best-degree-csv', type=str)
     parser.add_argument('--pc', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
@@ -172,7 +164,6 @@ def eval_command():
     evaluate.generate_csv(
         args.results_dir,
         args.output_file,
-        best_degree_csv_file=args.best_degree_csv,
         dry_run=args.dry_run
     )
     
@@ -182,7 +173,6 @@ def eval_command():
             args.results_dir,
             args.output_file.replace('.csv', '_pc_llc.csv'),
             level='llc',
-            best_degree_csv_file=args.best_degree_csv,
             dry_run=args.dry_run
         )
         
