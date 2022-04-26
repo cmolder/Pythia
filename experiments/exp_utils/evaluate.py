@@ -16,10 +16,11 @@ from tqdm import tqdm
 File I/O helpers
 """
 def read_file(path, cpu=0):
-    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 
+    expected_keys = ('ipc', 'dram_bw_epochs', 
                      'L1D_useful', 'L2C_useful', 'LLC_useful',
                      'L1D_useless', 'L2C_useless', 'LLC_useless',
                      'L1D_issued_prefetches', 'L2C_issued_prefetches', 'LLC_issued_prefetches',
+                     'L1D_total_miss', 'L2C_total_miss', 'LLC_total_miss',
                      'L1D_load_miss', 'L2C_load_miss', 'LLC_load_miss', 
                      'L1D_rfo_miss', 'L2C_rfo_miss', 'LLC_rfo_miss',
                      'kilo_inst')
@@ -44,7 +45,7 @@ def read_file(path, cpu=0):
                 elif f'{level}_RFO_miss' in line:
                     data[f'{level}_rfo_miss'] = int(line.split()[1])
                 elif f'{level}_total_miss' in line:
-                    data['total_miss'] = int(line.split()[1])
+                    data[f'{level}_total_miss'] = int(line.split()[1])
                 elif f'{level}_prefetch_useful' in line:
                     data[f'{level}_useful'] = int(line.split()[1])
                 elif f'{level}_prefetch_useless' in line:
@@ -134,7 +135,8 @@ def get_statistics(path, baseline_path=None):
             b_load_miss, b_rfo_miss, b_useful = (
                b_data[f'{level}_load_miss'], b_data[f'{level}_rfo_miss'], b_data[f'{level}_useful']
             )
-            b_total_miss = load_miss + rfo_miss + useful # = b_data[f'{level}_total_miss']
+            #b_total_miss = load_miss + rfo_miss + useful # = b_data[f'{level}_total_miss']
+            b_total_miss = b_data[f'{level}_total_miss']
             b_mpki = b_total_miss / b_data['kilo_inst']
             assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(baseline_path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
 

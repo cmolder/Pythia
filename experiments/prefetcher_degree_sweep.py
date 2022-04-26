@@ -149,8 +149,13 @@ def eval_command():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
+    # Add champsim_results/ to the path if it wasn't provided.
+    results_dir = args.results_dir
+    if not results_dir.endswith('champsim_results/'):
+        results_dir = os.path.join(results_dir, 'champsim_results/')
+    
     evaluate.generate_best_degree_csv(
-        args.results_dir,
+        results_dir,
         args.output_file,
         metric=args.metric,
         dry_run=args.dry_run

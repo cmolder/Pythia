@@ -160,9 +160,14 @@ def eval_command():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
+    # Add champsim_results/ to the path if it wasn't provided.
+    results_dir = args.results_dir
+    if not results_dir.endswith('champsim_results/'):
+        results_dir = os.path.join(results_dir, 'champsim_results/')
+    
     print('Generating cumulative run statistics...')
     evaluate.generate_csv(
-        args.results_dir,
+        results_dir,
         args.output_file,
         dry_run=args.dry_run
     )
@@ -170,7 +175,7 @@ def eval_command():
     if args.pc:
         print('Generating per-PC run statistics...')
         evaluate.generate_pc_csv(
-            args.results_dir,
+            results_dir,
             args.output_file.replace('.csv', '_pc_llc.csv'),
             level='llc',
             dry_run=args.dry_run
