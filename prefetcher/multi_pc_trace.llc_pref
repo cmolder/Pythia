@@ -70,7 +70,7 @@ void parse_pc_trace() {
             stringstream token_stream(token);
             
             if (i == 0) {  // Get PC   
-                pc = stoi(token, nullptr, 16); 
+                pc = stol(token, nullptr, 16); 
             } else if (i == 1) {  // Get prefetchers
                 string pref;
                 while (getline(token_stream, pref, ',')) {
@@ -83,7 +83,7 @@ void parse_pc_trace() {
                 while (getline(token_stream, deg_str, ',')) {
                     if (deg_str == "na")
                         deg = 0; // Just use default degree (either via knobs or default setting.)
-                    else deg = stoi(deg_str);
+                    else deg = stol(deg_str);
                     pc_degrees[pc].push_back(deg);
                 }
             }

@@ -1,7 +1,7 @@
 champsim:
     warmup_instructions: 25
     sim_instructions: 100
-    track_pc_pref: true
+    track_pc_pref: false
     track_addr_pref: false
     branch_pred: 'perceptron'
 l1d:
@@ -10,6 +10,7 @@ l1d:
 l2c:
     pref_candidates: []
     max_hybrid: 1
+    max_degree: 1
 llc:
     sets: 2048
     repl: 'ship'
@@ -20,16 +21,14 @@ llc:
         - 'sisb'     # Idealized ISB
         - 'sms'      # SMS
         - 'spp_dev2' # SPP
-        #- 'triage'   # Triage
-        #- 'reeses'   # Reese's
     max_hybrid: 2
+    max_degree: 8
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/2022_04_25_2hyb_gap/'
     trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
-    degree_csv: '/u/cmolder/GitHub/Pythia/out/prefetcher_degree_sweep/2022_04_25_2hyb_gap.csv' # Optional
 condor:
     user: 'cmolder@cs.utexas.edu'
-    group: 'GRAD'
-    project: 'ARCHITECTURE'
-    description: 'Prefetcher Zoo'
+    group: 'GRAD'                
+    project: 'ARCHITECTURE'      
+    description: 'Prefetcher Degree Sweep'

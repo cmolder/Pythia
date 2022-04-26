@@ -33,13 +33,13 @@ Builds a ChampSim binary. The L1D, L2, and LLC prefetchers are configurable, as 
 Details about prefetchers:
 - **no**: No prefetcher
 - **multi**: Designed so that a single binary contains all prefetchers, and the prefetchers can be chosen at runtime. Each level has a different set of prefetchers inside its "multi" prefetcher.
-- **multi_pc_trace**: Similar to the "multi" prefetcher, but automatically chooses the prefetchers on a per-PC basis, using a *PC trace* that maps PCs to the prefetchers that should prefetch it. (see [prefetcher_zoo pc_trace](./README.md#prefetcher_zoo.py-pc_trace) to generate PC traces). (LLC only)
+- **multi_pc_trace**: Similar to the "multi" prefetcher, but automatically chooses the prefetchers on a per-PC basis, using a *PC trace* that maps PCs to the prefetchers that should prefetch it. (see [prefetcher_zoo pc_trace](./README.md#prefetcher_zoopy-pc_trace) to generate PC traces). (LLC only)
 - **from_file**: Issues prefetches by reading from a *prefetch address trace*, instead of an online prefetcher scheme. (Under construction, currently buggy) (LLC only)
 
 ## champsim.py run
 Runs a ChampSim binary, on (a series of) ChampSim traces.
 
-See [prefetcher_zoo condor](./README.md#prefetcher_zoo.py-condor) for a list of valid prefetchers that can be passed to the `--l1d-pref`, `--l2c-pref`, and `--llc-pref` flags.
+See [prefetcher_zoo condor](./README.md#prefetcher_zoopy-condor) for a list of valid prefetchers that can be passed to the `--l1d-pref`, `--l2c-pref`, and `--llc-pref` flags.
 
 ---
 # Experiment configurations (exp_config/)
@@ -121,13 +121,13 @@ LLC prefetchers (chosen by `llc.pref_candidates` list):
     - Triage: `triage` (Currently broken)
 - Special prefetchers (cannot be hybridzed)
     - Run prefetchers online, from best PC trace: `pc_trace`
-        - Runs `multi_pc_trace.llc_pref`, which using a Best PC trace (see [prefetcher_zoo pc_trace](./README.md#prefetcher_zoo.py-pc_trace)), automatically selects the best performing prefetcher(s) and degrees to prefetch each load PC's loads.
+        - Runs `multi_pc_trace.llc_pref`, which using a Best PC trace (see [prefetcher_zoo pc_trace](./README.md#prefetcher_zoopy-pc_trace)), automatically selects the best performing prefetcher(s) and degrees to prefetch each load PC's loads.
         - Need to build `multi_pc_trace` separately (pass `--llc-pref multi_pc_trace` to `champsim.py build`)
     - Run prefetchers offline, from prefetch address trace: `from_file`
         - Runs `from_file.llc_pref`, which prefetches using a per-instruction trace that lists the addresses and levels to prefetch.
         - Need to build `from_file` seprately (pass `--llc-pref from_file` to `champsim.py build`)
         
-Inside the config file, the option `paths.degree_csv` can be passed to select a degree for each prefetcher combination on each simpoint. This can be obtained from the output of [prefetcher_degree_sweep eval](./README.md#prefetcher_degree_sweep.py eval). If it is not provided, default degrees are used (defined in the default knobs file / in `src/knobs.cc`).
+Inside the config file, the option `paths.degree_csv` can be passed to select a degree for each prefetcher combination on each simpoint. This can be obtained from the output of [prefetcher_degree_sweep eval](./README.md#prefetcher_degree_sweeppy-eval). If it is not provided, default degrees are used (defined in the default knobs file / in `src/knobs.cc`).
     
 
 ## prefetcher_zoo.py eval
@@ -165,7 +165,7 @@ This is a good workflow to follow, assuming sufficient computational resources:
 1. Create a degree sweep over the set of prefetchers, using [prefetcher_degree_sweep.py condor](#prefetcher_degree_sweep.py-condor)
 2. Run the degree sweep.
 3. Evaluate the degree sweep to get the best degree for each prefetcher combination, using [prefetcher_degree_sweep.py eval](#prefetcher_degree_sweep.py-eval)
-3. Create a zoo sweep, filtering on the best degrees from the degree sweep, using [prefetcher_zoo.py condor](#prefetcher_zoo.py-condor) with the `--best-degree-csv` flag.
+3. Create a zoo sweep, filtering on the best degrees from the degree sweep, using [prefetcher_zoo.py condor](#prefetcher_zoo.py-condor) with `path.degree_csv` inside the sweep config file.
     - The idea of doing another zoo sweep separately is to reduce the amount of extraneous per-PC statistics, per-address statistics, and trace files generated, since we are only considering the best degree.
 4. Run the zoo sweep.
 5. Evaluate the zoo sweep to get results for each (tuned) prefetcher combination, using [prefetcher_zoo.py eval](#prefetcher_zoo.py-eval).
