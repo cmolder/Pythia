@@ -15,8 +15,14 @@ from tqdm import tqdm
 """
 File I/O helpers
 """
-def read_file(path, cpu=0, cache_level='LLC'):
-    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 'useful', 'useless', 'issued_prefetches', 'load_miss', 'rfo_miss', 'kilo_inst') 
+def read_file(path, cpu=0):
+    expected_keys = ('ipc', 'total_miss', 'dram_bw_epochs', 
+                     'L1D_useful', 'L2C_useful', 'LLC_useful',
+                     'L1D_useless', 'L2C_useless', 'LLC_useless',
+                     'L1D_issued_prefetches', 'L2C_issued_prefetches', 'LLC_issued_prefetches',
+                     'L1D_load_miss', 'L2C_load_miss', 'LLC_load_miss', 
+                     'L1D_rfo_miss', 'L2C_rfo_miss', 'LLC_rfo_miss',
+                     'kilo_inst')
 
     data = {}
     
@@ -44,21 +50,23 @@ def read_file(path, cpu=0, cache_level='LLC'):
                 
             
             # Per-core, cache-level statistics
-            if f'Core_{cpu}_{cache_level}' not in line: # TODO : Implement multi-core support.
+            if f'Core_{cpu}' not in line: # TODO : Implement multi-core support.
                 continue
             line = line.strip()
-            if 'load_miss' in line:
-                data['load_miss'] = int(line.split()[1])
-            elif 'RFO_miss' in line:
-                data['rfo_miss'] = int(line.split()[1])
-            elif 'total_miss' in line:
-                data['total_miss'] = int(line.split()[1])
-            elif 'prefetch_useful' in line:
-                data['useful'] = int(line.split()[1])
-            elif 'prefetch_useless' in line:
-                data['useless'] = int(line.split()[1])
-            elif 'prefetch_issued' in line:
-                data['issued_prefetches'] = int(line.split()[1])
+            
+            for level in ['L1D', 'L2C', 'LLC']:
+                if f'{level}_load_miss' in line:
+                    data[f'{level}_load_miss'] = int(line.split()[1])
+                elif f'{level}_RFO_miss' in line:
+                    data[f'{level}_rfo_miss'] = int(line.split()[1])
+                elif f'{level}_total_miss' in line:
+                    data['total_miss'] = int(line.split()[1])
+                elif f'{level}_prefetch_useful' in line:
+                    data[f'{level}_useful'] = int(line.split()[1])
+                elif f'{level}_prefetch_useless' in line:
+                    data[f'{level}_useless'] = int(line.split()[1])
+                elif f'{level}_prefetch_issued' in line:
+                    data[f'{level}_issued_prefetches'] = int(line.split()[1])
 
     if not all(key in data for key in expected_keys):
         return None
@@ -82,6 +90,16 @@ def read_pc_file(path):
 """
 Statistics helpers
 """
+stats_columns = [
+    'full_trace', 'trace', 'simpoint', 
+    'L1D_pref', 'L1D_accuracy', 'L1D_coverage', 'L1D_mpki', 'L1D_mpki_reduction',
+    'L2C_pref', 'L2C_pref_degree', 'L2C_accuracy', 'L2C_coverage', 'L2C_mpki', 'L2C_mpki_reduction',
+    'LLC_pref', 'LLC_pref_degree', 'LLC_accuracy', 'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
+    'dram_bw_epochs', 'dram_bw_reduction', 
+    'ipc', 'ipc_improvement',
+    'pythia_level_threshold', 'pythia_low_conf_prefetches', 'pythia_high_conf_prefetches',
+    'path', 'baseline_path'
+]
 def get_statistics(path, baseline_path=None):
     """Get cumulative statistics from a ChampSim output / results file.
     """
@@ -99,79 +117,77 @@ def get_statistics(path, baseline_path=None):
     if pf_data == None:
         print(f'Warning: Missing data for {path}')
         return None
-        
-        
-    iss_prefetches, useful, useless, ipc, load_miss, rfo_miss, dram_bw_epochs, kilo_inst = (
-        pf_data['issued_prefetches'], pf_data['useful'], pf_data['useless'], 
-        pf_data['ipc'], pf_data['load_miss'], pf_data['rfo_miss'], 
-        pf_data['dram_bw_epochs'], pf_data['kilo_inst'],
-    )
-    pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches = (
-        pf_data['pythia_level_threshold'],  pf_data['pythia_high_conf_prefetches'],
-        pf_data['pythia_low_conf_prefetches']
-    )
     
-    
-    pf_total_miss = load_miss + rfo_miss + useful
-    total_miss = pf_total_miss
-    pf_mpki = (load_miss + rfo_miss) / kilo_inst
+    results = {k : np.nan for k in stats_columns}
+    results['full_trace'] = full_trace
+    results['trace'] = trace
+    results['simpoint'] = simpoint
     
     if baseline_path:
         b_data = read_file(baseline_path)
-        b_total_miss, b_ipc = b_data['total_miss'], b_data['ipc']
-        b_dram_bw_epochs = b_data['dram_bw_epochs']
-        b_load_miss = b_data['load_miss']
-        b_rfo_miss = b_data['rfo_miss']
-        b_mpki = b_total_miss / b_data['kilo_inst']
-        assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(baseline_path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
+        b_ipc, b_dram_bw_epochs, b_kilo_inst = (
+            b_data['ipc'], b_data['dram_bw_epochs'], b_data['kilo_inst']
+        )
+    
+    
+    pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches = (
+        pf_data['pythia_level_threshold'], pf_data['pythia_high_conf_prefetches'],
+        pf_data['pythia_low_conf_prefetches']
+    )
+    
+    ipc, dram_bw_epochs, kilo_inst = (
+        pf_data['ipc'], pf_data['dram_bw_epochs'], pf_data['kilo_inst']
+    )
+    
+    
+    for level in ['L1D', 'L2C', 'LLC']:
+        iss_prefetches, useful, useless, load_miss, rfo_miss = (
+            pf_data[f'{level}_issued_prefetches'],
+            pf_data[f'{level}_useful'],  pf_data[f'{level}_useless'],  
+            pf_data[f'{level}_load_miss'], pf_data[f'{level}_rfo_miss']
+        )
         
-    if useful + useless == 0:
-        acc = 100.0 #'N/A'
-    else:
-        acc = useful / (useful + useless) * 100
+        total_miss = load_miss + rfo_miss + useful
+        pf_mpki = (load_miss + rfo_miss) / kilo_inst
         
-    if total_miss == 0 or baseline_path is None:
-        cov = np.nan
-        oldcov = np.nan
-    else:
-        cov = ((b_load_miss + b_rfo_miss) - (load_miss + rfo_miss)) / (b_load_miss + b_rfo_miss) * 100
-        oldcov = str(useful / total_miss * 100)
-        
-    if baseline_path:
-        mpki_reduction = (b_mpki - pf_mpki) / b_mpki * 100.
-        dram_bw_reduction = (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
-        ipc_improvement = (ipc - b_ipc) / b_ipc * 100.
-    else:
-        mpki_reduction = np.nan
-        dram_bw_reduction = np.nan
-        ipc_improvement = np.nan
-        
-    return {
-        'full_trace': full_trace,
-        'trace': trace,
-        'simpoint': simpoint,
-        'l1d_pref': l1d_pref,
-        'l2c_pref': l2c_pref,
-        'llc_pref': llc_pref,
-        'l2c_pref_degree': l2c_pref_degree,
-        'llc_pref_degree': llc_pref_degree,
-        'pythia_level_threshold': pythia_level_threshold,
-        'accuracy': acc,
-        'coverage': cov,
-        'pythia_low_conf_prefetches': pythia_low_conf_prefetches,
-        'pythia_high_conf_prefetches': pythia_high_conf_prefetches,
-        'mpki': pf_mpki,
-        'mpki_reduction': mpki_reduction,
-        'dram_bw_epochs': dram_bw_epochs,
-        'dram_bw_reduction': dram_bw_reduction,
-        'ipc': ipc,
-        'ipc_improvement': ipc_improvement,
-        'baseline_prefetcher': get_prefetcher_from_path(baseline_path) if baseline_path else None,
-        'path': path,
-        'baseline_path': baseline_path
-    }
+        if baseline_path:
+            b_load_miss, b_rfo_miss, b_useful = (
+               b_data[f'{level}_load_miss'], b_data[f'{level}_rfo_miss'], b_data[f'{level}_useful']
+            )
+            b_total_miss = load_miss + rfo_miss + useful # = b_data[f'{level}_total_miss']
+            b_mpki = b_total_miss / b_data['kilo_inst']
+            assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(baseline_path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
 
+        if level == 'L1D':
+            results[f'{level}_pref'] = l1d_pref
+        elif level == 'L2C':
+            results[f'{level}_pref'] = l2c_pref
+            results[f'{level}_pref_degree'] = l2c_pref_degree
+        else:
+            results[f'{level}_pref'] = llc_pref
+            results[f'{level}_pref_degree'] = llc_pref_degree
+        
+        results[f'{level}_accuracy'] = 100.0 if (useful + useless == 0) else useful / (useful + useless) * 100.
+        results[f'{level}_coverage'] = np.nan if (total_miss == 0 or baseline_path is None) else ((b_load_miss + b_rfo_miss) - (load_miss + rfo_miss)) / (b_load_miss + b_rfo_miss) * 100
+        results[f'{level}_mpki'] = pf_mpki
+        results[f'{level}_mpki_reduction'] = np.nan if (baseline_path is None) else (b_mpki - pf_mpki) / b_mpki * 100.
+                
+        
+    results['dram_bw_epochs'] = dram_bw_epochs
+    results['dram_bw_reduction'] = np.nan if (baseline_path is None) else (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
+    results['ipc'] = ipc
+    results['ipc_improvement'] = np.nan if (baseline_path is None) else (ipc - b_ipc) / b_ipc * 100.  
+    results['pythia_level_threshold'] = pythia_level_threshold
+    results['pythia_high_conf_prefetches'] = pythia_high_conf_prefetches
+    results['pythia_low_conf_prefetches'] = pythia_low_conf_prefetches
+    results['path'] = path
+    results['baseline_path'] = baseline_path 
+    return results
 
+pc_columns = [
+    'pc', 'full_trace', 'trace', 'simpoint', 
+    'pref', 'pref_degree', 'num_useful', 'num_useless', 'accuracy',
+]
 def get_pc_statistics(path):
     """Get per-PC statistics from a Champsim pc_pref_stats file.
     """
@@ -180,38 +196,34 @@ def get_pc_statistics(path):
     l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
     l2c_pref_degree, llc_pref_degree = get_prefetcher_degs_from_path(path)
     
+    if path.endswith('l1d.txt'):
+        pref = l1d_pref
+        pref_degree = None
+    elif path.endswith('l2d.txt'):
+        pref = l2d_pref,
+        pref_degree = l2d_pref_degree
+    else:
+        pref = llc_pref
+        pref_degree = llc_pref_degree
+    
     # Get statistics
     pc_data = read_pc_file(path)
     pc_out = []
     
     for pc in pc_data.keys():
-        useful, useless = pc_data[pc]['useful'], pc_data[pc]['useless']
-        
-        if useful + useless == 0:
-            accuracy = 100.0 # 'N/A'
-        else:
-            accuracy = useful / (useful + useless)
-            
-        # TODO: Coverage
-        
-        pc_out.append({
-            'pc': pc,
-            'full_trace': full_trace,
-            'trace': trace,
-            'simpoint': simpoint,
-            'l1d_pref': l1d_pref,
-            'l2c_pref': l2c_pref,
-            'llc_pref': llc_pref,
-            'l2c_pref_degree': l2c_pref_degree,
-            'llc_pref_degree': llc_pref_degree,
-            'num_useful': useful,
-            'num_useless': useless,
-            'accuracy': accuracy
-        })
+        row = {k : np.nan for k in pc_columns}
+        row['pc'] = pc
+        row['full_trace'] = full_trace
+        row['trace'] = trace
+        row['simpoint'] = simpoint
+        row['pref'] = pref
+        row['pref_degree'] = pref_degree
+        row['num_useful'] = pc_data[pc]['useful']
+        row['num_useless'] =  pc_data[pc]['useless']
+        row['accuracy'] = 100.0 if (pc_data[pc]['useful'] + pc_data[pc]['useless'] == 0) else (pc_data[pc]['useful'] / (pc_data[pc]['useful'] + pc_data[pc]['useless']))
+        pc_out.append(row)
         
     return pc_out
-    
-    
     
     
 
@@ -289,22 +301,15 @@ def get_pythia_level_threshold(path):
     
     return None
 
+
 """
 CSV file creators
 """
-def generate_csv(results_dir, output_file, 
-                 best_degree_csv_file=None, dry_run=False):
+def generate_csv(results_dir, output_file, dry_run=False):
     """Generate cumulative statistics for each run.
     """
     traces = defaultdict(lambda : defaultdict(dict))
     n_paths = len(glob.glob(os.path.join(results_dir, '*.txt')))
-    
-    # If we have a best degree CSV file, we will filter out instances of the prefetchers
-    # found in the file on the ones with the best degree in each trace.
-    if best_degree_csv_file:
-        best_deg_df = pd.read_csv(best_degree_csv_file)
-        best_deg_df.index = best_deg_df.Trace
-        #print(best_deg_df)
     
     # Build trace paths
     for path in glob.glob(os.path.join(results_dir, '*.txt')):
@@ -316,17 +321,6 @@ def generate_csv(results_dir, output_file,
         
         
     # Build statistics table
-    # If you edit the columns, preserve the ordering between the dict in get_statistics and this list.
-    columns = ['full_trace', 'trace', 'simpoint', 
-               'l1d_pref', 'l2c_pref', 'llc_pref',
-               'l2c_pref_degree', 'llc_pref_degree', 
-               'pythia_level_threshold', 
-               'accuracy', 'coverage', 
-               'pythia_low_conf_prefetches', 'pythia_high_conf_prefetches',
-               'mpki', 'mpki_reduction', 
-               'dram_bw_epochs', 'dram_bw_reduction', 
-               'ipc', 'ipc_improvement',
-               'baseline_prefetcher', 'path', 'baseline_path']
     stats = []
     with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
         for tr in traces:
@@ -334,19 +328,14 @@ def generate_csv(results_dir, output_file,
             for pf in traces[tr]:
                 for d in traces[tr][pf]:
                     pbar.update(1)
-                    
-                    # Filter non-best degree prefetchers (if provided).
-                    if best_degree_csv_file and pf in best_deg_df.columns and eval(best_deg_df[pf].loc[tr]) != d:
-                        #print('[DEBUG] Skipping', pf, d, 'best is', best_deg_df[pf].loc[tr])
-                        continue
+
                         
                     row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None)])         
 
-                    # Filter missing rows
-                    if row is None:
+                    if row is None: # Filter missing rows
                         continue
                         
-                    assert all([k in columns for k in row.keys()]), f'Columns missing for row {tr}, {pf}, {d}'
+                    assert all([k in stats_columns for k in row.keys()]), f'Columns missing for row {tr}, {pf}, {d}'
                     stats.append(row)
                     
     # Build and save statistics table
