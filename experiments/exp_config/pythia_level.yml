@@ -8,7 +8,7 @@ l1d:
     pref_candidates: []
     max_hybrid: 1
 l2c:
-    pref_candidates: ['scooby']
+    pref_candidates: ['scooby', 'scooby_double']
     max_hybrid: 1
 llc:
     sets: 2048

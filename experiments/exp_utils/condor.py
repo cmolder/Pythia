@@ -393,7 +393,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
                 for thresh in cfg.pythia.scooby_dyn_level_threshold:
                     
-                    if all([p == ('no',) for p in (l1p, l2p, llp)]):
+                    if all([p == ('no',) for p in (l1p, l2p, llp)]) or any([p == ('scooby_double',) for p in (l1p, l2p, llp)]):
                         continue
                         
                     #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
@@ -411,7 +411,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                     condor_paths.append(c_path)
                     pbar.update(1)
                     
-                # Add run for disabled level prefetching
+                # Add run for No prefetcher, Double Pythia (one QVStore per level), Static Pythia 
                 c_path = build_run(
                     cfg, path,
                     l1d_pref=l1p,
@@ -421,6 +421,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                     dry_run=dry_run, 
                     verbose=verbose
                 )
+                    
                 condor_paths.append(c_path)
                 pbar.update(1)
                 

@@ -6,6 +6,7 @@
 #include "util.h"
 #include "learning_engine_featurewise.h"
 #include "scooby.h"
+#include "scooby_double.h"
 
 #if 0
 #	define LOCKED(...) {fflush(stdout); __VA_ARGS__; fflush(stdout);}
@@ -268,7 +269,6 @@ float LearningEngineFeaturewise::consultQ(State *state, uint32_t action)
 
 void LearningEngineFeaturewise::dump_stats()
 {
-	Scooby *scooby = (Scooby*)m_parent;
 	fprintf(stdout, "learning_engine_featurewise.action.called %lu\n", stats.action.called);
 	fprintf(stdout, "learning_engine_featurewise.action.explore %lu\n", stats.action.explore);
 	fprintf(stdout, "learning_engine_featurewise.action.exploit %lu\n", stats.action.exploit);
@@ -277,8 +277,15 @@ void LearningEngineFeaturewise::dump_stats()
 	fprintf(stdout, "learning_engine_featurewise.action.dyn_fallback_saved_bw_acc %lu\n", stats.action.dyn_fallback_saved_bw_acc);
 	for(uint32_t action = 0; action < m_actions; ++action)
 	{
-		fprintf(stdout, "learning_engine_featurewise.action.index_%d_explored %lu\n", scooby->getAction(action), stats.action.dist[action][0]);
-		fprintf(stdout, "learning_engine_featurewise.action.index_%d_exploited %lu\n", scooby->getAction(action), stats.action.dist[action][1]);
+        if (m_parent->get_type() == "scooby_double") {
+            ScoobyDouble *scooby = (ScoobyDouble*)m_parent;
+            fprintf(stdout, "learning_engine_featurewise.action.index_%d_%s_explored %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? 'high' : 'low', stats.action.dist[action][0]);
+            fprintf(stdout, "learning_engine_featurewise.action.index_%d_%s_exploited %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? 'high' : 'low', stats.action.dist[action][1]);
+        } else {
+            Scooby *scooby = (Scooby*)m_parent;
+            fprintf(stdout, "learning_engine_featurewise.action.index_%d_explored %lu\n", scooby->getAction(action), stats.action.dist[action][0]);
+            fprintf(stdout, "learning_engine_featurewise.action.index_%d_exploited %lu\n", scooby->getAction(action), stats.action.dist[action][1]);
+        }
 	}
 	fprintf(stdout, "learning_engine_featurewise.learn.called %lu\n", stats.learn.called);
 	for(uint32_t index = 0; index < NumFeatureTypes; ++index)
@@ -423,8 +430,6 @@ bool LearningEngineFeaturewise::do_fallback(State *state)
 
 void LearningEngineFeaturewise::plot_scores()
 {
-	Scooby *scooby = (Scooby*)m_parent;
-
 	char *script_file = (char*)malloc(16*sizeof(char));
 	assert(script_file);
 	gen_random(script_file, 16);
@@ -459,7 +464,18 @@ void LearningEngineFeaturewise::plot_scores()
 	for(uint32_t index = 0; index < knob::le_featurewise_plot_actions.size(); ++index)
 	{
 		if(index) fprintf(script, ", ");
-		int action = scooby->getAction(knob::le_featurewise_plot_actions[index]);
+        
+        // TODO : Incorporate confidence in action plot.
+        int action = 0;
+        if (m_parent->get_type() == "scooby_double") {
+            ScoobyDouble *scooby = (ScoobyDouble*)m_parent;
+            action = scooby->getAction(knob::le_featurewise_plot_actions[index]);
+        } else {
+            Scooby *scooby = (Scooby*)m_parent;
+            action = scooby->getAction(knob::le_featurewise_plot_actions[index]);
+        }
+        
+        
 		stringstream ss;
 		if(action > 0)
 			ss << "+" << action;
