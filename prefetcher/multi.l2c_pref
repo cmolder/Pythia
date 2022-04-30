@@ -137,7 +137,7 @@ void CACHE::l2c_prefetcher_initialize()
 	assert(knob::l2c_prefetcher_types.size() == prefetchers.size() || !knob::l2c_prefetcher_types[0].compare("none"));
 }
 
-uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
+uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
 {
 	vector<uint64_t> pref_addr;
     vector<uint64_t> pref_level;
@@ -219,6 +219,11 @@ uint32_t CACHE::l2c_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t 
 	}
 
 	return metadata_in;
+}
+
+void CACHE::l2c_prefetcher_cycle_operate() 
+{
+
 }
 
 uint32_t CACHE::l2c_prefetcher_prefetch_hit(uint64_t addr, uint64_t ip, uint32_t metadata_in)

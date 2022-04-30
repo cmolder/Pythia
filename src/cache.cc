@@ -615,13 +615,13 @@ void CACHE::handle_read()
                 if (RQ.entry[index].type == LOAD) 
                 {
                     if (cache_type == IS_L1D) 
-                        l1d_prefetcher_operate(RQ.entry[index].full_addr, RQ.entry[index].ip, 1, RQ.entry[index].type, RQ.entry[index].instr_id);
+                        l1d_prefetcher_operate(RQ.entry[index].full_addr, RQ.entry[index].ip, 1, RQ.entry[index].type, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                     else if (cache_type == IS_L2C)
-                        l2c_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 1, RQ.entry[index].type, 0, RQ.entry[index].instr_id);
+                        l2c_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 1, RQ.entry[index].type, 0, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                     else if (cache_type == IS_LLC) 
                     {
                         cpu = read_cpu;
-                        llc_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 1, RQ.entry[index].type, 0, RQ.entry[index].instr_id);
+                        llc_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 1, RQ.entry[index].type, 0, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                         cpu = 0;
                     }
                 }
@@ -841,16 +841,16 @@ void CACHE::handle_read()
                     {
                         if (cache_type == IS_L1D)
                         {
-                            l1d_prefetcher_operate(RQ.entry[index].full_addr, RQ.entry[index].ip, 0, RQ.entry[index].type, RQ.entry[index].instr_id);
+                            l1d_prefetcher_operate(RQ.entry[index].full_addr, RQ.entry[index].ip, 0, RQ.entry[index].type, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                         }
                         if (cache_type == IS_L2C)
                         {
-                            l2c_prefetcher_operate(RQ.entry[index].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 0, RQ.entry[index].type, 0, RQ.entry[index].instr_id);
+                            l2c_prefetcher_operate(RQ.entry[index].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 0, RQ.entry[index].type, 0, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                         }
                         if (cache_type == IS_LLC)
                         {
                             cpu = read_cpu;
-                            llc_prefetcher_operate(RQ.entry[index].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 0, RQ.entry[index].type, 0, RQ.entry[index].instr_id);
+                            llc_prefetcher_operate(RQ.entry[index].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 0, RQ.entry[index].type, 0, RQ.entry[index].instr_id, current_core_cycle[read_cpu]);
                             cpu = 0;
                         }
                     }
@@ -930,16 +930,16 @@ void CACHE::handle_prefetch()
                 {
         		    if (cache_type == IS_L1D)
                     {
-                        l1d_prefetcher_operate(PQ.entry[index].full_addr, PQ.entry[index].ip, 1, PREFETCH, 0);
+                        l1d_prefetcher_operate(PQ.entry[index].full_addr, PQ.entry[index].ip, 1, PREFETCH, 0, current_core_cycle[prefetch_cpu]);
                     }
                     else if (cache_type == IS_L2C)
                     {
-                        PQ.entry[index].pf_metadata = l2c_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 1, PREFETCH, PQ.entry[index].pf_metadata, 0);
+                        PQ.entry[index].pf_metadata = l2c_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 1, PREFETCH, PQ.entry[index].pf_metadata, 0, current_core_cycle[prefetch_cpu]);
                     }
                     else if (cache_type == IS_LLC)
                     {
                         cpu = prefetch_cpu;
-                        PQ.entry[index].pf_metadata = llc_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 1, PREFETCH, PQ.entry[index].pf_metadata, 0);
+                        PQ.entry[index].pf_metadata = llc_prefetcher_operate(block[set][way].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 1, PREFETCH, PQ.entry[index].pf_metadata, 0, current_core_cycle[prefetch_cpu]);
                         cpu = 0;
                     }
                 }
@@ -1001,7 +1001,7 @@ void CACHE::handle_prefetch()
                                     if (cache_type == IS_LLC)
                                     {
                                         cpu = prefetch_cpu;
-                                        PQ.entry[index].pf_metadata = llc_prefetcher_operate(PQ.entry[index].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 0, PREFETCH, PQ.entry[index].pf_metadata, 0);
+                                        PQ.entry[index].pf_metadata = llc_prefetcher_operate(PQ.entry[index].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 0, PREFETCH, PQ.entry[index].pf_metadata, 0, current_core_cycle[prefetch_cpu]);
                                         cpu = 0;
                                     }
                                 }
@@ -1027,11 +1027,11 @@ void CACHE::handle_prefetch()
                                 {
                                     if (cache_type == IS_L1D)
                                     {
-                                        l1d_prefetcher_operate(PQ.entry[index].full_addr, PQ.entry[index].ip, 0, PREFETCH, 0);
+                                        l1d_prefetcher_operate(PQ.entry[index].full_addr, PQ.entry[index].ip, 0, PREFETCH, 0, current_core_cycle[prefetch_cpu]);
                                     }
                                     if (cache_type == IS_L2C)
                                     {
-                                        PQ.entry[index].pf_metadata = l2c_prefetcher_operate(PQ.entry[index].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 0, PREFETCH, PQ.entry[index].pf_metadata, 0);
+                                        PQ.entry[index].pf_metadata = l2c_prefetcher_operate(PQ.entry[index].address<<LOG2_BLOCK_SIZE, PQ.entry[index].ip, 0, PREFETCH, PQ.entry[index].pf_metadata, 0, current_core_cycle[prefetch_cpu]);
                                     }
                                 }
 			  
@@ -1122,6 +1122,14 @@ void CACHE::operate()
 
     /* prefetch feedback broadcasting */
     handle_prefetch_feedback();
+    
+    /* prefetch cycle operation */
+    if (cache_type == IS_L1D)
+        l1d_prefetcher_cycle_operate();
+    else if (cache_type == IS_L2C)
+        l2c_prefetcher_cycle_operate();
+    else if (cache_type == IS_LLC)
+        llc_prefetcher_cycle_operate();
 }
 
 uint32_t CACHE::get_set(uint64_t address)

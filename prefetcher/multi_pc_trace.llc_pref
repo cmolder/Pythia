@@ -41,15 +41,27 @@ namespace knob
     extern uint32_t sisb_pref_degree;
 }
 
+
 /* Per-PC and prefetcher data */
-unordered_map<uint64_t, vector<string>> pc_prefetchers; // Prefetchers to use on each PC
-unordered_map<uint64_t, vector<uint64_t>> pc_degrees;   // Degrees to use on each PC (0 = use default degree / no degree)
-unordered_map<string, uint32_t> default_pref_degrees;   // Original values of each prefetcher's degree knob.
-set<string> prefetcher_names;                           // Set of prefetchers to load, based on those that appear in the trace.
+unordered_map<uint64_t, vector<string>> pc_prefetchers; // PC -> Prefetchers    : Prefetchers to use on each PC
+unordered_map<uint64_t, vector<uint64_t>> pc_degrees;   // PC -> Degrees        : Degrees to use on each PC (0 = use default degree / no degree)
+unordered_map<string, uint32_t> default_pref_degrees;   // Prefetcher -> Degree : Original values of each prefetcher's degree knob.
+set<string> prefetcher_names;                           // Prefetchers          : Set of prefetchers to load, based on those that appear in the trace.
+
+
+/* Shadow Cache (infinite size) */
+struct ShadowEntry {
+    uint64_t address;
+    uint64_t insertion_time;   // Insertion time (after this cycle, we assume the prefetch was "filled")
+    bool real_prefetch = false; // If this was a real prefetch.
+};
+unordered_map<string, unordered_map<uint64_t, ShadowEntry>> shadow_cache; // Prefetcher -> (Address -> Entry) : Per-prefetcher shadow cache to insert prefetches.
+
 
 /* Statistics */
 int not_prefetched = 0; // Number of prefetch queries where the PC wasn't found.
 int prefetched = 0;     // Number of prefetch queries where the PC was found.
+
 
 /* Helper functions */
 void parse_pc_trace() {
@@ -246,6 +258,8 @@ void reset_prefetch_degree() {
     knob::sisb_pref_degree = default_pref_degrees["sisb"];
 }
 
+
+/* Class functions */
 void CACHE::llc_prefetcher_initialize()
 {
     parse_pc_trace();
@@ -257,50 +271,82 @@ void CACHE::llc_prefetcher_initialize()
 // actually issue the prefetch.
 //
 // If the PC isn't in the pc_prefetch table, issue no prefetch.
-uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
+uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id, uint64_t curr_cycle)
 {
     // Set prefetcher degrees (for those that issue a prefetch on this PC)
     set_prefetch_degree(ip);
+    // cout << "[DEBUG] llc_prefetcher_operate"
+    //      << " addr=" << hex << addr
+    //      << " ip=" << hex << ip
+    //      << " cache_hit=" << dec << cache_hit
+    //      << " type=" << dec << type
+    //      << " metadata_in=" << dec << metadata_in
+    //      << " instr_id=" << dec << instr_id
+    //      << " curr_cycle=" << dec << curr_cycle 
+    //      << endl;
     
     // Log query_prefetched, query_not_prefetch stats
     if (pc_prefetchers[ip].size() == 0)
         not_prefetched++;
     else prefetched++;
     
-    vector<uint64_t> pref_addr;
-    vector<uint64_t> pref_level;
     
+    unordered_map<string, vector<uint64_t>> pref_addrs;
+    unordered_map<string, vector<uint64_t>> pref_levels;
+    
+    vector<uint64_t> real_pref_addrs;  // Addresses for all real prefetches
+    vector<uint64_t> real_pref_levels; // Levels for all real prefetches
+    
+    // Invoke all prefetchers
+    // Issue the PC's prefetchers to the cache ("real" prefetches).
+    // Don't issue other prefetchers to the cache ("fake" prefetches).
     for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
-        string pref_name = prefetchers[index]->get_type();
+        string pref = prefetchers[index]->get_type();
         
-        // Invoke the prefetcher
-        //if(true) {                            // All prefetchers
-        if(does_prefetch_pc(pref_name, ip)) { // Only those for this PC
-        //if(pref_name == ?? || does_prefetch_pc(pref_name, ip)) { // Only those for this PC, or those whose logic isn't PC localized + doesn't depend on fills.
-            prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
-        }
- 
-        // Issue prefetches, if the PC is using this prefetcher.
+        // Invoke all prefetchers
+        prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addrs[pref], pref_levels[pref]);
+        
+        // Loop through the prefetches.
+        // - Add each prefetch to the shadow cache. (TODO: Level prefetching support)
+        // - If the PC is using this prefetcher, issue each prefetch to the REAL cache.
         //
         // Other prefetchers will *think* they issued the prefetch,
-        // but it will have no effect in the real cache.
-        if (does_prefetch_pc(pref_name, ip)) {
-            for (uint32_t addr_index = 0; addr_index < pref_addr.size(); addr_index++) {
+        // but it will have no effect in the real cache. 
+        for (uint32_t addr_index = 0; addr_index < pref_addrs[pref].size(); addr_index++) {
+            if (does_prefetch_pc(pref, ip)) {
+                uint64_t target_addr = pref_addrs[pref][addr_index];
+                uint64_t target_level = (pref_levels[pref][addr_index] == 0 ? FILL_LLC : pref_levels[pref][addr_index]);
+                
                 uint32_t pf_metadata = 0;
-                //pf_metadata += 1 << index;
-                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), pf_metadata);
+                prefetch_line(ip, addr, target_addr, target_level, pf_metadata);
+                
+                real_pref_addrs.push_back(target_addr);
+                real_pref_levels.push_back(target_level);
             }
-        } else {
-            // TODO : Inform the non-assigned prefetchers of a fill?
-            // Scooby, SMS, Bingo, BOP, and possibly some others use fills to update their logic (see above).
-            // Maybe implement a per-prefetcher ATD that tracks the cache it would have had.
         }
-        
-        // Clear address / level vectors
-		pref_addr.clear();
-        pref_level.clear();
 	}
+    
+    // Create shadow cache entires for each prefetcher.
+    // "Real" if the address was prefetched by one of the PC's prefetchers.
+    // "Fake" otherwise.
+    for(uint32_t index = 0; index < prefetchers.size(); ++index)
+    {
+        //cout << "[DEBUG] Initializing shadow entry" << endl;
+        string pref = prefetchers[index]->get_type();
+        
+        // Loop through the prefetches.
+        for (uint32_t addr_index = 0; addr_index < pref_addrs[pref].size(); addr_index++) {    
+            uint64_t target_addr = pref_addrs[pref][addr_index];
+            
+            shadow_cache[pref][target_addr] = ShadowEntry();
+            shadow_cache[pref][target_addr].address        = target_addr;
+            shadow_cache[pref][target_addr].insertion_time = curr_cycle;
+            shadow_cache[pref][target_addr].real_prefetch  = (find(real_pref_addrs.begin(), real_pref_addrs.end(), target_addr) != real_pref_addrs.end());
+        }
+    }
+    
+    
     		
     // Reset prefetcher degrees
     reset_prefetch_degree();
@@ -308,69 +354,130 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 	return metadata_in;
 }
 
-// TODO: Need to inform prefetchers of their shadow prefetches.
-//       Use the metadata (pf_metadata) to track which prefetchers issued the prefetch address,
-//       and bring it back here.
-//
-//       Good news, this is called on *every* cache fill, so we can watch for replacements!
+
+void register_fill(vector<Prefetcher*> prefetchers, string pref, uint64_t addr, uint32_t set, uint32_t way,
+                   uint8_t prefetch, uint64_t evicted_addr) 
+    /* Register a fill, regardless of whether it's from a real or fake prefetch. */
+{
+    auto pref_obj = find_if(prefetchers.begin(), prefetchers.end(), [=](Prefetcher* p) {return p->get_type() == pref;} );
+    
+    // TODO get index of the prefetcher
+    if(pref == "scooby")
+    {
+        Scooby *pref_scooby = (Scooby*)*pref_obj;
+        pref_scooby->register_fill(addr);
+    }
+    else if(pref == "next_line")
+    {
+        NextLinePrefetcher *pref_nl = (NextLinePrefetcher*)*pref_obj;
+        pref_nl->register_fill(addr);
+    }
+    else if(pref == "bop")
+    {
+        BOPrefetcher *pref_bop = (BOPrefetcher*)*pref_obj;
+        pref_bop->register_fill(addr);
+    }
+    else if(pref == "spp_dev2")
+    {
+        SPP_dev2 *pref_spp_dev2 = (SPP_dev2*)*pref_obj;
+        pref_spp_dev2->cache_fill(addr, set, way, prefetch, evicted_addr);
+    }
+    //else if(pref == "spp_ppf_dev")
+    //{
+    //	SPP_PPF_dev *pref_spp_ppf_dev = (SPP_PPF_dev*)*pref_obj;
+    //	pref_spp_ppf_dev->cache_fill(addr, set, way, prefetch, evicted_addr);
+    //}
+    //else if(pref == "mlop")
+    //{
+    //  MLOP *pref_mlop = (MLOP*)prefetchers[index];
+    // 	pref_mlop->register_fill(addr, set, way, prefetch, evicted_addr);
+    //}
+    else if(pref == "bingo")
+    {
+        Bingo *pref_bingo = (Bingo*)*pref_obj;
+        pref_bingo->register_fill(addr, set, way, prefetch, evicted_addr);
+    }
+    else if(pref == "sisb")
+    {
+        SISBPrefetcher *pref_sisb = (SISBPrefetcher*)*pref_obj;
+        pref_sisb->register_fill(addr);
+    }
+    //else if(pref == "triage")
+    //{
+    //	TriagePrefetcher *pref_triage = (TriagePrefetcher*)*pref_obj;
+    //	pref_triage->register_fill(addr, prefetch, metadata_in);
+    //}
+}
+
+
+// Note: This is called on *every* cache fill, so we also can watch for replacements! (for online statistics)
 uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
 {
+    
 	if(prefetch)
 	{
-        //cout << "[DEBUG] llc_prefetcher_cache_fill metadata_in=" << metadata_in << "\n";
-        
+        // cout << "[DEBUG] llc_prefetcher_cache_fill" 
+        //      << " addr=" << hex << addr
+        //      << " metadata_in=" << dec << metadata_in 
+        //      << endl;
 		for(uint32_t index = 0; index < prefetchers.size(); ++index)
 		{
-			if(!prefetchers[index]->get_type().compare("scooby"))
-			{
-				Scooby *pref_scooby = (Scooby*)prefetchers[index];
-				pref_scooby->register_fill(addr);
-			}
-			if(!prefetchers[index]->get_type().compare("next_line"))
-			{
-				NextLinePrefetcher *pref_nl = (NextLinePrefetcher*)prefetchers[index];
-				pref_nl->register_fill(addr);
-			}
-			if(!prefetchers[index]->get_type().compare("bop"))
-			{
-				BOPrefetcher *pref_bop = (BOPrefetcher*)prefetchers[index];
-				pref_bop->register_fill(addr);
-			}
-			if(!prefetchers[index]->get_type().compare("spp_dev2"))
-			{
-				SPP_dev2 *pref_spp_dev2 = (SPP_dev2*)prefetchers[index];
-				pref_spp_dev2->cache_fill(addr, set, way, prefetch, evicted_addr);
-			}
-			//if(!prefetchers[index]->get_type().compare("spp_ppf_dev"))
-			//{
-			//	SPP_PPF_dev *pref_spp_ppf_dev = (SPP_PPF_dev*)prefetchers[index];
-			//	pref_spp_ppf_dev->cache_fill(addr, set, way, prefetch, evicted_addr);
-			//}
-			// if(!prefetchers[index]->get_type().compare("mlop"))
-			// {
-			// 	MLOP *pref_mlop = (MLOP*)prefetchers[index];
-			// 	pref_mlop->register_fill(addr, set, way, prefetch, evicted_addr);
-			// }
-			if(!prefetchers[index]->get_type().compare("bingo"))
-			{
-				Bingo *pref_bingo = (Bingo*)prefetchers[index];
-				pref_bingo->register_fill(addr, set, way, prefetch, evicted_addr);
-			}
-            if(!prefetchers[index]->get_type().compare("sisb"))
-			{
-				SISBPrefetcher *pref_sisb = (SISBPrefetcher*)prefetchers[index];
-				pref_sisb->register_fill(addr);
-			}
-			// if(!prefetchers[index]->get_type().compare("triage"))
-			// {
-			// 	TriagePrefetcher *pref_triage = (TriagePrefetcher*)prefetchers[index];
-			// 	pref_triage->register_fill(addr, prefetch, metadata_in);
-			// }
+            string pref = prefetchers[index]->get_type();
+            if (shadow_cache[pref].find(addr) != shadow_cache[pref].end()) {
+                // [DEBUG]
+                // if(shadow_cache[pref][addr].real_prefetch) {
+                //    cout << "[DEBUG] FOUND in shadow_cache"
+                //         << " pref=" << pref 
+                //         << " addr=" << hex << addr
+                //         << " age_cycles=" << dec << current_core_cycle[cpu] - shadow_cache[pref][addr].insertion_time
+                //         << " evicted_addr=" << hex << evicted_addr
+                //         << " real_prefetch=" << dec << shadow_cache[pref][addr].real_prefetch
+                //         << endl;
+                // }
+                
+                // Register a real prefetch.
+                // Inform ALL prefetchers that did (or would have) prefetched the address.
+                register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 
+                shadow_cache[pref].erase(addr);                              // Erase the shadow cache entry (not needed anymore)
+            }
 		}
 	}
 
 	return metadata_in;
 }
+
+void CACHE::llc_prefetcher_cycle_operate() 
+{
+//     uint64_t DELTA = 16; // Number of cycles to wait before registering a fake fill. TODO: Make knob, or automatic
+//     uint64_t curr_cycle = current_core_cycle[cpu];
+    
+//     // For all fake prefetches, register the fake fill DELTA cycles after
+//     // it was requested by one of the prefetchers.
+//     //
+//     // Real prefetches wait until they're really filled by the cache.
+    
+//     //cout << "[DEBUG] llc_prefetcher_cycle_operate cycle=" << dec << current_core_cycle[cpu] << endl;
+//     for (auto pref : shadow_cache) {
+//         string pref_name = pref.first;
+//         auto it = pref.second.begin();
+//         //int i = 0;
+//         while(it != pref.second.end()) {
+            
+//             //cout << "DEBUG inside it i=" << dec << i << endl;
+//             //i++;
+                
+//             ShadowEntry se = it->second;
+            
+//             if (!se.real_prefetch && se.insertion_time > curr_cycle + DELTA) {
+//                 register_fill(prefetchers, pref_name, se.address, 0, 0, 1, 0); // Fake fill (will remove entry for us)         
+//                 it = pref.second.erase(it);
+//             } else {
+//                 it++;
+//             }
+//         }
+//     } 
+}
+
 
 uint32_t CACHE::llc_prefetcher_prefetch_hit(uint64_t addr, uint64_t ip, uint32_t metadata_in)
 {

@@ -304,8 +304,6 @@ def run_command():
     
     # Branch prediction options
     parser.add_argument('--branch-pred', type=str, default='perceptron')
-    
-    print(sys.argv[2:])
 
     args = parser.parse_args(sys.argv[2:])
     
