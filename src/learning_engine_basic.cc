@@ -239,8 +239,8 @@ void LearningEngineBasic::dump_stats()
 	{
         if(m_parent->get_type() == "scooby_double") {
             ScoobyDouble *scooby = (ScoobyDouble*)m_parent;
-            fprintf(stdout, "learning_engine.action.index_%d_%s_explored %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? 'high' : 'low', stats.action.dist[action][0]);
-            fprintf(stdout, "learning_engine.action.index_%d_%s_exploited %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? 'high' : 'low', stats.action.dist[action][1]);
+            fprintf(stdout, "learning_engine.action.index_%d_%s_explored %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? "high" : "low", stats.action.dist[action][0]);
+            fprintf(stdout, "learning_engine.action.index_%d_%s_exploited %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? "high" : "low", stats.action.dist[action][1]);
         } else {
             Scooby *scooby = (Scooby*)m_parent;
             fprintf(stdout, "learning_engine.action.index_%d_explored %lu\n", scooby->getAction(action), stats.action.dist[action][0]);

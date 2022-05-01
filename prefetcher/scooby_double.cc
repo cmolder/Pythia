@@ -390,6 +390,7 @@ Scooby_STEntry* ScoobyDouble::update_local_state(uint64_t pc, uint64_t page, uin
 bool ScoobyDouble::is_high_confidence(uint32_t action_index) {
     /* Return true if <action_index> represents a high_confidence action,
      * Return false otherwise */
+    assert(action_index < (SDActions.size() * 2));
     return (action_index / SDActions.size()) > 0; // = 1, high confidence; = 0, low confidence
 }
 
@@ -943,7 +944,7 @@ void ScoobyDouble::update_stats(State *state, uint32_t action_index, uint32_t de
 
 int32_t ScoobyDouble::getAction(uint32_t action_index)
 {
-	assert(action_index < SDActions.size() * 2);
+	assert(action_index < (SDActions.size() * 2));
 	return SDActions[action_index % SDActions.size()];
 }
 
