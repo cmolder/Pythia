@@ -104,6 +104,9 @@ private:
 			uint64_t incorrect;
 			uint64_t out_of_bounds;
 			uint64_t tracker_hit;
+            uint64_t correct_timely_lowconf;
+            uint64_t correct_untimely_lowconf;
+            uint64_t incorrect_lowconf;
 			uint64_t dist[MAX_ACTIONS][MAX_REWARDS];
 		} reward;
 
@@ -118,7 +121,18 @@ private:
 			uint64_t called;
 			uint64_t set;
 			uint64_t set_total;
+            uint64_t set_actions[MAX_ACTIONS];
+            uint64_t set_conf[2];
 		} register_fill;
+        
+        struct
+		{
+			uint64_t called;
+			uint64_t set;
+			uint64_t set_total;
+            uint64_t set_actions[MAX_ACTIONS];
+            uint64_t set_conf[2];
+		} register_llc_fill;
 
 		struct
 		{
@@ -188,6 +202,7 @@ public:
 	~Scooby();
 	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void register_fill(uint64_t address);
+    void register_llc_fill(uint64_t address);
 	void register_prefetch_hit(uint64_t address);
 	void dump_stats();
 	void print_config();

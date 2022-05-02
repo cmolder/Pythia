@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "ooo_cpu.h"
 #include "cache.h"
 #include "set.h"
 
@@ -221,6 +222,9 @@ void CACHE::handle_fill()
             {
                 cpu = fill_cpu;
                 MSHR.entry[mshr_index].pf_metadata = llc_prefetcher_cache_fill(MSHR.entry[mshr_index].address<<LOG2_BLOCK_SIZE, set, way, (MSHR.entry[mshr_index].type == PREFETCH) ? 1 : 0, block[set][way].address<<LOG2_BLOCK_SIZE, MSHR.entry[mshr_index].pf_metadata);
+                
+                // For Pythia
+                ooo_cpu[cpu].L2C.l2c_prefetcher_llc_cache_fill(MSHR.entry[mshr_index].address<<LOG2_BLOCK_SIZE, (MSHR.entry[mshr_index].type == PREFETCH) ? 1 : 0);
                 cpu = 0;
             }
               
@@ -522,6 +526,8 @@ void CACHE::handle_writeback()
 			cpu = writeback_cpu;
 			WQ.entry[index].pf_metadata =llc_prefetcher_cache_fill(WQ.entry[index].address<<LOG2_BLOCK_SIZE, set, way, 0,
 									       block[set][way].address<<LOG2_BLOCK_SIZE, WQ.entry[index].pf_metadata);
+            // For Pythia
+            ooo_cpu[cpu].L2C.l2c_prefetcher_llc_cache_fill(WQ.entry[index].address<<LOG2_BLOCK_SIZE, 0);
 			cpu = 0;
 		      }
 

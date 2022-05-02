@@ -23,7 +23,7 @@ typedef enum
 	Address,
 	Page,
 
-	NumFeatures
+	NumFeatures // Make sure to add the name to scooby_helper.cc MapFeatureString!
 } Feature;
 
 const char* getFeatureString(Feature feature);
@@ -36,8 +36,11 @@ typedef enum
 	correct_timely,
 	out_of_bounds,
 	tracker_hit,
+    incorrect_lowconf,
+    correct_untimely_lowconf,
+    correct_timely_lowconf,
 
-	num_rewards
+	num_rewards // Make sure to add the name to scooby_helper.cc MapRewardTypeString!
 } RewardType;
 
 const char* getRewardTypeString(RewardType type);
@@ -153,6 +156,7 @@ public:
 	uint64_t address;
 	State *state;
 	uint32_t action_index;
+    bool high_confidence = true;
 	/* set when prefetched line is filled into cache 
 	 * check during reward to measure timeliness */
 	bool is_filled;

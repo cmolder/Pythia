@@ -18,24 +18,40 @@ llc:
 pythia:
     scooby_dyn_level_threshold:
         - -100.0
+        #- -87.5
         - -75.0
+        #- -62.5
         - -50.0
+        #- -37.5
         - -25.0
+        #- -22.5
         - -20.0
+        #- -17.5
         - -15.0
+        #- -12.5
         - -10.0
+        #- -7.5
         - -5.0
+        #- -2.5
         - 0.0
+        #- 2.5
         - 5.0
+        #- 7.5
         - 10.0
+        #- 12.5
         - 15.0
+        #- 17.5
         - 20.0
+        #- 22.5
         - 25.0
+        #- 37.5
         - 50.0
+        #- 62.5
         - 75.0
+        #- 87.5
         - 100.0
 paths:
-    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini/'
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini_llc_aware/'
     trace_dir: '/scratch/cluster/cmolder/traces/spec06mini/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
