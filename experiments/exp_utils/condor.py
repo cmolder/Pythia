@@ -375,6 +375,30 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
         condor_out_path = os.path.join(cfg.paths.exp_dir, 'condor_configs_champsim.txt')
         print(f'Saving condor configs to {condor_out_path}...')
         generate_condor_list(condor_out_path, condor_paths)
+        
+        
+        
+def get_extra_knobs_pythia_level(cfg, level_threshold=None):
+    extra_knobs = ''
+    
+    if level_threshold is not None:
+        extra_knobs += f' --scooby_enable_dyn_level=true --scooby_dyn_level_threshold={level_threshold}'
+    else:
+        extra_knobs += f' --scooby_enable_dyn_level=false'
+        
+    if cfg.pythia.scooby_separate_lowconf_pt is True:
+        extra_knobs += f' --scooby_separate_lowconf_pt=true'
+    else:
+        extra_knobs += f' --scooby_separate_lowconf_pt=false'
+        
+    extra_knobs += f' --scooby_alpha={cfg.pythia.scooby_alpha}'
+    extra_knobs += f' --scooby_gamma={cfg.pythia.scooby_gamma}'
+    extra_knobs += f' --scooby_epsilon={cfg.pythia.scooby_epsilon}'
+    extra_knobs += f' --scooby_policy={cfg.pythia.scooby_policy}'
+    extra_knobs += f' --scooby_learning_type={cfg.pythia.scooby_learning_type}'
+    
+    return extra_knobs
+    
 
 def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
     """Build a level-aware Pythia sweep, for pythia_level.py
@@ -402,7 +426,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                         l1d_pref=l1p,
                         l2c_pref=l2p,
                         llc_pref=llp,
-                        extra_knobs=f'--scooby_enable_dyn_level=true --scooby_dyn_level_threshold={thresh}',
+                        extra_knobs=get_extra_knobs_pythia_level(cfg, level_threshold=thresh),
                         extra_suffix=f'threshold_{thresh}',
                         dry_run=dry_run, 
                         verbose=verbose
@@ -417,7 +441,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                     l1d_pref=l1p,
                     l2c_pref=l2p,
                     llc_pref=llp,
-                    extra_knobs=f'--scooby_enable_dyn_level=false',
+                    extra_knobs=get_extra_knobs_pythia_level(cfg, level_threshold=None),
                     dry_run=dry_run, 
                     verbose=verbose
                 )

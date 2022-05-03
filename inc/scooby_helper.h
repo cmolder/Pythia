@@ -156,7 +156,7 @@ public:
 	uint64_t address;
 	State *state;
 	uint32_t action_index;
-    bool high_confidence = true;
+    bool high_confidence;
 	/* set when prefetched line is filled into cache 
 	 * check during reward to measure timeliness */
 	bool is_filled;
@@ -168,7 +168,7 @@ public:
 	bool has_reward;
 	vector<bool> consensus_vec; // only used in featurewise engine
 	
-	Scooby_PTEntry(uint64_t ad, State *st, uint32_t ac) : address(ad), state(st), action_index(ac)
+	Scooby_PTEntry(uint64_t ad, State *st, uint32_t ac, bool hc) : address(ad), state(st), action_index(ac), high_confidence(hc)
 	{
 		is_filled = false;
 		pf_cache_hit = false;

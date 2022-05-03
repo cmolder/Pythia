@@ -27,7 +27,9 @@ private:
 	LearningEngineBasic *brain;
 	LearningEngineFeaturewise *brain_featurewise;
 	deque<Scooby_PTEntry*> prefetch_tracker;
+    deque<Scooby_PTEntry*> prefetch_tracker_lowconf; // Only used if scooby_separate_lowconf_pt = true
 	Scooby_PTEntry *last_evicted_tracker;
+    Scooby_PTEntry *last_evicted_tracker_lowconf;  // Only used if scooby_separate_lowconf_pt = true
 	uint8_t bw_level;
 	uint8_t core_ipc;
 	uint32_t acc_level;
@@ -188,7 +190,8 @@ private:
 	void assign_reward(Scooby_PTEntry *ptentry, RewardType type);
 	int32_t compute_reward(Scooby_PTEntry *ptentry, RewardType type);
 	void train(Scooby_PTEntry *curr_evicted, Scooby_PTEntry *last_evicted);
-	vector<Scooby_PTEntry*> search_pt(uint64_t address, bool search_all = false);
+	vector<Scooby_PTEntry*> search_pt(uint64_t address, bool search_all, const deque<Scooby_PTEntry*> &pt);
+    vector<Scooby_PTEntry*> search_all_pts(uint64_t address, bool search_all);
 	void update_stats(uint32_t state, uint32_t action_index, uint32_t pref_degree = 1);
 	void update_stats(State *state, uint32_t action_index, uint32_t degree = 1);
 	void track_in_st(uint64_t page, uint32_t pred_offset, int32_t pref_offset);

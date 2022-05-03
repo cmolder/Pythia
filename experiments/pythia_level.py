@@ -119,6 +119,11 @@ def condor_command():
     print('        Replacement       :', cfg.llc.repl)
     print('        Max hybrid        :', cfg.llc.max_hybrid)
     print('    Pythia:')
+    print('        Alpha             :', cfg.pythia.scooby_alpha)
+    print('        Gamma             :', cfg.pythia.scooby_gamma)
+    print('        Epsilon           :', cfg.pythia.scooby_epsilon)
+    print('        Policy            :', cfg.pythia.scooby_policy)
+    print('        Learning type     :', cfg.pythia.scooby_learning_type)
     print('        Thresh. candidates:', cfg.pythia.scooby_dyn_level_threshold, '(also running without dynamic level)')
     
     condor.build_pythia_level_sweep(cfg, dry_run=args.dry_run, verbose=args.verbose)

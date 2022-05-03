@@ -131,7 +131,8 @@ uint32_t LearningEngineFeaturewise::chooseAction(State *state, float &value, flo
 			action = (*m_actiongen)(m_generator); // take random action
 			stats.action.explore++;
 			stats.action.dist[action][0]++;
-			MYLOG("action taken %u explore, state %s, scores %s", action, state->to_string().c_str(), getStringQ(state).c_str());
+			//MYLOG("action taken %u explore, state %s, scores %s", action, state->to_string().c_str(), getStringQ(state).c_str());
+            MYLOG("action taken %u explore, state %s", action, state->to_string().c_str());
 		}
 		else
 		{
@@ -140,7 +141,8 @@ uint32_t LearningEngineFeaturewise::chooseAction(State *state, float &value, flo
 			stats.action.exploit++;
 			stats.action.dist[action][1]++;
 			gather_stats(max_q, max_to_avg_q_ratio); /* for only stats collection's sake */
-			MYLOG("action taken %u exploit, state %s, scores %s", action, state->to_string().c_str(), getStringQ(state).c_str());
+			//MYLOG("action taken %u exploit, state %s, scores %s", action, state->to_string().c_str(), getStringQ(state).c_str());
+            MYLOG("action taken %u exploit, state %s", action, state->to_string().c_str());
 		}
 	}
 	else

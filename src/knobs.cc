@@ -271,6 +271,7 @@ namespace knob
 	vector<int32_t> scooby_dyn_degrees_type2_hbw;
     bool     scooby_enable_dyn_level = false; // Prefetch in L2 if high-confidence, LLC if low-confidence
     float    scooby_dyn_level_threshold = 0.0; // TODO : Possibly use an automatic scheme instead? 
+    bool     scooby_separate_lowconf_pt = true; // Whether to use separate EQs for high and low confidence prefetches.
 
 	/* Learning Engine */
 	bool     le_enable_trace;
@@ -1273,6 +1274,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "scooby_dyn_level_threshold"))
     {
         knob::scooby_dyn_level_threshold = stof(value);
+    }
+    else if (MATCH("", "scooby_separate_lowconf_pt"))
+    {
+        knob::scooby_separate_lowconf_pt = !strcmp(value, "true") ? true : false;
     }
 
 	/* Learning Engine */

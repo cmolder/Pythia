@@ -51,13 +51,13 @@ pythia:
         #- 87.5
         - 100.0
     scooby_alpha: 0.006508802942367162
-    scooby_gamma: 0.556300959940946
+    scooby_gamma: 0
     scooby_epsilon: 0.0018228444309622588
     scooby_policy: 'EGreedy'
     scooby_learning_type: 'SARSA'   
-    scooby_separate_lowconf_pt: false # Whether to use separate EQs for high- and low-confidence prefetches (Scooby Double only, for now).
+    scooby_separate_lowconf_pt: true # Whether to use separate EQs for high- and low-confidence prefetches (Scooby Double only, for now).
 paths:
-    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini_llc_aware/'
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini_llc_aware_gamma_0_separate_eq/'
     trace_dir: '/scratch/cluster/cmolder/traces/spec06mini/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:

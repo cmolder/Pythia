@@ -90,6 +90,7 @@ namespace knob
 	extern vector<int32_t> scooby_dyn_degrees_type2_hbw;
     //extern bool     scooby_enable_dyn_level; // Prefetch in L2 if high-confidence, LLC if low-confidence
     //extern float    scooby_dyn_level_threshold;
+    extern bool     scooby_separate_lowconf_pt; // If true, use a separate EQ for low-confidence prefetches.
 
 	/* Learning Engine knobs */
 	extern bool     le_enable_trace;
@@ -169,6 +170,7 @@ ScoobyDouble::ScoobyDouble(string type) : Prefetcher(type)
 	recorder = new ScoobyRecorder();
 
 	last_evicted_tracker = NULL;
+    last_evicted_tracker_lowconf = NULL;
 
 	/* init learning engine */
 	brain_featurewise = NULL;
@@ -270,6 +272,7 @@ void ScoobyDouble::print_config()
 		<< "scooby_dyn_degrees_type2_hbw " << array_to_string(knob::scooby_dyn_degrees_type2_hbw) << endl
         //<< "scooby_enable_dyn_level " << knob::scooby_enable_dyn_level << endl
         //<< "scooby_dyn_level_threshold " << knob::scooby_dyn_level_threshold << endl
+        << "scooby_separate_lowconf_pt " << knob::scooby_separate_lowconf_pt << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl
@@ -422,7 +425,6 @@ uint32_t ScoobyDouble::predict(uint64_t base_address, uint64_t page, uint32_t of
 	{
 		float max_to_avg_q_ratio = 1.0;
 		action_index = brain_featurewise->chooseAction(state, action_value, max_to_avg_q_ratio, consensus_vec);
-        
 		if(knob::scooby_enable_dyn_degree)
 		{
 			pref_degree = get_dyn_pref_degree(max_to_avg_q_ratio, page, SDActions[action_index % SDActions.size()]);
@@ -475,7 +477,6 @@ uint32_t ScoobyDouble::predict(uint64_t base_address, uint64_t page, uint32_t of
 				}
 				stats.predict.deg_histogram[pref_degree]++;
 				ptentry->consensus_vec = consensus_vec;
-                ptentry->high_confidence = is_high_confidence(action_index);
 			}
 			else
 			{
@@ -488,7 +489,6 @@ uint32_t ScoobyDouble::predict(uint64_t base_address, uint64_t page, uint32_t of
 					assert(ptentry);
 					assign_reward(ptentry, RewardType::tracker_hit);
 					ptentry->consensus_vec = consensus_vec;
-                    ptentry->high_confidence = is_high_confidence(action_index);
 				}
 			}
 			stats.predict.action_dist[action_index]++;
@@ -535,16 +535,18 @@ bool ScoobyDouble::track(uint64_t address, State *state, uint32_t action_index, 
     );
 	stats.track.called++;
 
-	bool new_addr = true;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, false);
-	if(ptentries.empty())
-	{
-		new_addr = true;
-	}
-	else
-	{
-		new_addr = false;
-	}
+    deque<Scooby_PTEntry*> *pt = NULL;
+    Scooby_PTEntry *let = NULL;
+    if(knob::scooby_separate_lowconf_pt && !is_high_confidence(action_index)) {
+        pt = &prefetch_tracker_lowconf;
+        let = last_evicted_tracker_lowconf;
+    } else {
+        pt = &prefetch_tracker;
+        let = last_evicted_tracker;
+    }
+
+	vector<Scooby_PTEntry*> ptentries = search_pt(address, false, *pt);
+    bool new_addr = ptentries.empty() ? true : false;
 
 	if(!new_addr && address != 0xdeadbeef && !knob::scooby_enable_track_multiple)
 	{
@@ -555,33 +557,35 @@ bool ScoobyDouble::track(uint64_t address, State *state, uint32_t action_index, 
 
 	/* new prefetched address that hasn't been seen before */
 	Scooby_PTEntry *ptentry = NULL;
-
-	if(prefetch_tracker.size() >= knob::scooby_pt_size)
+	if(pt->size() >= knob::scooby_pt_size)
 	{
 		stats.track.evict++;
-		ptentry = prefetch_tracker.front();
-		prefetch_tracker.pop_front();
+		ptentry = pt->front();
+		pt->pop_front();
 		MYLOG(
             "victim_state %x victim_act_idx %u victim_act %d confidence %d", 
-            ptentry->state->value(), ptentry->action_index, SDActions[ptentry->action_index % SDActions.size()], is_high_confidence(action_index)
+            ptentry->state->value(), ptentry->action_index, SDActions[ptentry->action_index % SDActions.size()], ptentry->high_confidence
         );
-		if(last_evicted_tracker)
+		if(let)
 		{
 			MYLOG(
                 "last_victim_state %x last_victim_act_idx %u last_victim_act %d confidence %d", 
-                last_evicted_tracker->state->value(), last_evicted_tracker->action_index, SDActions[last_evicted_tracker->action_index % SDActions.size()], is_high_confidence(action_index)
+                let->state->value(), let->action_index, SDActions[let->action_index % SDActions.size()], let->high_confidence
             );
 			/* train the agent */
-			train(ptentry, last_evicted_tracker);
-			delete last_evicted_tracker->state;
-			delete last_evicted_tracker;
+			train(ptentry, let);
+			delete let->state;
+			delete let;
 		}
-		last_evicted_tracker = ptentry;
+        
+        if(knob::scooby_separate_lowconf_pt && !is_high_confidence(action_index))
+            last_evicted_tracker_lowconf = ptentry;
+        else last_evicted_tracker = ptentry;
 	}
 
-	ptentry = new Scooby_PTEntry(address, state, action_index);
-	prefetch_tracker.push_back(ptentry);
-	assert(prefetch_tracker.size() <= knob::scooby_pt_size);
+	ptentry = new Scooby_PTEntry(address, state, action_index, is_high_confidence(action_index));
+	pt->push_back(ptentry);
+	assert(pt->size() <= knob::scooby_pt_size);
 
 	(*tracker) = ptentry;
 	MYLOG("end@%lx", address);
@@ -673,7 +677,7 @@ void ScoobyDouble::reward(uint64_t address)
 	MYLOG("addr @ %lx", address);
 
 	stats.reward.demand.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 
 	if(ptentries.empty())
 	{
@@ -690,6 +694,8 @@ void ScoobyDouble::reward(uint64_t address)
 	{
 		Scooby_PTEntry *ptentry = ptentries[index];
 		stats.reward.demand.pt_found_total++;
+        
+        assert(ptentry->high_confidence == is_high_confidence(ptentry->action_index));
 
 		MYLOG(
             "PT hit. state %x act_idx %u act %d confidence %d", 
@@ -707,12 +713,12 @@ void ScoobyDouble::reward(uint64_t address)
 
 		if(ptentry->is_filled) /* timely */
 		{
-			assign_reward(ptentry, (is_high_confidence(ptentry->action_index) ? RewardType::correct_timely : RewardType::correct_timely_lowconf));
+			assign_reward(ptentry, (ptentry->high_confidence ? RewardType::correct_timely : RewardType::correct_timely_lowconf));
 			MYLOG("assigned reward correct_timely(%d)", ptentry->reward);
 		}
 		else
 		{
-			assign_reward(ptentry, (is_high_confidence(ptentry->action_index) ? RewardType::correct_untimely : RewardType::correct_untimely_lowconf));
+			assign_reward(ptentry, (ptentry->high_confidence ? RewardType::correct_untimely : RewardType::correct_untimely_lowconf));
 			MYLOG("assigned reward correct_untimely(%d)", ptentry->reward);
 		}
 		ptentry->has_reward = true;
@@ -725,11 +731,12 @@ void ScoobyDouble::reward(Scooby_PTEntry *ptentry)
 	MYLOG(
         "reward PT evict %lx state %x act_idx %u act %d confidence %d", 
         ptentry->address, ptentry->state->value(), ptentry->action_index, SDActions[ptentry->action_index % SDActions.size()],
-        is_high_confidence(ptentry->action_index)
+        ptentry->high_confidence
     );
 
 	stats.reward.train.called++;
 	assert(!ptentry->has_reward);
+    assert(ptentry->high_confidence == is_high_confidence(ptentry->action_index));
 	/* this is called during eviction from prefetch tracker
 	 * that means, this address doesn't see a demand reuse.
 	 * hence it either can be incorrect, or no prefetch */
@@ -740,7 +747,7 @@ void ScoobyDouble::reward(Scooby_PTEntry *ptentry)
 	}
 	else /* incorrect prefetch */
 	{
-		assign_reward(ptentry, (is_high_confidence(ptentry->action_index) ? RewardType::incorrect : RewardType::incorrect_lowconf));
+		assign_reward(ptentry, (ptentry->high_confidence ? RewardType::incorrect : RewardType::incorrect_lowconf));
 		MYLOG("assigned reward incorrect(%d)", ptentry->reward);
 	}
 	ptentry->has_reward = true;
@@ -751,9 +758,10 @@ void ScoobyDouble::assign_reward(Scooby_PTEntry *ptentry, RewardType type)
 	MYLOG(
         "assign_reward PT evict %lx state %x act_idx %u act %d confidence %d", 
         ptentry->address, ptentry->state->value(), ptentry->action_index, SDActions[ptentry->action_index % SDActions.size()],
-        is_high_confidence(ptentry->action_index)
+        ptentry->high_confidence
     );
 	assert(!ptentry->has_reward);
+    assert(ptentry->high_confidence == is_high_confidence(ptentry->action_index));
 
 	/* compute the reward */
 	int32_t reward = compute_reward(ptentry, type);
@@ -870,7 +878,7 @@ void ScoobyDouble::register_fill(uint64_t address)
 	MYLOG("fill @ %lx", address);
 
 	stats.register_fill.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 	if(!ptentries.empty())
 	{
 		stats.register_fill.set++;
@@ -889,12 +897,12 @@ void ScoobyDouble::register_fill(uint64_t address)
             
 			stats.register_fill.set_total++;
             stats.register_fill.set_actions[ptentries[index]->action_index]++;
-            stats.register_fill.set_conf[is_high_confidence(ptentries[index]->action_index)]++;
+            stats.register_fill.set_conf[ptentries[index]->high_confidence]++;
 			ptentries[index]->is_filled = true;
 			MYLOG(
                 "fill PT hit. pref with act_idx %u act %d confidence %d", 
                 ptentries[index]->action_index, SDActions[ptentries[index]->action_index % SDActions.size()],
-                is_high_confidence(ptentries[index]->action_index),
+                ptentries[index]->high_confidence,
             );
 		}
 	}
@@ -905,7 +913,7 @@ void ScoobyDouble::register_llc_fill(uint64_t address)
 	MYLOG("LLC fill @ %lx", address);
 
 	stats.register_llc_fill.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
     
 	if(!ptentries.empty())
 	{
@@ -934,12 +942,12 @@ void ScoobyDouble::register_llc_fill(uint64_t address)
             
 			stats.register_llc_fill.set_total++;
             stats.register_llc_fill.set_actions[ptentries[index]->action_index]++;
-            stats.register_llc_fill.set_conf[is_high_confidence(ptentries[index]->action_index)]++;
+            stats.register_llc_fill.set_conf[ptentries[index]->high_confidence]++;
 			ptentries[index]->is_filled = true;
 			MYLOG(
                 "fill PT hit. LLC pref with act_idx %u act %d confidence %d", 
                 ptentries[index]->action_index, SDActions[ptentries[index]->action_index % SDActions.size()],
-                is_high_confidence(ptentries[index]->action_index),
+                ptentries[index]->high_confidence,
             );
 		}
 	} //else {
@@ -952,7 +960,7 @@ void ScoobyDouble::register_prefetch_hit(uint64_t address)
 	MYLOG("pref_hit @ %lx", address);
 
 	stats.register_prefetch_hit.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 	if(!ptentries.empty())
 	{
 		stats.register_prefetch_hit.set++;
@@ -969,18 +977,30 @@ void ScoobyDouble::register_prefetch_hit(uint64_t address)
 	}
 }
 
-vector<Scooby_PTEntry*> ScoobyDouble::search_pt(uint64_t address, bool search_all)
+vector<Scooby_PTEntry*> ScoobyDouble::search_pt(uint64_t address, bool search_all, const deque<Scooby_PTEntry*> &pt)
 {
-	vector<Scooby_PTEntry*> entries;
-	for(uint32_t index = 0; index < prefetch_tracker.size(); ++index)
+    vector<Scooby_PTEntry*> entries;
+	for(uint32_t index = 0; index < pt.size(); ++index)
 	{
-		if(prefetch_tracker[index]->address == address)
+		if(pt[index]->address == address)
 		{
-			entries.push_back(prefetch_tracker[index]);
+			entries.push_back(pt[index]);
 			if(!search_all) break;
 		}
 	}
 	return entries;
+}
+
+vector<Scooby_PTEntry*> ScoobyDouble::search_all_pts(uint64_t address, bool search_all)
+{
+    vector<Scooby_PTEntry*> entries = search_pt(address, search_all, prefetch_tracker);
+    
+    if(knob::scooby_separate_lowconf_pt) {
+        vector<Scooby_PTEntry*> entries_lowconf = search_pt(address, search_all, prefetch_tracker_lowconf);
+        entries.insert(entries.end(), entries_lowconf.begin(), entries_lowconf.end());
+    }
+    return entries;
+
 }
 
 void ScoobyDouble::update_stats(uint32_t state, uint32_t action_index, uint32_t pref_degree)
