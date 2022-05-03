@@ -396,6 +396,8 @@ def get_extra_knobs_pythia_level(cfg, level_threshold=None):
     extra_knobs += f' --scooby_epsilon={cfg.pythia.scooby_epsilon}'
     extra_knobs += f' --scooby_policy={cfg.pythia.scooby_policy}'
     extra_knobs += f' --scooby_learning_type={cfg.pythia.scooby_learning_type}'
+    extra_knobs += f' --scooby_pt_size={cfg.pythia.scooby_pt_size}'
+    extra_knobs += f' --scooby_lowconf_pt_size={cfg.pythia.scooby_lowconf_pt_size}'
     
     return extra_knobs
     

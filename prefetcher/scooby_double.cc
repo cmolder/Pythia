@@ -91,6 +91,7 @@ namespace knob
     //extern bool     scooby_enable_dyn_level; // Prefetch in L2 if high-confidence, LLC if low-confidence
     //extern float    scooby_dyn_level_threshold;
     extern bool     scooby_separate_lowconf_pt; // If true, use a separate EQ for low-confidence prefetches.
+    extern uint32_t scooby_lowconf_pt_size;
 
 	/* Learning Engine knobs */
 	extern bool     le_enable_trace;
@@ -273,6 +274,7 @@ void ScoobyDouble::print_config()
         //<< "scooby_enable_dyn_level " << knob::scooby_enable_dyn_level << endl
         //<< "scooby_dyn_level_threshold " << knob::scooby_dyn_level_threshold << endl
         << "scooby_separate_lowconf_pt " << knob::scooby_separate_lowconf_pt << endl
+        << "scooby_lowconf_pt_size" << knob::scooby_lowconf_pt_size << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl
@@ -536,13 +538,16 @@ bool ScoobyDouble::track(uint64_t address, State *state, uint32_t action_index, 
 	stats.track.called++;
 
     deque<Scooby_PTEntry*> *pt = NULL;
-    Scooby_PTEntry *let = NULL;
+    Scooby_PTEntry **let = NULL;
+    uint32_t pt_size = 0;
     if(knob::scooby_separate_lowconf_pt && !is_high_confidence(action_index)) {
         pt = &prefetch_tracker_lowconf;
-        let = last_evicted_tracker_lowconf;
+        let = &last_evicted_tracker_lowconf;
+        pt_size = knob::scooby_lowconf_pt_size;
     } else {
         pt = &prefetch_tracker;
-        let = last_evicted_tracker;
+        let = &last_evicted_tracker;
+        pt_size = knob::scooby_pt_size;
     }
 
 	vector<Scooby_PTEntry*> ptentries = search_pt(address, false, *pt);
@@ -557,7 +562,7 @@ bool ScoobyDouble::track(uint64_t address, State *state, uint32_t action_index, 
 
 	/* new prefetched address that hasn't been seen before */
 	Scooby_PTEntry *ptentry = NULL;
-	if(pt->size() >= knob::scooby_pt_size)
+	if(pt->size() >= pt_size)
 	{
 		stats.track.evict++;
 		ptentry = pt->front();
@@ -566,26 +571,24 @@ bool ScoobyDouble::track(uint64_t address, State *state, uint32_t action_index, 
             "victim_state %x victim_act_idx %u victim_act %d confidence %d", 
             ptentry->state->value(), ptentry->action_index, SDActions[ptentry->action_index % SDActions.size()], ptentry->high_confidence
         );
-		if(let)
+		if(*let)
 		{
 			MYLOG(
                 "last_victim_state %x last_victim_act_idx %u last_victim_act %d confidence %d", 
-                let->state->value(), let->action_index, SDActions[let->action_index % SDActions.size()], let->high_confidence
+                (*let)->state->value(), (*let)->action_index, SDActions[(*let)->action_index % SDActions.size()], (*let)->high_confidence
             );
 			/* train the agent */
-			train(ptentry, let);
-			delete let->state;
-			delete let;
+			train(ptentry, *let);
+			delete (*let)->state;
+			delete *let;
 		}
         
-        if(knob::scooby_separate_lowconf_pt && !is_high_confidence(action_index))
-            last_evicted_tracker_lowconf = ptentry;
-        else last_evicted_tracker = ptentry;
+        *let = ptentry;
 	}
 
 	ptentry = new Scooby_PTEntry(address, state, action_index, is_high_confidence(action_index));
 	pt->push_back(ptentry);
-	assert(pt->size() <= knob::scooby_pt_size);
+	assert(pt->size() <= pt_size);
 
 	(*tracker) = ptentry;
 	MYLOG("end@%lx", address);
