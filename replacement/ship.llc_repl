@@ -11,6 +11,11 @@
 
 uint32_t rrpv[LLC_SET][LLC_WAY];
 
+namespace knob
+{
+    extern uint32_t champsim_seed;
+}
+
 // sampler structure
 class SAMPLER_class
 {
@@ -54,7 +59,8 @@ SHCT_class SHCT[NUM_CPUS][SHCT_SIZE];
 // initialize replacement state
 void CACHE::llc_initialize_replacement()
 {
-    cout << "Initialize SHIP state" << endl;
+    cout << "Initialize SHIP state" << endl
+         << "SHiP seed " << knob::champsim_seed << endl;
 
     for (int i=0; i<LLC_SET; i++) {
         for (int j=0; j<LLC_WAY; j++) {
@@ -70,7 +76,11 @@ void CACHE::llc_initialize_replacement()
     }
 
     // randomly selected sampler sets
-    srand(time(NULL));
+    if (knob::champsim_seed == 0)  
+        srand(time(NULL));
+    else
+        srand(knob::champsim_seed);
+    
     unsigned long rand_seed = 1;
     unsigned long max_rand = 1048576;
     uint32_t my_set = LLC_SET;
