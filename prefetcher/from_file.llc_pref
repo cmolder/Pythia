@@ -21,20 +21,23 @@ using namespace std;
 namespace knob
 {
     extern uint32_t from_file_max_allowed_degree;
+    extern bool     from_file_index_by_call;
     extern string   prefetch_trace_llc;
 }
 
 unordered_map<uint64_t, vector<uint64_t>> pref_addrs;
 unordered_map<uint64_t, vector<uint64_t>> pref_levels;
-
+uint64_t operate_call = 0; // Tracks calls to llc_prefetcher_operate
 
 
 
 void CACHE::llc_prefetcher_initialize() 
 {
-    cout << "CPU " << cpu << " LLC from_file prefetcher" << endl;
-    cout << "from_file_max_allowed_degree " << knob::from_file_max_allowed_degree << endl;
-    cout << "prefetch_trace_llc " << knob::prefetch_trace_llc << endl;
+    cout << "CPU " << cpu << " LLC from_file prefetcher" << endl
+         << "from_file_max_allowed_degree " << knob::from_file_max_allowed_degree << endl
+         << "from_file_index_by_call " << knob::from_file_index_by_call << endl
+         << "prefetch_trace_llc " << knob::prefetch_trace_llc << endl
+         << endl;
     
     ifstream pf_trace_in;
     pf_trace_in.open(knob::prefetch_trace_llc);
@@ -43,6 +46,7 @@ void CACHE::llc_prefetcher_initialize()
     uint64_t line_no = 0;
     
     uint64_t instr_id;
+    uint64_t call_id;
     string line;
     string token;
 
@@ -50,7 +54,7 @@ void CACHE::llc_prefetcher_initialize()
         stringstream line_stream(line);
         
         int i = 0;
-        while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
+        while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id call_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
             stringstream token_stream(token);
             
             if (i == 0) { // Get instruction ID
@@ -61,23 +65,25 @@ void CACHE::llc_prefetcher_initialize()
                 //     pref_levels[instr_id].clear();
                 // }
                 //cout << " instr_id=" << dec << instr_id;
-            } else if (i == 1) { // Get PC
+            } else if (i == 1) { // Get call ID
+                call_id = stol(token);
+            } else if (i == 2) { // Get PC
                 //cout << " pc=" << token;
-            } else if (i == 2) { // Get addresses
+            } else if (i == 3) { // Get addresses
                 string addr_str;
                 uint64_t addr;
                 while (getline(token_stream, addr_str, ',')) {
                     addr = stol(addr_str, nullptr, 16);
                     //cout << " addr=" << hex << addr_str;
-                    pref_addrs[instr_id].push_back(addr);
+                    pref_addrs[knob::from_file_index_by_call ? call_id : instr_id].push_back(addr);
                 }
-            } else if (i == 3) { // Get levels
+            } else if (i == 4) { // Get levels
                 string level_str;
                 uint64_t level;
                 while (getline(token_stream, level_str, ',')) {
                     level = stol(level_str);
                     //cout << " level=" << dec << level_str;
-                    pref_levels[instr_id].push_back(level);
+                    pref_levels[knob::from_file_index_by_call ? call_id : instr_id].push_back(level);
                 }
             }
             i++;
@@ -85,7 +91,7 @@ void CACHE::llc_prefetcher_initialize()
         //cout << "\n";
         
 
-        if (pref_levels[instr_id].size() > knob::from_file_max_allowed_degree) {
+        if (pref_levels[knob::from_file_index_by_call ? call_id : instr_id].size() > knob::from_file_max_allowed_degree) {
             cerr << "Exceeded max prefetch degree of " << knob::from_file_max_allowed_degree << " on line " << line_no << " for instr_id " << instr_id << endl;
         }
 
@@ -97,14 +103,18 @@ void CACHE::llc_prefetcher_initialize()
 
 uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
 {
+    operate_call++;
+    
     if(instr_id == 0) //No prefetches for instructions with id 0 (prefetches and code misses)
         return metadata_in; 
+    
+    uint64_t index = knob::from_file_index_by_call ? operate_call : instr_id;
 
     //cout << "instr_id=" << instr_id;
     if (pref_addrs.find(instr_id) != pref_addrs.end()) {
-        for(int i = 0; i < pref_addrs[instr_id].size(); i++) {
-            //cout << " addr=" << hex << pref_addrs[instr_id][i] << " level=" << dec << pref_levels[instr_id][i];
-            prefetch_line(ip, addr, pref_addrs[instr_id][i], (pref_levels[instr_id][i] == 0 ? FILL_LLC : pref_levels[instr_id][i]), 0);
+        for(int i = 0; i < pref_addrs[index].size(); i++) {
+            //cout << " addr=" << hex << pref_addrs[index][i] << " level=" << dec << pref_levels[index][i];
+            prefetch_line(ip, addr, pref_addrs[index][i], (pref_levels[index][i] == 0 ? FILL_LLC : pref_levels[index][i]), 0);
         }
     }
     //cout << "\n";

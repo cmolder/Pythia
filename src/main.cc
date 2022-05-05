@@ -35,6 +35,7 @@ namespace knob
 {
     extern uint64_t warmup_instructions;
     extern uint64_t simulation_instructions;
+    extern uint32_t champsim_seed;
     extern bool     knob_cloudsuite;
     extern uint8_t  knob_low_bandwidth;
     extern bool     measure_ipc;
@@ -696,7 +697,7 @@ int main(int argc, char** argv)
 
     parse_args(argc, argv);
 
-    uint32_t seed_number = 0;
+    uint32_t seed_number = knob::champsim_seed;
 
     if(knob::knob_cloudsuite)
     {
@@ -761,12 +762,18 @@ int main(int argc, char** argv)
             //printf("max count_str: %d\n", count_str);
             //printf("application: %s\n", pch[count_str-3]);
 
-            int j = 0;
-            while (pch[count_str-3][j] != '\0') {
-                seed_number += pch[count_str-3][j];
-                //printf("%c %d %d\n", pch[count_str-3][j], j, seed_number);
-                j++;
+            if(seed_number == 0) 
+            {
+                int j = 0;
+                while (pch[count_str-3][j] != '\0') {
+                    seed_number += pch[count_str-3][j];
+                    //printf("%c %d %d\n", pch[count_str-3][j], j, seed_number);
+                    j++;
+                }
+                cout << "Computed ChampSim seed: " << seed_number << endl;
             }
+            else
+                cout << "Read ChampSim seed: " << seed_number << endl;
 
             ooo_cpu[count_traces].trace_file = popen(ooo_cpu[count_traces].gunzip_command, "r");
             if (ooo_cpu[count_traces].trace_file == NULL) {

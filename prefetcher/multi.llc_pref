@@ -35,6 +35,7 @@ namespace knob
 
 // vector<Prefetcher*> prefetchers;
 ofstream pf_trace_out;
+uint64_t operate_call = 0; // Tracks calls to llc_prefetcher_operate
 
 void CACHE::llc_prefetcher_initialize()
 {
@@ -165,8 +166,44 @@ void CACHE::llc_prefetcher_initialize()
 	assert(knob::llc_prefetcher_types.size() == prefetchers.size() || !knob::llc_prefetcher_types[0].compare("none"));
 }
 
+void dump_prefetches_to_trace(uint64_t instr_id, uint64_t call_id, uint64_t ip, const vector<uint64_t> &all_pref_addr, const vector<uint64_t> &all_pref_level)
+{
+    assert(pf_trace_out.is_open());
+    assert(instr_id != 0);
+    assert(all_pref_addr.size() == all_pref_level.size());
+    
+    if (all_pref_addr.size() == 0)
+        return; // Save space - don't write empty prefetches
+    
+    pf_trace_out << dec << instr_id  << " " << call_id << " " << hex << ip;
+        
+    string padding = " ";
+    for (auto addr : all_pref_addr) {
+        pf_trace_out << padding << hex << addr;
+        padding = ",";
+    }
+    padding = " ";
+    for (auto level : all_pref_level) {
+        pf_trace_out << padding << dec << level;
+        padding = ",";
+    }
+    pf_trace_out << "\n";
+}
+
+
 uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
 {
+    operate_call++; // Tracks the number of calls to llc_prefetcher_opreate
+    
+    // [Quick fix] If we prefetches dump to file, we can't prefetch unaffiliated IDs,
+    //             otherwise it introduces inconsistencies.
+    if(knob::dump_prefetch_trace && (instr_id == 0 || type == PREFETCH)) 
+    {
+        //cout << " Warning: Not prefetching instr_id=" << dec << instr_id << " operate_call=" << operate_call << " prefetch=" << (type == PREFETCH) << ", to keep prefetch trace consistent\n";
+        return metadata_in;
+    }
+    
+    
 	vector<uint64_t> pref_addr;
     vector<uint64_t> pref_level;
     
@@ -191,27 +228,22 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
            && pref_name != "triage" 
            && !pref_addr.empty())
         {
+            assert(pref_addr.size() == pref_level.size());
             for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
 			{
                 prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), 0);
 				//prefetch_line(ip, addr, pref_addr[addr_index], FILL_LLC, 0);
 			}
         }
+        
 
         
         // Extend the all_pref_addr/level vectors, which track
         // prefetches for ALL prefetchers that are active in this call
         // 
         // Only used for trace building.
-        if(knob::dump_prefetch_trace && pf_trace_out.is_open()) {
-            for(auto addr : pref_addr) {
-                all_pref_addr.push_back(addr);
-            }
-            for (auto level : pref_level) {
-                all_pref_level.push_back(level);
-            }
-        }
-
+        all_pref_addr.insert(all_pref_addr.end(), pref_addr.begin(), pref_addr.end());
+        all_pref_level.insert(all_pref_level.end(), pref_level.begin(), pref_level.end());
 
         // Clear address / level vectors
 		pref_addr.clear();
@@ -220,20 +252,11 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
     
     // Dump information to trace (if doing so)
     // Skip prefetches, I-cache misses, TLB misses (all have instr_id == 0)
-    if(knob::dump_prefetch_trace && pf_trace_out.is_open() && type != PREFETCH && instr_id != 0){
-        pf_trace_out << dec << instr_id  << " " << hex << ip;
-        
-        string padding = " ";
-        for (auto addr : all_pref_addr) {
-            pf_trace_out << padding << hex << addr;
-            padding = ",";
-        }
-        padding = " ";
-        for (auto level : all_pref_level) {
-            pf_trace_out << padding << dec << level;
-            padding = ",";
-        }
-        pf_trace_out << "\n";
+    if(knob::dump_prefetch_trace 
+       && type != PREFETCH 
+       && instr_id != 0) 
+    {
+        dump_prefetches_to_trace(instr_id, operate_call, ip, all_pref_addr, all_pref_level);
     }
 
 	return metadata_in;
