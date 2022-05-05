@@ -101,6 +101,7 @@ void SMSPrefetcher::invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cac
 			{
 				buffer_prefetch(pref_addr);
 				pref_addr.clear();
+                pref_level.clear();
 			}
 		}
 	}
