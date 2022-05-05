@@ -1,5 +1,6 @@
 #include <string>
 #include <assert.h>
+#include "gzstream.h"
 #include "cache.h"
 #include "prefetcher.h"
 
@@ -35,14 +36,33 @@ namespace knob
 
 // vector<Prefetcher*> prefetchers;
 ofstream pf_trace_out;
+ogzstream pf_trace_out_gz;
 uint64_t operate_call = 0; // Tracks calls to llc_prefetcher_operate
+
+static bool endsWith(const string& str, const string& suffix)
+{
+    // For detecting file extensions
+    // https://stackoverflow.com/questions/874134/find-out-if-string-ends-with-another-string-in-c
+    return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
+}
 
 void CACHE::llc_prefetcher_initialize()
 {
+    cout << "Initializing multi LLC prefetcher\n"
+         << "dump_prefetch_trace " << dec << knob::dump_prefetch_trace << "\n"
+         << "prefetch_trace_llc " << knob::prefetch_trace_llc << "\n";
+    
     // Initialize prefetch trace tracking (if active)
     if (knob::dump_prefetch_trace) {
-        pf_trace_out.open(knob::prefetch_trace_llc);
-        assert(pf_trace_out.is_open());
+        if(endsWith(knob::prefetch_trace_llc, ".gz")) {
+            cout << "Writing to prefetch_trace_llc as .gz\n";
+            pf_trace_out_gz.open(knob::prefetch_trace_llc.c_str());
+            //assert(pf_trace_out_gz.is_open());
+        } else {
+            cout << "Writing to prefetch_trace_llc as raw text\n";
+            pf_trace_out.open(knob::prefetch_trace_llc);
+            assert(pf_trace_out.is_open());
+        }
     }
     
     // Initialize prefetchers
@@ -168,26 +188,49 @@ void CACHE::llc_prefetcher_initialize()
 
 void dump_prefetches_to_trace(uint64_t instr_id, uint64_t call_id, uint64_t ip, const vector<uint64_t> &all_pref_addr, const vector<uint64_t> &all_pref_level)
 {
-    assert(pf_trace_out.is_open());
     assert(instr_id != 0);
     assert(all_pref_addr.size() == all_pref_level.size());
+    assert(knob::dump_prefetch_trace);
     
     if (all_pref_addr.size() == 0)
         return; // Save space - don't write empty prefetches
     
-    pf_trace_out << dec << instr_id  << " " << call_id << " " << hex << ip;
+    // TODO: Make this cleaner, one ostream for both.
+    if (endsWith(knob::prefetch_trace_llc, ".gz")) {
+        // Dump to .gz
+        //assert(pf_trace_out_gz.is_open());
         
-    string padding = " ";
-    for (auto addr : all_pref_addr) {
-        pf_trace_out << padding << hex << addr;
-        padding = ",";
+        pf_trace_out_gz << dec << instr_id  << " " << call_id << " " << hex << ip;
+        
+        string padding = " ";
+        for (auto addr : all_pref_addr) {
+            pf_trace_out_gz << padding << hex << addr;
+            padding = ",";
+        }
+        padding = " ";
+        for (auto level : all_pref_level) {
+            pf_trace_out_gz << padding << dec << level;
+            padding = ",";
+        }
+        pf_trace_out_gz << "\n"; 
+    } else {
+        // Dump to .txt
+        assert(pf_trace_out.is_open());
+        
+        pf_trace_out << dec << instr_id  << " " << call_id << " " << hex << ip;
+        
+        string padding = " ";
+        for (auto addr : all_pref_addr) {
+            pf_trace_out << padding << hex << addr;
+            padding = ",";
+        }
+        padding = " ";
+        for (auto level : all_pref_level) {
+            pf_trace_out << padding << dec << level;
+            padding = ",";
+        }
+        pf_trace_out << "\n";
     }
-    padding = " ";
-    for (auto level : all_pref_level) {
-        pf_trace_out << padding << dec << level;
-        padding = ",";
-    }
-    pf_trace_out << "\n";
 }
 
 
@@ -341,8 +384,10 @@ void CACHE::llc_prefetcher_final_stats()
 	}
     
     // Close the ofstream
-    if(pf_trace_out.is_open()){
+    if (pf_trace_out.is_open()) {
         pf_trace_out.close();
+    } else { //if (pf_trace_out_gz.is_open()) {
+        //pf_trace_out_gz.close();
     }
 }
 

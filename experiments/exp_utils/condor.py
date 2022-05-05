@@ -46,6 +46,8 @@ def generate_condor_script(out, dry_run, **params):
         cfg += f' \\\n    --track-pc'
     if 'track_addr'  in params.keys() and params['track_addr'] is True:
         cfg += f' \\\n    --track-addr'
+    if 'track_pref'  in params.keys() and params['track_pref'] is True:
+        cfg += f' \\\n    --track-pref'
     
     if not dry_run:
         with open(out, 'w') as f:
@@ -235,8 +237,9 @@ def build_run(cfg, tr_path,
         results_dir=results_dir,
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
-        track_pc=cfg.champsim.track_pc_pref,
-        track_addr=cfg.champsim.track_addr_pref,
+        track_pc=cfg.champsim.track_pc_stats,
+        track_addr=cfg.champsim.track_addr_stats,
+        track_pref=cfg.champsim.track_pref,
     )
 
     # Add condor file to the list

@@ -145,6 +145,6 @@ def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr
         if track_addr:
             knobs += f' --addr_prefetch_file_{level}={addr_pref_dir}/{level_results_file}'
         if track_pref and level == 'llc':
-            knobs += f' --prefetch_trace_{level}={pref_trace_dir}/{level_results_file}'
+            knobs += f' --prefetch_trace_{level}={pref_trace_dir}/{level_results_file.replace(".txt", ".gz")}'
     
     return knobs

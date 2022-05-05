@@ -4,6 +4,7 @@
 * Ported by Carson Molder to the Pythia version of ChampSim.
 */
 
+#include "gzstream.h"
 #include "ooo_cpu.h"
 #include "cache.h"
 
@@ -29,7 +30,12 @@ unordered_map<uint64_t, vector<uint64_t>> pref_addrs;
 unordered_map<uint64_t, vector<uint64_t>> pref_levels;
 uint64_t operate_call = 0; // Tracks calls to llc_prefetcher_operate
 
-
+static bool endsWith(const string& str, const string& suffix)
+{
+    // For detecting file extensions
+    // https://stackoverflow.com/questions/874134/find-out-if-string-ends-with-another-string-in-c
+    return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
+}
 
 void CACHE::llc_prefetcher_initialize() 
 {
@@ -38,67 +44,111 @@ void CACHE::llc_prefetcher_initialize()
          << "from_file_index_by_call " << knob::from_file_index_by_call << endl
          << "prefetch_trace_llc " << knob::prefetch_trace_llc << endl
          << endl;
-    
-    ifstream pf_trace_in;
-    pf_trace_in.open(knob::prefetch_trace_llc);
-    assert(pf_trace_in.is_open());
-    
+  
     uint64_t line_no = 0;
-    
     uint64_t instr_id;
     uint64_t call_id;
     string line;
     string token;
-
-    while(getline(pf_trace_in, line)) {
-        stringstream line_stream(line);
-        
-        int i = 0;
-        while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id call_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
-            stringstream token_stream(token);
-            
-            if (i == 0) { // Get instruction ID
-                instr_id = stol(token);
-                // if (pref_addrs.find(instr_id) != pref_addrs.end()) {
-                //     cout << "warning, duplicate instruction id " << dec << instr_id << "\n";
-                //     pref_addrs[instr_id].clear();
-                //     pref_levels[instr_id].clear();
-                // }
-                //cout << " instr_id=" << dec << instr_id;
-            } else if (i == 1) { // Get call ID
-                call_id = stol(token);
-            } else if (i == 2) { // Get PC
-                //cout << " pc=" << token;
-            } else if (i == 3) { // Get addresses
-                string addr_str;
-                uint64_t addr;
-                while (getline(token_stream, addr_str, ',')) {
-                    addr = stol(addr_str, nullptr, 16);
-                    //cout << " addr=" << hex << addr_str;
-                    pref_addrs[knob::from_file_index_by_call ? call_id : instr_id].push_back(addr);
-                }
-            } else if (i == 4) { // Get levels
-                string level_str;
-                uint64_t level;
-                while (getline(token_stream, level_str, ',')) {
-                    level = stol(level_str);
-                    //cout << " level=" << dec << level_str;
-                    pref_levels[knob::from_file_index_by_call ? call_id : instr_id].push_back(level);
-                }
-            }
-            i++;
-        }
-        //cout << "\n";
-        
-
-        if (pref_levels[knob::from_file_index_by_call ? call_id : instr_id].size() > knob::from_file_max_allowed_degree) {
-            cerr << "Exceeded max prefetch degree of " << knob::from_file_max_allowed_degree << " on line " << line_no << " for instr_id " << instr_id << endl;
-        }
-
-        line_no++;
-    }
+    int i;
     
-    pf_trace_in.close();
+    // TODO: Make this cleaner, one istream for both.
+    if (endsWith(knob::prefetch_trace_llc, ".gz")) {
+        // Read from .gz
+        cout << "Reading from prefetch_trace_llc as .gz\n";
+        igzstream pf_trace_in_gz; 
+        pf_trace_in_gz.open(knob::prefetch_trace_llc.c_str());
+        
+        while(getline(pf_trace_in_gz, line)) {
+            stringstream line_stream(line);
+            i = 0;
+            while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id call_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
+                stringstream token_stream(token);
+                if (i == 0) {        // Get instruction ID
+                    instr_id = stol(token);
+                } else if (i == 1) { // Get call ID
+                    call_id = stol(token);
+                } else if (i == 2) { // Get PC
+
+                } else if (i == 3) { // Get addresses
+                    string addr_str;
+                    uint64_t addr;
+                    while (getline(token_stream, addr_str, ',')) {
+                        addr = stol(addr_str, nullptr, 16);
+                        //cout << " addr=" << hex << addr_str;
+                        pref_addrs[knob::from_file_index_by_call ? call_id : instr_id].push_back(addr);
+                    }
+                } else if (i == 4) { // Get levels
+                    string level_str;
+                    uint64_t level;
+                    while (getline(token_stream, level_str, ',')) {
+                        level = stol(level_str);
+                        //cout << " level=" << dec << level_str;
+                        pref_levels[knob::from_file_index_by_call ? call_id : instr_id].push_back(level);
+                    }
+                }
+                i++;
+            }
+            //cout << "\n";
+            
+            if (pref_levels[knob::from_file_index_by_call ? call_id : instr_id].size() > knob::from_file_max_allowed_degree) {
+                cerr << "Exceeded max prefetch degree of " << knob::from_file_max_allowed_degree 
+                     << " on line " << line_no 
+                     << " for instr_id " 
+                     << instr_id << "\n";
+            }
+            line_no++;
+        }
+        
+        //pf_trace_in_gz.close();
+    } else {
+        // Read from .txt
+        cout << "Reading from prefetch_trace_llc as raw text\n";
+        ifstream pf_trace_in = ifstream(knob::prefetch_trace_llc);
+        assert(pf_trace_in.is_open());
+
+        while(getline(pf_trace_in, line)) {
+            stringstream line_stream(line);
+            i = 0;
+            while(getline(line_stream, token, ' ')) {  // Parse line (format: `instr_id call_id pc addr1,addr2,...,addrn level1,level2,...,leveln`)
+                stringstream token_stream(token);
+                if (i == 0) {        // Get instruction ID
+                    instr_id = stol(token);
+                } else if (i == 1) { // Get call ID
+                    call_id = stol(token);
+                } else if (i == 2) { // Get PC
+
+                } else if (i == 3) { // Get addresses
+                    string addr_str;
+                    uint64_t addr;
+                    while (getline(token_stream, addr_str, ',')) {
+                        addr = stol(addr_str, nullptr, 16);
+                        //cout << " addr=" << hex << addr_str;
+                        pref_addrs[knob::from_file_index_by_call ? call_id : instr_id].push_back(addr);
+                    }
+                } else if (i == 4) { // Get levels
+                    string level_str;
+                    uint64_t level;
+                    while (getline(token_stream, level_str, ',')) {
+                        level = stol(level_str);
+                        //cout << " level=" << dec << level_str;
+                        pref_levels[knob::from_file_index_by_call ? call_id : instr_id].push_back(level);
+                    }
+                }
+                i++;
+            }
+            //cout << "\n";
+            
+            if (pref_levels[knob::from_file_index_by_call ? call_id : instr_id].size() > knob::from_file_max_allowed_degree) {
+                cerr << "Exceeded max prefetch degree of " << knob::from_file_max_allowed_degree 
+                     << " on line " << line_no 
+                     << " for instr_id " 
+                     << instr_id << "\n";
+            }
+            line_no++;
+        }
+        pf_trace_in.close();
+    }
 }
 
 uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint32_t metadata_in, uint64_t instr_id)
@@ -112,7 +162,7 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
 
     //cout << "instr_id=" << instr_id;
     if (pref_addrs.find(instr_id) != pref_addrs.end()) {
-        for(int i = 0; i < pref_addrs[index].size(); i++) {
+        for(uint32_t i = 0; i < pref_addrs[index].size(); i++) {
             //cout << " addr=" << hex << pref_addrs[index][i] << " level=" << dec << pref_levels[index][i];
             prefetch_line(ip, addr, pref_addrs[index][i], (pref_levels[index][i] == 0 ? FILL_LLC : pref_levels[index][i]), 0);
         }

@@ -74,7 +74,7 @@ Options:
         multi          Runtime-configurable prefetcher (see multi.llc_pref for options)
         multi_pc_trace Prefetch using the chosen prefetcher for each PC, as defined in 
                        a PC trace.
-        from_file      Prefetch using per-instruction addresses in a prefetch address trace. (Under construction, currently buggy)
+        from_file      Prefetch using per-instruction addresses in a prefetch address trace.
                        
    --llc-repl <llc-replacement>
         Choose the LLC replacement policy, where <llc-replacement> is one of:
@@ -152,7 +152,7 @@ Options:
             Track per-address prefetch statistics, and save them to a file inside <results-dir>/addr-pref-stats.
             
         -d / --track-pref
-            Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces. (Under construction, currently buggy) 
+            Track every prefetch's address/level, and save it to a file inside <results-dir>/pref-traces.
                 
         --extra-knobs <knob-string>
             Any additional knobs to pass to ChampSim. Pass them in the form of a string with BOTH double quotes
@@ -183,7 +183,7 @@ Options:
             File to a PC trace. Must be passed if the LLC prefetcher is 'pc_trace'.
             
         --pref-trace-llc <pref-trace-file>
-            File to a prefetch address traced. Must be passed if the LLC prefetcher is 'from_file'. (Under construction, currently buggy)
+            File to a prefetch address traced. Must be passed if the LLC prefetcher is 'from_file'.
             
     Replacement options:
         --llc-repl <llc-replacement>
