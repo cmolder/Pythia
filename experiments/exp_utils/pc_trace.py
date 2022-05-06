@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import glob
 import gzip
-from multiprocessing import Pool
+from multiprocessing import get_context, Pool
 from tqdm import tqdm
 from collections import defaultdict
 
@@ -162,8 +162,8 @@ def _process_offline_pc_benchmark(inputs):
     # Read all the traces into memory, building the combined trace 
     # instruction-by-instruction
     for j, (t, p) in enumerate(zip(traces, prefetchers)):
-        print(f'    {benchmark:18} {p:20} ({j}/{len(traces)})')
-        with gzip.open(t) as f:
+        print(f'{benchmark:20}     (trace {j+1:2}/{len(traces)}) {p:20}')
+        with gzip.open(t) as f: 
             for line in f:
                 line = str(line, 'utf-8')
                 instr_id, _, pc, _, _ = line.split()
@@ -180,8 +180,9 @@ def _process_offline_pc_benchmark(inputs):
     )
 
     # Dump offline cominbed trace
-    print(f'    {benchmark:18} Done, saving to {output_trace_path}...')
+    print(f'{benchmark:20}     Building done, saving {os.path.basename(output_trace_path)}...')
     _dump_offline_pc_trace(output_trace_path, output)
+    print(f'{benchmark:20}     Saving done')
     
     
 def get_pref_trace_file(full_trace, metric, level='llc'):
@@ -214,9 +215,15 @@ def build_offline_pc_traces(pref_traces_dir, pc_stats_file, metric, level='llc',
     all_traces =  glob.glob(os.path.join(pref_traces_dir, '*.gz'))
     
     #inputs = [(data, metric, b) for b in benchmarks]
-    with Pool(processes=num_threads) as pool:
-        #inputs = [(data, metric, pref_traces_dir, level, b) for b in ['bwaves_98B']] # [DEBUG]
-        inputs = [(data, metric, pref_traces_dir, level, b) for b in benchmarks]
+    with get_context('spawn').Pool(processes=num_threads) as pool:
+        # inputs = [ # [DEBUG]
+        #     (data, metric, pref_traces_dir, level, b) 
+        #     for b in ['bwaves_98B']
+        # ] 
+        inputs = [
+           (data, metric, pref_traces_dir, level, b)  
+           for b in benchmarks
+        ]
         pool.map(_process_offline_pc_benchmark, inputs)
        
 

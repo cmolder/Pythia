@@ -239,13 +239,13 @@ def get_prefetcher_from_path(path):
     """
     l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
     
-    if llp not in ['no', 'multi_pc_trace']:
-        llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
-        llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
-    if l2p not in ['no']:
+    if l2p not in ['no', 'from_file', 'multi_pc_trace']:
         l2p, _ = l2p.replace('spp_dev2', 'sppdev2').split('_')
         l2p  = l2p.replace(',','_').replace('sppdev2', 'spp_dev2')
-    
+    if llp not in ['no', 'from_file', 'multi_pc_trace']:
+        llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
+        llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
+
     return l1p, l2p, llp
     
     
@@ -256,10 +256,10 @@ def get_prefetcher_degs_from_path(path):
     
     l2pd, llpd = (None,), (None,)
     
-    if l2p not in ['no']:
+    if l2p not in ['no', 'from_file', 'multi_pc_trace']:
         _, l2pd = l2p.replace('spp_dev2', 'sppdev2').split('_')
         l2pd = tuple((None if d == 'na' else int(d)) for d in l2pd.split(','))
-    if llp not in ['no', 'multi_pc_trace']:
+    if llp not in ['no', 'from_file', 'multi_pc_trace']:
         _, llpd = llp.replace('spp_dev2', 'sppdev2').split('_')
         llpd = tuple((None if d == 'na' else int(d)) for d in llpd.split(','))
     
