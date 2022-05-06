@@ -18,7 +18,7 @@ llc:
         - 'pc_trace'
     max_hybrid: 2
 paths:
-    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap_pctrace/num_useful/'
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap_online_pctrace/num_useful/'
     trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
     pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap/pc_traces/'

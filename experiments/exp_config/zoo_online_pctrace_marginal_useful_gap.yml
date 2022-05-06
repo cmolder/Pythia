@@ -1,0 +1,30 @@
+champsim:
+    warmup_instructions: 25
+    sim_instructions: 100
+    track_pc_stats: false
+    track_addr_stats: false
+    track_pref: false
+    branch_pred: 'perceptron'
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates: []
+    max_hybrid: 1
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates:
+        - 'pc_trace'
+    max_hybrid: 2
+paths:
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap_online_pctrace/marginal_useful/'
+    trace_dir: '/scratch/cluster/cmolder/traces/gap/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+    pc_trace_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_gap/pc_traces/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Prefetcher Zoo'
+pc_trace_metric: 'marginal_useful'

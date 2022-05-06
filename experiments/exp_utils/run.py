@@ -133,7 +133,7 @@ def get_output_trace_knobs(results_dir, results_file, track_pc=False, track_addr
         knobs += '--measure_addr_prefetches=true '
         
     if track_pref:
-        pref_trace_dir = os.path.join(results_dir, 'pref-traces')
+        pref_trace_dir = os.path.join(results_dir, 'pref_traces')
         os.makedirs(pref_trace_dir, exist_ok=True)
         knobs += '--dump_prefetch_trace=true '
     
