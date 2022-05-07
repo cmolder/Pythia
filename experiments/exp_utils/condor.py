@@ -378,13 +378,16 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
         
         
         
-def get_extra_knobs_pythia_level(cfg, level_threshold=None):
+def get_extra_knobs_pythia_level(cfg, seed=None, level_threshold=None):
     extra_knobs = ''
     
     if level_threshold is not None:
         extra_knobs += f' --scooby_enable_dyn_level=true --scooby_dyn_level_threshold={level_threshold}'
     else:
         extra_knobs += f' --scooby_enable_dyn_level=false'
+        
+    if seed is not None:
+        extra_knobs += f' --champsim_seed={seed} --scooby_seed={seed}'
         
     if cfg.pythia.scooby_separate_lowconf_pt is True:
         extra_knobs += f' --scooby_separate_lowconf_pt=true'
@@ -416,40 +419,46 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
         for path in paths:
-            for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                for thresh in cfg.pythia.scooby_dyn_level_threshold:
-                    
-                    if all([p == ('no',) for p in (l1p, l2p, llp)]) or any([p == ('scooby_double',) for p in (l1p, l2p, llp)]):
-                        continue
-                        
-                    #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
+            for seed in cfg.champsim.seeds:
+                for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
+                    for thresh in cfg.pythia.scooby_dyn_level_threshold:
+
+                        if all([p == ('no',) for p in (l1p, l2p, llp)]) or any([p == ('scooby_double',) for p in (l1p, l2p, llp)]):
+                            continue
+
+                        #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
+                        c_path = build_run(
+                            cfg, path,
+                            l1d_pref=l1p,
+                            l2c_pref=l2p,
+                            llc_pref=llp,
+                            extra_knobs=get_extra_knobs_pythia_level(
+                                cfg, seed=seed, level_threshold=thresh
+                            ),
+                            extra_suffix=f'threshold_{thresh}_seed_{seed}',
+                            dry_run=dry_run, 
+                            verbose=verbose
+                        )
+
+                        condor_paths.append(c_path)
+                        pbar.update(1)
+
+                    # Add run for No prefetcher, Double Pythia (extra actions for LLC prefetches), Static Pythia 
                     c_path = build_run(
                         cfg, path,
                         l1d_pref=l1p,
                         l2c_pref=l2p,
                         llc_pref=llp,
-                        extra_knobs=get_extra_knobs_pythia_level(cfg, level_threshold=thresh),
-                        extra_suffix=f'threshold_{thresh}',
+                        extra_knobs=get_extra_knobs_pythia_level(
+                            cfg, seed=seed, level_threshold=None
+                        ),
+                        extra_suffix=f'seed_{seed}',
                         dry_run=dry_run, 
                         verbose=verbose
                     )
-                    
+
                     condor_paths.append(c_path)
                     pbar.update(1)
-                    
-                # Add run for No prefetcher, Double Pythia (one QVStore per level), Static Pythia 
-                c_path = build_run(
-                    cfg, path,
-                    l1d_pref=l1p,
-                    l2c_pref=l2p,
-                    llc_pref=llp,
-                    extra_knobs=get_extra_knobs_pythia_level(cfg, level_threshold=None),
-                    dry_run=dry_run, 
-                    verbose=verbose
-                )
-                    
-                condor_paths.append(c_path)
-                pbar.update(1)
                 
     print(f'Generated {len(condor_paths)} runs')
     

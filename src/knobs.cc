@@ -13,6 +13,7 @@ namespace knob
 {
 	uint64_t warmup_instructions = 1000000;
 	uint64_t simulation_instructions = 1000000;
+    uint32_t champsim_seed = 0; // 0 -> will generate a seed from trace file path?
 	bool  	 knob_cloudsuite = false;
 	bool     knob_low_bandwidth = false;
     vector<string>   llc_prefetcher_types;
@@ -376,6 +377,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "simulation_instructions"))
     {
 		knob::simulation_instructions = atol(value);
+    }
+    else if (MATCH("", "champsim_seed"))
+    {
+		knob::champsim_seed = atol(value);
     }
     else if (MATCH("", "knob_cloudsuite"))
     {

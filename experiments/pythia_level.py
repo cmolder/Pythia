@@ -103,6 +103,7 @@ def condor_command():
     print('        # warmup inst     :', cfg.champsim.warmup_instructions, 'million')
     print('        track pc stats?   :', cfg.champsim.track_pc_pref)
     print('        track addr stats? :', cfg.champsim.track_addr_pref)
+    print('        seeds             :', cfg.champsim.seeds)
     print('    Directories:')
     print('        ChampSim          :', cfg.paths.champsim_dir)
     print('        Experiment        :', cfg.paths.exp_dir)

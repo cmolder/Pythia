@@ -4,6 +4,14 @@ champsim:
     track_pc_pref: false
     track_addr_pref: false
     branch_pred: 'perceptron'
+    seeds:
+        - 1337
+        - 1883
+        - 314159
+        - 271828
+        - 318954
+        - 99814
+        - 650891
 l1d:
     pref_candidates: []
     max_hybrid: 1
@@ -59,8 +67,8 @@ pythia:
     scooby_pt_size: 256
     scooby_lowconf_pt_size: 256
 paths:
-    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini_llc_aware_gamma_0_separate_eq/'
-    trace_dir: '/scratch/cluster/cmolder/traces/spec06mini/champsim/'
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_gamma_0_separate_eq/'
+    trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
     user: 'cmolder@cs.utexas.edu'
