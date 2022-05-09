@@ -70,7 +70,7 @@ def generate_run_name(trace_path, llc_sets,
                       llc_pref=[], llc_pref_degrees=[],
                       extra_suffix=None):
     """Generate a unique run name, given the trace, and prefetchers+degrees."""
-    trace_name = os.path.basename(trace_path).split('.')[0]
+    trace_name = '.'.join(os.path.basename(trace_path).split('.')[:-1])
     
     if len(l2c_pref_degrees) == len(l2c_pref):
         l2c_pref_degrees_suffix = ",".join([str(d) for d in l2c_pref_degrees])
@@ -409,7 +409,7 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
     """Build a level-aware Pythia sweep, for pythia_level.py
     """
     condor_paths = []
-    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
+    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.[g|x]z'))
     
     # Get all combinations of hybrids up to <max_hybrid>
     l1d_prefs = [p for h in range(1, cfg.l1d.max_hybrid+1) for p in combinations(cfg.l1d.pref_candidates, h)] + [('no',)]

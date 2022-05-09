@@ -23,7 +23,7 @@ def read_file(path, cpu=0):
                      'L1D_total_miss', 'L2C_total_miss', 'LLC_total_miss',
                      'L1D_load_miss', 'L2C_load_miss', 'LLC_load_miss', 
                      'L1D_rfo_miss', 'L2C_rfo_miss', 'LLC_rfo_miss',
-                     'kilo_inst')
+                     'seed', 'kilo_inst')
     data = {}
     
     # Optional data (not checked in expected_keys)
@@ -34,6 +34,8 @@ def read_file(path, cpu=0):
     
     with open(path, 'r') as f:
         for line in f:
+            if 'ChampSim seed:' in line:
+                data['seed'] = int(line.split()[3])
             if 'Finished CPU' in line:
                 data['ipc'] = float(line.split()[9])
                 data['kilo_inst'] = int(line.split()[4]) / 1000
@@ -98,6 +100,7 @@ stats_columns = [
     'dram_bw_epochs', 'dram_bw_reduction', 
     'ipc', 'ipc_improvement',
     'pythia_level_threshold', 'pythia_high_conf_prefetches', 'pythia_low_conf_prefetches',
+    'seed',
     'path', 'baseline_path'
 ]
 def get_statistics(path, baseline_path=None):
@@ -183,6 +186,7 @@ def get_statistics(path, baseline_path=None):
     results['pythia_level_threshold'] = pythia_level_threshold
     results['pythia_high_conf_prefetches'] = pythia_high_conf_prefetches
     results['pythia_low_conf_prefetches'] = pythia_low_conf_prefetches
+    results['seed'] = pf_data['seed']
     results['path'] = path
     results['baseline_path'] = baseline_path 
     return results
@@ -244,16 +248,14 @@ def get_trace_from_path(path):
     
     For multicore traces (e.g. CloudSuite),
     will return trace name as name + core.
-    
-    (TODO: Handle SPEC '17 formatting)
     """
     trace = os.path.basename(path).split('-')[0]
     tokens = trace.split('_')
-    if len(tokens) == 1: # Gap        : e.g. bfs
+    if len(tokens) == 1: # GAP          : e.g. bfs
         return tokens[0], None
-    if len(tokens) == 2: # SPEC '06   : e.g. astar_313B
+    if len(tokens) == 2: # SPEC '06     : e.g. astar_313B, 603.bwaves_s
         return tokens[0], tokens[1]
-    if len(tokens) == 3: # Cloudsuite : e.g. cassandra_phase0_core0
+    if len(tokens) == 3: # Cloudsuite   : e.g. cassandra_phase0_core0
         return tokens[0] + '_' + tokens[2], tokens[1] # Name + core, simpoint
     
     
@@ -296,9 +298,17 @@ def get_pythia_level_threshold(path):
         return None
     
     if 'threshold' in path:
-        path_ = path[path.index('threshold'):]
-        path_ = path_.replace('threshold_', '').replace('.txt', '')
+        path_ = path[path.index('threshold'):].split('_')[1].split('.')[0]
+        #path_ = path_.replace('threshold_', '').replace('.txt', '')
         return float(path_)
+    
+    return None
+
+
+def get_seed(path):
+    if 'seed' in path:
+        path_ = path[path.index('seed'):].split('_')[1].split('.')[0]
+        return int(path_)
     
     return None
 
@@ -318,7 +328,8 @@ def generate_csv(results_dir, output_file, dry_run=False):
         l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
         l2c_pref_deg, llc_pref_deg = get_prefetcher_degs_from_path(path)
         pyt_level_th = get_pythia_level_threshold(path)
-        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_deg, llc_pref_deg, pyt_level_th)] = path
+        seed = get_seed(path)
+        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_deg, llc_pref_deg, pyt_level_th, seed)] = path
 
         
     # Build statistics table
@@ -328,9 +339,10 @@ def generate_csv(results_dir, output_file, dry_run=False):
             assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline ("no", "no", "no") run for trace {tr}'
             for pf in traces[tr]:
                 for d in traces[tr][pf]:
+                    _, _, _, seed = d
                     pbar.update(1)
 
-                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None)])         
+                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None, seed)])         
                     if row is None: # Filter missing rows
                         continue
 
