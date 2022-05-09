@@ -16,6 +16,25 @@
     <a href="https://doi.org/10.5281/zenodo.5520125"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.5520125.svg" alt="DOI"></a>
 </p>
 
+
+# ChampSim Experiments
+
+You can launch these scripts from the base repoistory directory.
+- *Example*: In `Pythia/`, run `./experiments/run_mem_intensive.sh <prefetcher>`.
+- *Warning*: Launching these inside the `Pythia/experiments` directory may cause unexpected results, as it doesn't expect to be launched from here.
+
+'run_mem_intensive.sh' takes one argument - the name of the prefetcher
+'run_mem_intensive_bw.sh' runs Pythia with an added feature based on bandwidth usage
+'run_mem_intensive_gamma.sh' runs Pythia and takes on argument - a custom gamma value
+'run_mem_intensive_gradient.sh' runs Pythia using correct gradient propogation
+'run_mem_intensive_perceptron_featurewise_alpha.sh' runs Pythia using correct gradient propogation and takes one argument - a custom alpha value
+'run_mem_intensive_perceptron_featurewise.sh' runs Pythia using a perceptron update rule
+'run_mem_intensive_perceptron_featurewise_alpha.sh' runs Pythia using a perceptron update rule and takes one argument - a custom alpha value
+'run_mem_intensive_perceptron.sh' runs Pythia using a perceptron update rule, and doesn't use tile coding
+'run_mem_intensive_perceptron_alpha.sh' runs Pythia using a perceptron update rule without tike coding and takes one argument - a custom alpha value
+
+
+
 <!-- ## Update
 ### Aug 13th, 2021
 It has been brought to our attention that the Ligra and PARSEC-2.1 traces required to evaluate the artifact are not correctly getting downloaded using the `download_traces.pl` script. For now, we ask the reader to download **all** Ligra and PARSEC-2.1 traces (~10 GB) by (1) clicking on the mega link (see [Section 5](https://github.com/CMU-SAFARI/Pythia#more-traces)), and (2) clicking on "Download as ZIP" option. We are working with megatools developer to resolve the issue soon.  -->
