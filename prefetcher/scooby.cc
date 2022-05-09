@@ -82,6 +82,8 @@ namespace knob
 	extern int32_t  scooby_reward_hbw_tracker_hit;
 	extern vector<int32_t> scooby_last_pref_offset_conf_thresholds_hbw;
 	extern vector<int32_t> scooby_dyn_degrees_type2_hbw;
+	extern bool		scooby_bw_feature_hash; // ISHAN
+	extern bool		scooby_bw_feature_shift; // ISHAN
 
 	/* Learning Engine knobs */
 	extern bool     le_enable_trace;
@@ -254,6 +256,8 @@ void Scooby::print_config()
 		<< "scooby_reward_hbw_tracker_hit " << knob::scooby_reward_hbw_tracker_hit << endl
 		<< "scooby_last_pref_offset_conf_thresholds_hbw " << array_to_string(knob::scooby_last_pref_offset_conf_thresholds_hbw) << endl
 		<< "scooby_dyn_degrees_type2_hbw " << array_to_string(knob::scooby_dyn_degrees_type2_hbw) << endl
+		<< "scooby_bw_feature_hash " << knob::scooby_bw_feature_hash << endl
+		<< "scooby_bw_feature_shift " << knob::scooby_bw_feature_shift << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl

@@ -22,6 +22,8 @@ namespace knob
 	extern uint32_t 		le_featurewise_trace_interval;
 	extern uint32_t 		le_featurewise_trace_record_count;
 	extern std::string 	le_featurewise_trace_file_name;
+	extern bool		scooby_bw_feature_hash; // ISHAN
+	extern bool		scooby_bw_feature_shift; // ISHAN
 }
 
 const char* MapFeatureTypeString[] = {"PC", "Offset", "Delta", "Address", "PC_Offset", "PC_Address", "PC_Page", "PC_Path", "Delta_Path", "Offset_Path", "PC_Delta", "PC_Offset_Delta", "Page", "PC_Path_Offset", "PC_Path_Offset_Path", "PC_Path_Delta", "PC_Path_Delta_Path", "PC_Path_Offset_Path_Delta_Path", "Offset_Path_PC", "Delta_Path_PC"};
@@ -168,6 +170,39 @@ uint32_t FeatureKnowledge::get_tile_index(uint32_t tiling, State *state)
 	uint32_t delta_path = state->local_delta_sig2;
 	uint32_t pc_path = state->local_pc_sig;
 	uint32_t offset_path = state->local_offset_sig;
+
+	//ISHAN
+	if (knob::scooby_bw_feature_hash && state->is_high_bw) {
+		pc = ~pc;
+		page = ~page;
+		address = ~address;
+		offset = ~offset;
+		delta = ~delta;
+		delta_path = ~delta_path;
+		pc_path = ~pc_path;
+		offset_path = ~offset_path;
+	}
+	if (knob::scooby_bw_feature_shift) {
+		pc <<= 1;
+		page <<= 1;
+		address <<= 1;
+		offset <<= 1;
+		delta <<= 1;
+		delta_path <<= 1;
+		pc_path <<= 1;
+		offset_path <<= 1;
+		if (state->is_high_bw) {
+			pc = pc | 1;
+			page = page | 1;
+			address = address | 1;
+			offset = offset | 1;
+			delta = delta | 1;
+			delta_path = delta_path | 1;
+			pc_path = pc_path | 1;
+			offset_path = offset_path | 1;
+		}
+	}
+	//ISHAN
 
 	switch(m_feature_type)
 	{

@@ -263,6 +263,8 @@ namespace knob
 	int32_t  scooby_reward_hbw_tracker_hit = -2;
 	vector<int32_t> scooby_last_pref_offset_conf_thresholds_hbw;
 	vector<int32_t> scooby_dyn_degrees_type2_hbw;
+	bool	scooby_bw_feature_hash = false; // ISHAN
+	bool	scooby_bw_feature_shift = false; // ISHAN
 
 	/* Learning Engine */
 	bool     le_enable_trace;
@@ -1233,6 +1235,14 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	else if (MATCH("", "scooby_dyn_degrees_type2_hbw"))
 	{
 		knob::scooby_dyn_degrees_type2_hbw = get_array_int(value);
+	}
+	else if (MATCH("", "scooby_bw_feature_hash")) //ISHAN
+	{
+		knob::scooby_bw_feature_hash = !strcmp(value, "true") ? true : false;
+	}
+	else if (MATCH("", "scooby_bw_feature_shift")) //ISHAN
+	{
+		knob::scooby_bw_feature_shift = !strcmp(value, "true") ? true : false;
 	}
 
 	/* Learning Engine */

@@ -692,7 +692,7 @@ int main(int argc, char** argv)
          << "*************************************************" << endl;
 
     // initialize knobs
-    uint8_t show_heartbeat = 1;
+    uint8_t show_heartbeat = 0; //ISHAN
 
     parse_args(argc, argv);
 
