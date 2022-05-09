@@ -33,6 +33,8 @@ namespace knob
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
     extern string         pc_trace_llc;
+	extern bool           pc_trace_credit_prefetch; // If True, credit prefetches of other prefetchers that
+											        // prefetched the same lines as the PC's prefetchers.
     
     // Prefetcher degree knobs, for setting default degree (others are unsupported for now.)
     extern uint32_t sms_pref_degree;
@@ -47,9 +49,20 @@ unordered_map<uint64_t, vector<uint64_t>> pc_degrees;   // Degrees to use on eac
 unordered_map<string, uint32_t> default_pref_degrees;   // Original values of each prefetcher's degree knob.
 set<string> prefetcher_names;                           // Set of prefetchers to load, based on those that appear in the trace.
 
+/* Shadow Cache (infinite size) */
+// Tracks real prefetches
+struct ShadowEntry {
+    uint64_t address;
+    //uint64_t insertion_time;   // Insertion time (after this cycle, we assume the prefetch was "filled")
+    bool real_prefetch = false; // If this was a real prefetch.
+};
+unordered_map<string, unordered_map<uint64_t, ShadowEntry>> shadow_cache; // Prefetcher -> (Address -> Entry) : Per-prefetcher shadow cache to track prefetches.
+
+
 /* Statistics */
 int not_prefetched = 0; // Number of prefetch queries where the PC wasn't found.
 int prefetched = 0;     // Number of prefetch queries where the PC was found.
+
 
 /* Helper functions */
 void parse_pc_trace() {
@@ -216,7 +229,23 @@ void add_prefetchers(CACHE *cache, vector<Prefetcher*> &prefetchers) {
 	assert(prefetcher_names.size() == prefetchers.size());
 }
 
-bool does_prefetch_pc(string prefetcher_name, uint64_t pc) {
+bool does_invoke_pc(string prefetcher_name, uint64_t pc) {
+	// pc_trace_credit_prefetch knob true  : Invoke all prefetchers.
+	if (knob::pc_trace_credit_prefetch) {
+		return true;
+	}
+
+	// pc_trace_credit_prefetch knob false : Only invoke prefetchers that are in the PC trace.
+    for (auto pref : pc_prefetchers[pc]) {
+          if (prefetcher_name == pref)
+              return true;
+    }
+    return false;
+
+}
+
+bool does_issue_pc(string prefetcher_name, uint64_t pc) {
+	// Only issue prefetches that are in the PC trace.
     for (auto pref : pc_prefetchers[pc]) {
           if (prefetcher_name == pref)
               return true;
@@ -248,6 +277,10 @@ void reset_prefetch_degree() {
 
 void CACHE::llc_prefetcher_initialize()
 {
+    cout << "Initializing multi_pc_trace LLC prefetcher\n"
+         << "pc_trace_llc " << knob::pc_trace_llc << "\n"
+		 << "pc_trace_credit_prefetch " << dec << knob::pc_trace_credit_prefetch << "\n";
+
     parse_pc_trace();
     add_prefetchers(this, prefetchers);  
 }
@@ -267,108 +300,139 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
         not_prefetched++;
     else prefetched++;
     
-    vector<uint64_t> pref_addr;
-    vector<uint64_t> pref_level;
+    unordered_map<string, vector<uint64_t>> pref_addrs;    // Prefetches that the prefetcher returns after invocation
+    unordered_map<string, vector<uint64_t>> pref_levels;
+
+	set<uint64_t> real_pref_addrs; // Prefetches that actually get issued
+	set<uint64_t> real_pref_levels;
     
     for(uint32_t index = 0; index < prefetchers.size(); ++index)
 	{
-        string pref_name = prefetchers[index]->get_type();
+        string pref = prefetchers[index]->get_type();
         
         // Invoke the prefetcher
-        //if(true) {                            // All prefetchers
-        if(does_prefetch_pc(pref_name, ip)) { // Only those for this PC
-        //if(pref_name == ?? || does_prefetch_pc(pref_name, ip)) { // Only those for this PC, or those whose logic isn't PC localized + doesn't depend on fills.
-            prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addr, pref_level);
+        if(does_invoke_pc(pref, ip)) {
+            prefetchers[index]->invoke_prefetcher(ip, addr, cache_hit, type, pref_addrs[pref], pref_levels[pref]);
         }
  
         // Issue prefetches, if the PC is using this prefetcher.
         //
         // Other prefetchers will *think* they issued the prefetch,
         // but it will have no effect in the real cache.
-        if (does_prefetch_pc(pref_name, ip)) {
-            for (uint32_t addr_index = 0; addr_index < pref_addr.size(); addr_index++) {
-                uint32_t pf_metadata = 0;
-                //pf_metadata += 1 << index;
-                prefetch_line(ip, addr, pref_addr[addr_index], (pref_level[addr_index] == 0 ? FILL_LLC : pref_level[addr_index]), pf_metadata);
+        if (does_issue_pc(pref, ip)) {
+            for (uint32_t addr_index = 0; addr_index < pref_addrs[pref].size(); addr_index++) {
+				uint64_t target_addr = pref_addrs[pref][addr_index];
+				uint64_t target_level = pref_levels[pref][addr_index] == 0 ? FILL_LLC : pref_levels[pref][addr_index];
+                
+				uint32_t pf_metadata = 0;
+                prefetch_line(ip, addr, target_addr, target_level, pf_metadata);
+
+				real_pref_addrs.insert(target_addr);
+				real_pref_levels.insert(target_level);
             }
-        } else {
-            // TODO : Inform the non-assigned prefetchers of a fill?
-            // Scooby, SMS, Bingo, BOP, and possibly some others use fills to update their logic (see above).
-            // Maybe implement a per-prefetcher ATD that tracks the cache it would have had.
-        }
-        
-        // Clear address / level vectors
-		pref_addr.clear();
-        pref_level.clear();
+		}
 	}
-    		
+
+	// Create shadow cache entries for each prefetcher.
+	// "Real" if the address was prefetched by one of the issuing prefetchers.
+	// "Fake" otherwise.
+	if (knob::pc_trace_credit_prefetch) {
+		for(uint32_t index = 0; index < prefetchers.size(); ++index)
+		{
+			string pref = prefetchers[index]->get_type();
+
+			// Loop through the prefetches.
+			for (uint32_t addr_index = 0; addr_index < pref_addrs[pref].size(); addr_index++) {    
+				uint64_t target_addr = pref_addrs[pref][addr_index];
+				
+				shadow_cache[pref][target_addr] = ShadowEntry();
+				shadow_cache[pref][target_addr].address = target_addr;
+				//shadow_cache[pref][target_addr].insertion_time = curr_cycle;
+				shadow_cache[pref][target_addr].real_prefetch = (real_pref_addrs.find(target_addr) != real_pref_addrs.end());
+			}
+		}
+	}
+	
     // Reset prefetcher degrees
     reset_prefetch_degree();
 
 	return metadata_in;
 }
 
-// TODO: Need to inform prefetchers of their shadow prefetches.
-//       Use the metadata (pf_metadata) to track which prefetchers issued the prefetch address,
-//       and bring it back here.
-//
-//       Good news, this is called on *every* cache fill, so we can watch for replacements!
+
+void register_fill(vector<Prefetcher*> prefetchers, string pref, uint64_t addr, uint32_t set, uint32_t way,
+                   uint8_t prefetch, uint64_t evicted_addr) 
+    /* Register a fill. */
+{
+	auto pref_obj = find_if(prefetchers.begin(), prefetchers.end(), [=](Prefetcher* p) {return p->get_type() == pref;} );
+	if(pref == "scooby")
+    {
+        Scooby *pref_scooby = (Scooby*)*pref_obj;
+        pref_scooby->register_fill(addr);
+    }
+    else if(pref == "next_line")
+    {
+        NextLinePrefetcher *pref_nl = (NextLinePrefetcher*)*pref_obj;
+        pref_nl->register_fill(addr);
+    }
+    else if(pref == "bop")
+    {
+        BOPrefetcher *pref_bop = (BOPrefetcher*)*pref_obj;
+        pref_bop->register_fill(addr);
+    }
+    else if(pref == "spp_dev2")
+    {
+        SPP_dev2 *pref_spp_dev2 = (SPP_dev2*)*pref_obj;
+        pref_spp_dev2->cache_fill(addr, set, way, prefetch, evicted_addr);
+    }
+    //else if(pref == "spp_ppf_dev")
+    //{
+    //	SPP_PPF_dev *pref_spp_ppf_dev = (SPP_PPF_dev*)*pref_obj;
+    //	pref_spp_ppf_dev->cache_fill(addr, set, way, prefetch, evicted_addr);
+    //}
+    //else if(pref == "mlop")
+    //{
+    //  MLOP *pref_mlop = (MLOP*)prefetchers[index];
+    // 	pref_mlop->register_fill(addr, set, way, prefetch, evicted_addr);
+    //}
+    else if(pref == "bingo")
+    {
+        Bingo *pref_bingo = (Bingo*)*pref_obj;
+        pref_bingo->register_fill(addr, set, way, prefetch, evicted_addr);
+    }
+    else if(pref == "sisb")
+    {
+        SISBPrefetcher *pref_sisb = (SISBPrefetcher*)*pref_obj;
+        pref_sisb->register_fill(addr);
+    }
+    //else if(pref == "triage")
+    //{
+    //	TriagePrefetcher *pref_triage = (TriagePrefetcher*)*pref_obj;
+    //	pref_triage->register_fill(addr, prefetch, metadata_in);
+    //}
+}
+
+// Note: This is called on *every* cache fill, so we also can watch for replacements! (for online statistics)
 uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
 {
 	if(prefetch)
 	{
-        //cout << "[DEBUG] llc_prefetcher_cache_fill metadata_in=" << metadata_in << "\n";
-        
+        // cout << "[DEBUG] llc_prefetcher_cache_fill" 
+        //      << " addr=" << hex << addr
+        //      << " metadata_in=" << dec << metadata_in << "\n";
 		for(uint32_t index = 0; index < prefetchers.size(); ++index)
 		{
-			if(!prefetchers[index]->get_type().compare("scooby"))
-			{
-				Scooby *pref_scooby = (Scooby*)prefetchers[index];
-				pref_scooby->register_fill(addr);
+			string pref = prefetchers[index]->get_type();
+			if(knob::pc_trace_credit_prefetch && shadow_cache[pref].find(addr) == shadow_cache[pref].end()) {
+                // Inform the prefetchers that did (or would have) prefetched the address.
+				register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 
+				shadow_cache[pref].erase(addr); // Erase the shadow cache entry (not needed anymore)
+			} else {
+				// Inform ALL prefetchers.
+				register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 
 			}
-			if(!prefetchers[index]->get_type().compare("next_line"))
-			{
-				NextLinePrefetcher *pref_nl = (NextLinePrefetcher*)prefetchers[index];
-				pref_nl->register_fill(addr);
-			}
-			if(!prefetchers[index]->get_type().compare("bop"))
-			{
-				BOPrefetcher *pref_bop = (BOPrefetcher*)prefetchers[index];
-				pref_bop->register_fill(addr);
-			}
-			if(!prefetchers[index]->get_type().compare("spp_dev2"))
-			{
-				SPP_dev2 *pref_spp_dev2 = (SPP_dev2*)prefetchers[index];
-				pref_spp_dev2->cache_fill(addr, set, way, prefetch, evicted_addr);
-			}
-			//if(!prefetchers[index]->get_type().compare("spp_ppf_dev"))
-			//{
-			//	SPP_PPF_dev *pref_spp_ppf_dev = (SPP_PPF_dev*)prefetchers[index];
-			//	pref_spp_ppf_dev->cache_fill(addr, set, way, prefetch, evicted_addr);
-			//}
-			// if(!prefetchers[index]->get_type().compare("mlop"))
-			// {
-			// 	MLOP *pref_mlop = (MLOP*)prefetchers[index];
-			// 	pref_mlop->register_fill(addr, set, way, prefetch, evicted_addr);
-			// }
-			if(!prefetchers[index]->get_type().compare("bingo"))
-			{
-				Bingo *pref_bingo = (Bingo*)prefetchers[index];
-				pref_bingo->register_fill(addr, set, way, prefetch, evicted_addr);
-			}
-            if(!prefetchers[index]->get_type().compare("sisb"))
-			{
-				SISBPrefetcher *pref_sisb = (SISBPrefetcher*)prefetchers[index];
-				pref_sisb->register_fill(addr);
-			}
-			// if(!prefetchers[index]->get_type().compare("triage"))
-			// {
-			// 	TriagePrefetcher *pref_triage = (TriagePrefetcher*)prefetchers[index];
-			// 	pref_triage->register_fill(addr, prefetch, metadata_in);
-			// }
 		}
 	}
-
 	return metadata_in;
 }
 

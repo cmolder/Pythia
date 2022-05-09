@@ -52,6 +52,7 @@ namespace knob
     
     /* multi_pc_trace */
     string  pc_trace_llc = string("/dev/null");
+	bool    pc_trace_credit_prefetch = false;
 
 	/* next-line */
 	vector<int32_t>  next_line_deltas;
@@ -506,6 +507,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     {
 		knob::pc_trace_llc = string(value);
     }
+	else if (MATCH("", "pc_trace_credit_prefetch"))
+	{
+		knob::pc_trace_credit_prefetch = !strcmp(value, "true") ? true : false;
+	}
 
     /* next-line */
     else if (MATCH("", "next_line_deltas"))

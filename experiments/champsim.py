@@ -181,6 +181,10 @@ Options:
         
         --pc-trace-llc <pc-trace-file>
             File to a PC trace. Must be passed if the LLC prefetcher is 'pc_trace'.
+
+        --pc-trace-credit
+            If passed, will credit correct prefetches to all prefetchers that prefetch
+            the address of the PC's prefetcher.
             
         --pref-trace-llc <pref-trace-file>
             File to a prefetch address traced. Must be passed if the LLC prefetcher is 'from_file'.
@@ -296,6 +300,7 @@ def run_command():
     parser.add_argument('--llc-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--l2c-pref-degrees', nargs='+', type=int, default=[])
     parser.add_argument('--pc-trace-llc', type=str, default=None)
+    parser.add_argument('--pc-trace-credit', action='store_true', default=False)
     parser.add_argument('--pref-trace-llc', type=str, default=None)
     # No support for l1d degree
     
@@ -365,7 +370,7 @@ def run_command():
         l2c_pref_knobs=run.get_prefetcher_knobs(args.l2c_pref, pref_degrees=args.l2c_pref_degrees, level='l2c'),
         llc_pref_knobs=run.get_prefetcher_knobs(args.llc_pref, pref_degrees=args.llc_pref_degrees, level='llc'),
         out_trace_knobs=run.get_output_trace_knobs(results_dir, results_file, track_pc=args.track_pc, track_addr=args.track_addr, track_pref=args.track_pref),
-        pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc}' if args.pc_trace_llc else '',
+        pc_trace_knobs=f' --pc_trace_llc={args.pc_trace_llc} --pc_trace_credit_prefetch={str(args.pc_trace_credit).lower()}' if args.pc_trace_llc else '',
         pref_trace_knobs=f' --prefetch_trace_llc={args.pref_trace_llc}' if args.pref_trace_llc else '',
         extra_knobs=args.extra_knobs[1:-1] if args.extra_knobs is not None else '', # Index to remove single quotes on edge
         #period=args.stat_printing_period,

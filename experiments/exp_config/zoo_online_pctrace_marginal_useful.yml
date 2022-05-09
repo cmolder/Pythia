@@ -27,4 +27,6 @@ condor:
     group: 'GRAD'
     project: 'ARCHITECTURE'
     description: 'Prefetcher Zoo'
-pc_trace_metric: 'marginal_useful'
+pc_trace:
+    metric: 'marginal_useful'
+    credit: false
