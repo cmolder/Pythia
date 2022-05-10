@@ -33,8 +33,13 @@ namespace knob
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
     extern string         pc_trace_llc;
-	extern bool           pc_trace_credit_prefetch; // If True, credit prefetches of other prefetchers that
-											        // prefetched the same lines as the PC's prefetchers.
+    extern bool           pc_trace_invoke_all;      // If True:  Invoke all prefetchers, regardless of whether
+                                                    //           they are one of the PC's prefetchers.
+                                                    // If False: Only invoke the PC's prefetchers
+    
+	extern bool           pc_trace_credit_prefetch; // If True:  Only register fills to prefetchers that
+											        //           prefetched the address.
+                                                    // If False: Register fill to all prefetchers.
     
     // Prefetcher degree knobs, for setting default degree (others are unsupported for now.)
     extern uint32_t sms_pref_degree;
@@ -230,12 +235,12 @@ void add_prefetchers(CACHE *cache, vector<Prefetcher*> &prefetchers) {
 }
 
 bool does_invoke_pc(string prefetcher_name, uint64_t pc) {
-	// pc_trace_credit_prefetch knob true  : Invoke all prefetchers.
-	if (knob::pc_trace_credit_prefetch) {
+	// pc_trace_invoke_all knob true  : Invoke all prefetchers.
+	if (knob::pc_trace_invoke_all) {
 		return true;
 	}
 
-	// pc_trace_credit_prefetch knob false : Only invoke prefetchers that are in the PC trace.
+	// pc_trace_invoke_all knob false : Only invoke prefetchers that are in the PC trace.
     for (auto pref : pc_prefetchers[pc]) {
           if (prefetcher_name == pref)
               return true;
@@ -277,8 +282,12 @@ void reset_prefetch_degree() {
 
 void CACHE::llc_prefetcher_initialize()
 {
+    assert (!(!knob::pc_trace_invoke_all && knob::pc_trace_credit_prefetch)); // Must invoke all prefetchers to run credit scheme.
+    
+    
     cout << "Initializing multi_pc_trace LLC prefetcher\n"
          << "pc_trace_llc " << knob::pc_trace_llc << "\n"
+         << "pc_trace_invoke_all " << dec << knob::pc_trace_invoke_all << "\n"
 		 << "pc_trace_credit_prefetch " << dec << knob::pc_trace_credit_prefetch << "\n";
 
     parse_pc_trace();
@@ -423,10 +432,14 @@ uint32_t CACHE::llc_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t 
 		for(uint32_t index = 0; index < prefetchers.size(); ++index)
 		{
 			string pref = prefetchers[index]->get_type();
-			if(knob::pc_trace_credit_prefetch && shadow_cache[pref].find(addr) == shadow_cache[pref].end()) {
+			if(knob::pc_trace_credit_prefetch)
+            {
                 // Inform the prefetchers that did (or would have) prefetched the address.
-				register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 
-				shadow_cache[pref].erase(addr); // Erase the shadow cache entry (not needed anymore)
+                if(shadow_cache[pref].find(addr) != shadow_cache[pref].end()) 
+                {
+                    register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 
+                    shadow_cache[pref].erase(addr); // Erase the shadow cache entry (not needed anymore)
+                }
 			} else {
 				// Inform ALL prefetchers.
 				register_fill(prefetchers, pref, addr, set, way, prefetch, evicted_addr); 

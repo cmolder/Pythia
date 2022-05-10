@@ -29,4 +29,5 @@ condor:
     description: 'Prefetcher Zoo'
 pc_trace:
     metric: 'marginal_useful'
+    invoke_all: false
     credit: false

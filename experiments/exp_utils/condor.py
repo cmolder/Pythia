@@ -44,6 +44,8 @@ def generate_condor_script(out, dry_run, **params):
         cfg += f' \\\n    --pc-trace-llc {params["pc_trace_file"]}'
     if 'pc_trace_credit' in params.keys() and params['pc_trace_credit'] is True:
         cfg += f' \\\n    --pc-trace-credit'
+    if 'pc_trace_invoke_all' in params.keys() and params['pc_trace_invoke_all'] is True:
+        cfg += f' \\\n    --pc-trace-invoke-all'
     if 'pref_trace_file' in params.keys() and params['pref_trace_file'] is not None:
         cfg += f' \\\n    --pref-trace-llc {params["pref_trace_file"]}'
     if 'track_pc'  in params.keys() and params['track_pc'] is True:
@@ -213,12 +215,15 @@ def build_run(cfg, tr_path,
             pc_trace.get_pc_trace_file(full_trace, cfg.pc_trace.metric, level='llc')
         )
         pc_trace_credit = cfg.pc_trace.credit
+        pc_trace_invoke_all = cfg.pc_trace.invoke_all
         
         if verbose:
             print(f'    pc_trace file  : {pc_trace_file}' )    
     else:
         pc_trace_file = None
+        pc_trace_invoke_all = False
         pc_trace_credit = False
+        
         
     # Add prefetch trace path, if we are running the from_file prefetcher.
     # NOTE: Running from_file for the Prefetcher zoo defaults to the relevant offline PC trace.
@@ -255,6 +260,7 @@ def build_run(cfg, tr_path,
         
         pc_trace_file=pc_trace_file,
         pc_trace_credit=pc_trace_credit,
+        pc_trace_invoke_all=pc_trace_invoke_all,
         pref_trace_file=pref_trace_file,
         results_dir=results_dir,
         warmup_instructions=cfg.champsim.warmup_instructions,

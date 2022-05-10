@@ -52,6 +52,7 @@ namespace knob
     
     /* multi_pc_trace */
     string  pc_trace_llc = string("/dev/null");
+    bool    pc_trace_invoke_all = false;
 	bool    pc_trace_credit_prefetch = false;
 
 	/* next-line */
@@ -506,6 +507,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
     else if (MATCH("", "pc_trace_llc"))
     {
 		knob::pc_trace_llc = string(value);
+    }
+    else if (MATCH("", "pc_trace_invoke_all"))
+    {
+        knob::pc_trace_invoke_all = !strcmp(value, "true") ? true : false;
     }
 	else if (MATCH("", "pc_trace_credit_prefetch"))
 	{
