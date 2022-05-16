@@ -1,6 +1,7 @@
 #ifndef CACHE_H
 #define CACHE_H
 
+#include <set>
 #include <unordered_map>
 #include "memory_class.h"
 #include "prefetcher.h"
@@ -129,10 +130,12 @@ class CACHE : public MEMORY {
     vector<Prefetcher*> prefetchers;
     vector<Prefetcher*> l1d_prefetchers;
     
-    /* For tracking per-PC prefetch statistics */
-    unordered_map<uint64_t, uint64_t> per_pc_useful, per_pc_useless;
+    /* For tracking per-PC statistics */
+    set<uint64_t> pcs;
+    unordered_map<uint64_t, uint64_t> per_pc_useful, per_pc_useless, per_pc_load_miss, per_pc_rfo_miss;
     
-    /* For tracking per-prefetched address statistics */
+    /* For tracking per-address statistics */
+    set<uint64_t> addrs;
     unordered_map<uint64_t, uint64_t> per_addr_useful, per_addr_useless;
     
     //unordered_map<pair<uint64_t, uint8_t>> per_pc_miss; // Indexed by (PC, type) - TODO: How to get? Need to blame misses on PCs.

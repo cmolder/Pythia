@@ -61,13 +61,16 @@ def read_file(path, cpu=0):
 def read_pc_file(path):
     """Read a PC prefetcher statistics file and return the data.
     """
-    pc_stats = defaultdict(dict)
+    pc_stats = {}
 
     with open(path, 'r') as f:
         for line in f:
             pc = line.split()[0]
+            pc_stats[pc] = {}
             pc_stats[pc]['useful'] =  int(line.split()[1])
             pc_stats[pc]['useless'] = int(line.split()[2])
+            pc_stats[pc]['load_miss'] = int(line.split()[3])
+            pc_stats[pc]['rfo_miss'] = int(line.split()[4])
             
     return pc_stats
 
@@ -166,8 +169,9 @@ def get_statistics(path, baseline_path=None):
 pc_columns = [
     'pc', 'full_trace', 'trace', 'simpoint', 
     'pref', 'pref_degree', 'num_useful', 'num_useless', 'accuracy',
+    'load_miss', 'rfo_miss', 'coverage'
 ]
-def get_pc_statistics(path):
+def get_pc_statistics(path, baseline_path=None):
     """Get per-PC statistics from a Champsim pc_pref_stats file.
     """
     full_trace = os.path.basename(path).split('-')[0]
@@ -187,6 +191,8 @@ def get_pc_statistics(path):
     
     # Get statistics
     pc_data = read_pc_file(path)
+    if baseline_path:
+        base_pc_data = read_pc_file(baseline_path)
     pc_out = []
     
     for pc in pc_data.keys(): 
@@ -200,6 +206,16 @@ def get_pc_statistics(path):
         row['num_useful'] = pc_data[pc]['useful']
         row['num_useless'] =  pc_data[pc]['useless']
         row['accuracy'] = 100.0 if (pc_data[pc]['useful'] + pc_data[pc]['useless'] == 0) else (pc_data[pc]['useful'] / (pc_data[pc]['useful'] + pc_data[pc]['useless']))
+        row['load_miss'] = pc_data[pc]['load_miss']
+        row['rfo_miss'] = pc_data[pc]['rfo_miss']
+        
+        # Calculate coverage
+        if baseline_path:
+            if pc in base_pc_data.keys():
+                total_miss = pc_data[pc]['load_miss'] + pc_data[pc]['rfo_miss']
+                base_total_miss = base_pc_data[pc]['load_miss'] + base_pc_data[pc]['rfo_miss'] 
+                row['coverage'] = (base_total_miss - total_miss) / base_total_miss * 100.0
+        
         pc_out.append(row)
         
     return pc_out
@@ -388,7 +404,10 @@ def generate_pc_csv(results_dir, output_file, level='llc', dry_run=False):
                 for d in traces[tr][pf].keys():
                     pbar.update(1)
                         
-                    rows = get_pc_statistics(traces[tr][pf][d])
+                    rows = get_pc_statistics(
+                        traces[tr][pf][d],
+                        baseline_path=traces[tr][('no', 'no', 'no')][(None,),(None,)]
+                    )
                     stats.extend(rows)
 
     # Save statistics table

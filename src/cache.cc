@@ -650,6 +650,7 @@ void CACHE::handle_read()
                 {
                     // Per-PC prefetch stats
                     if(knob::measure_pc_prefetches) {
+                        pcs.insert(block[set][way].ip);
                         if(per_pc_useful.find(block[set][way].ip) == per_pc_useful.end()) {
                             per_pc_useful[block[set][way].ip] = 0;
                         }
@@ -657,6 +658,7 @@ void CACHE::handle_read()
                     }
                     // Per-prefetch address stats
                     if(knob::measure_addr_prefetches) {
+                        addrs.insert(block[set][way].address);
                         // TODO: Use address (block address) or full_addr?
                         if(per_addr_useless.find(block[set][way].address) == per_addr_useless.end()) {
                             per_addr_useless[block[set][way].address] = 0;
@@ -853,6 +855,14 @@ void CACHE::handle_read()
                             llc_prefetcher_operate(RQ.entry[index].address<<LOG2_BLOCK_SIZE, RQ.entry[index].ip, 0, RQ.entry[index].type, 0, RQ.entry[index].instr_id);
                             cpu = 0;
                         }
+                    }
+                    
+                    if (RQ.entry[index].type == RFO) {
+                        pcs.insert(RQ.entry[index].ip);
+                        per_pc_rfo_miss[RQ.entry[index].ip]++;
+                    } else if(RQ.entry[index].type == LOAD) {
+                        pcs.insert(RQ.entry[index].ip);
+                        per_pc_load_miss[RQ.entry[index].ip]++;
                     }
 
                     MISS[RQ.entry[index].type]++;

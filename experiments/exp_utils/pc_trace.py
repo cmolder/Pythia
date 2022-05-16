@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 import glob
 import gzip
@@ -6,7 +7,7 @@ from multiprocessing import get_context, Pool
 from tqdm import tqdm
 from collections import defaultdict
 
-metrics = ['num_useful', 'marginal_useful', 'accuracy']
+metrics = ['num_useful', 'marginal_useful', 'accuracy', 'coverage']
 
 
 def get_pc_trace_file(trace, metric, level='llc'):
@@ -37,6 +38,7 @@ def get_best_prefetcher_degree(pc_data, metric, benchmark):
     # Build dataset
     assert metric in metrics, f'Metric {metric} not in supported metrics {metrics}'  
     bk_data = pc_data[pc_data.full_trace == benchmark]
+    bk_data = bk_data[bk_data.pref != 'no']
     best_prefetcher = {}
     best_degree = {}
     
@@ -68,7 +70,15 @@ def get_best_prefetcher_degree(pc_data, metric, benchmark):
         elif metric == 'marginal_useful':
             pc_data['marginal_useful'] = pc_data.num_useful - pc_data.num_useless
             best_pf = pc_data[pc_data.marginal_useful == pc_data.marginal_useful.max()]
-            best_pf = pc_data[pc_data.num_useful == pc_data.num_useful.max()]
+            best_pf = best_pf[best_pf.num_useful == best_pf.num_useful.max()]
+            best_pf = best_pf[best_pf.accuracy == best_pf.accuracy.max()]
+            best_pf = best_pf.sample(n = 1)
+            
+        elif metric == 'coverage':
+            pc_data.coverage = pc_data.coverage.fillna(-np.inf)
+            best_pf = pc_data[pc_data.coverage == pc_data.coverage.max()]
+            best_pf = best_pf[best_pf.num_useful == best_pf.num_useful.max()]
+            best_pf = best_pf[best_pf.accuracy == best_pf.accuracy.max()]
             best_pf = best_pf.sample(n = 1)
 
         best_prefetcher[pc] = best_pf.pref.item()
@@ -149,7 +159,6 @@ def _process_offline_pc_benchmark(inputs):
     data, metric, pref_traces_dir, level, benchmark = inputs
     #print(f'{benchmark:20} ({i}/{len(benchmarks)})')
         
-    # TODO : Cache this from earlier call?
     best_prefetcher, best_degree = get_best_prefetcher_degree(data, metric, benchmark)
 
     traces      = _get_prefetch_traces(pref_traces_dir, benchmark)

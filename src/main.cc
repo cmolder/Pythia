@@ -70,26 +70,65 @@ queue <uint64_t > page_queue;
 map <uint64_t, uint64_t> page_table, inverse_table, recent_page, unique_cl[NUM_CPUS];
 uint64_t previous_ppage, num_adjacent_page, num_cl[NUM_CPUS], allocated_pages, num_page[NUM_CPUS], minor_fault[NUM_CPUS], major_fault[NUM_CPUS];
 
-void dump_localized_statistics(unordered_map<uint64_t, uint64_t> useful_map, unordered_map<uint64_t, uint64_t> useless_map, string path) {
+void dump_pc_statistics(CACHE *cache, string path) {
     ofstream fout = ofstream(path);
     
-    for(auto entry : useful_map) {
-        uint64_t target = entry.first;
-        uint64_t useless;
-        if(useless_map.find(target) == useless_map.end()) {
-            useless = 0;
-        } else {
-            useless = useless_map[target];
+    for(auto pc : cache->pcs) {
+        // Useful and useless prefetches
+        uint64_t useful = 0;
+        uint64_t useless = 0;
+        if(cache->per_pc_useless.find(pc) != cache->per_pc_useless.end()) {
+            useless = cache->per_pc_useless[pc];
         }
-        fout << hex << target << dec << " " << entry.second << " " << useless << endl;
+        
+        if(cache->per_pc_useful.find(pc) != cache->per_pc_useful.end()) {
+            useful = cache->per_pc_useful[pc];
+        }
+        
+        // Load and RFO misses
+        uint64_t load_miss = 0;
+        uint64_t rfo_miss = 0;
+        if(cache->per_pc_load_miss.find(pc) != cache->per_pc_load_miss.end()) {
+            load_miss = cache->per_pc_load_miss[pc];
+        }
+        if(cache->per_pc_rfo_miss.find(pc) != cache->per_pc_rfo_miss.end()) {
+            rfo_miss = cache->per_pc_rfo_miss[pc];
+        }
+
+        
+        fout << hex << pc << " " << dec
+             << useful << " "  
+             << useless << " " 
+             << load_miss << " "
+             << rfo_miss << "\n";
     }
     
-    for(auto entry : useless_map) {
-        uint64_t target = entry.first;
-        if(useful_map.find(target) == useful_map.end()) {
-            fout << hex << target << dec << " 0 " << entry.second << endl;
+    fout.close();
+}
+
+void dump_addr_statistics(CACHE *cache, string path) {
+    ofstream fout = ofstream(path);
+    
+    for(auto addr : cache->addrs) {
+        // Useful and useless prefetches
+        uint64_t useful = 0;
+        uint64_t useless = 0;
+        if(cache->per_addr_useless.find(addr) != cache->per_addr_useless.end()) {
+            useless = cache->per_addr_useless[addr];
+        }
+        
+        if(cache->per_addr_useful.find(addr) != cache->per_addr_useful.end()) {
+            useful = cache->per_addr_useful[addr];
+        }
+        
+        if (useful != 0 && useless != 0) {
+            fout << hex << addr << " " << dec
+                 << useful << " "  
+                 << useless << "\n";
         }
     }
+    
+    fout.close();
 }
 
 void record_roi_stats(uint32_t cpu, CACHE *cache)
@@ -173,7 +212,7 @@ void print_roi_stats(uint32_t cpu, CACHE *cache)
             path = "/dev/null";
         
         cout << "Dumping per-PC statistics to " << path << endl;
-        dump_localized_statistics(cache->per_pc_useful, cache->per_pc_useless, path);
+        dump_pc_statistics(cache, path);
     }
     // Save address prefetch file
     if(knob::measure_addr_prefetches && 
@@ -188,7 +227,7 @@ void print_roi_stats(uint32_t cpu, CACHE *cache)
             path = "/dev/null";
         
         cout << "Dumping per-address statistics to " << path << endl;
-        dump_localized_statistics(cache->per_addr_useful, cache->per_addr_useless, path);
+        dump_addr_statistics(cache, path);
     }
 }
 

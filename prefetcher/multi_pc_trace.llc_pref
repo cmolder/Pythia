@@ -118,7 +118,7 @@ void add_prefetchers(CACHE *cache, vector<Prefetcher*> &prefetchers) {
     /* Initialize prefetchers, and add them to the prefetchers vector */
 	for(auto pref : prefetcher_names)
 	{
-		if(!pref.compare("none"))
+		if(!pref.compare("none") || !pref.compare("no"))
 		{
 			cout << "adding LLC_PREFETCHER: NONE" << endl;
 		}
