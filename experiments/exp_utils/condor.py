@@ -378,7 +378,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
         
         
         
-def get_extra_knobs_pythia_level(cfg, seed=None, level_threshold=None):
+def get_extra_knobs_pythia_level(cfg, seed=None, level_threshold=None, features=None):
     extra_knobs = ''
     
     if level_threshold is not None:
@@ -394,6 +394,9 @@ def get_extra_knobs_pythia_level(cfg, seed=None, level_threshold=None):
     else:
         extra_knobs += f' --scooby_separate_lowconf_pt=false'
         
+    if features is not None:
+        extra_knobs += f' --le_featurewise_active_features={",".join([str(f) for f in features])}'
+        
     extra_knobs += f' --scooby_alpha={cfg.pythia.scooby_alpha}'
     extra_knobs += f' --scooby_gamma={cfg.pythia.scooby_gamma}'
     extra_knobs += f' --scooby_epsilon={cfg.pythia.scooby_epsilon}'
@@ -403,6 +406,15 @@ def get_extra_knobs_pythia_level(cfg, seed=None, level_threshold=None):
     extra_knobs += f' --scooby_lowconf_pt_size={cfg.pythia.scooby_lowconf_pt_size}'
     
     return extra_knobs
+
+def any_pythia(l1p, l2p, llp):
+    """Return True if any of the prefetchers
+    are Pythia (or Pythia-related).
+    """
+    for p in [l1p, l2p, llp]:
+        if 'scooby' in p or 'scooby_double' in p:
+            return True
+    return False
     
 
 def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
@@ -421,45 +433,67 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
         for path in paths:
             for seed in cfg.champsim.seeds:
                 for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                    for thresh in cfg.pythia.scooby_dyn_level_threshold:
+                    for feats in cfg.pythia.scooby_features:
+                        for thresh in cfg.pythia.scooby_dyn_level_threshold:
 
-                        if all([p == ('no',) for p in (l1p, l2p, llp)]) or any([p == ('scooby_double',) for p in (l1p, l2p, llp)]):
-                            continue
+                            if all([p == ('no',) for p in (l1p, l2p, llp)]) or any([p == ('scooby_double',) for p in (l1p, l2p, llp)]):
+                                continue
 
-                        #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
+                            c_path = build_run(
+                                cfg, path,
+                                l1d_pref=l1p,
+                                l2c_pref=l2p,
+                                llc_pref=llp,
+                                extra_knobs=get_extra_knobs_pythia_level(
+                                    cfg, seed=seed, level_threshold=thresh,
+                                    features=feats,
+                                ),
+                                extra_suffix=f'threshold_{thresh}_features_{",".join([str(f) for f in feats])}_seed_{seed}',
+                                dry_run=dry_run, 
+                                verbose=verbose
+                            )
+
+                            condor_paths.append(c_path)
+                            pbar.update(1)
+                            
+                        # Add runs for Double Pythia (extra actions for LLC prefetches), Static Pythia 
+                        if any_pythia(l1p, l2p, llp):
+                            c_path = build_run(
+                                cfg, path,
+                                l1d_pref=l1p,
+                                l2c_pref=l2p,
+                                llc_pref=llp,
+                                extra_knobs=get_extra_knobs_pythia_level(
+                                    cfg, seed=seed, level_threshold=None,
+                                    features=feats
+                                ),
+                                extra_suffix=f'features_{",".join([str(f) for f in feats])}seed_{seed}',
+                                dry_run=dry_run, 
+                                verbose=verbose
+                            )
+
+                            condor_paths.append(c_path)
+                            pbar.update(1)
+                
+                    # Add runs for other prefetchers / no prefetcher
+                    if not any_pythia(l1p, l2p, llp):
                         c_path = build_run(
                             cfg, path,
                             l1d_pref=l1p,
                             l2c_pref=l2p,
                             llc_pref=llp,
                             extra_knobs=get_extra_knobs_pythia_level(
-                                cfg, seed=seed, level_threshold=thresh
+                                cfg, seed=seed, level_threshold=None,
+                                features=None
                             ),
-                            extra_suffix=f'threshold_{thresh}_seed_{seed}',
+                            extra_suffix=f'seed_{seed}',
                             dry_run=dry_run, 
                             verbose=verbose
                         )
 
                         condor_paths.append(c_path)
                         pbar.update(1)
-
-                    # Add run for No prefetcher, Double Pythia (extra actions for LLC prefetches), Static Pythia 
-                    c_path = build_run(
-                        cfg, path,
-                        l1d_pref=l1p,
-                        l2c_pref=l2p,
-                        llc_pref=llp,
-                        extra_knobs=get_extra_knobs_pythia_level(
-                            cfg, seed=seed, level_threshold=None
-                        ),
-                        extra_suffix=f'seed_{seed}',
-                        dry_run=dry_run, 
-                        verbose=verbose
-                    )
-
-                    condor_paths.append(c_path)
-                    pbar.update(1)
-                
+                               
     print(f'Generated {len(condor_paths)} runs')
     
     # Write condor paths to <exp_dir>/condor_configs_champsim.txt
