@@ -10,7 +10,7 @@ import glob
 from tqdm import tqdm
 from itertools import combinations, product
 from exp_utils import defaults, run, pc_trace
-from exp_utils.path import TracePath
+from exp_utils.file import ChampsimTraceFile
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -213,7 +213,7 @@ def build_run(cfg, tr_path,
         
     # Add PC trace path, if we are running the pc_trace prefetcher.
     if llc_pref == ('pc_trace',):
-        full_trace = TracePath(tr_path).full_trace
+        full_trace = ChampsimTraceFile(tr_path).full_trace
         pc_trace_file = os.path.join(
             cfg.paths.pc_trace_dir, 
             pc_trace.get_pc_trace_file(full_trace, cfg.pc_trace_metric, level='llc')
@@ -281,7 +281,7 @@ def build_sweep(cfg, dry_run=False, verbose=False):
         for path in paths:
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
                 
-                trace_name = TracePath(path).full_trace
+                trace_name = ChampsimTraceFile(path).full_trace
                 
                 if not isinstance(degrees, type(None)):
                     l2c_pref_degree = list(eval(degrees[degrees.Trace == trace_name][str(('_'.join(l1p), '_'.join(l2p), '_'.join(llp)))].item())[0]) if l2p != ('no',) else []

@@ -145,7 +145,7 @@ def eval_command():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
-    evaluate.generate_csv(
+    evaluate.generate_run_csv(
         args.results_dir,
         args.output_file,
         dry_run=args.dry_run
