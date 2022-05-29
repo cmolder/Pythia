@@ -1,8 +1,13 @@
 import os
-from typing import Union, Tuple
+import glob
+from collections import defaultdict
+from typing import Union, Tuple, List
 
+"""
+File classes
+"""
 class ChampsimFile():
-    """Base class for handling Path strings relating to ChampSim.
+    """Base class for handling files relating to ChampSim.
     
     Inherited by:
         ChampsimResultsFile: Paths for results paths (.txt)
@@ -16,13 +21,11 @@ class ChampsimFile():
         self.trace, self.simpoint = \
             ChampsimFile._get_trace(path)       # Trace and simpoint separately
         
-        
     @staticmethod
     def _get_full_trace(path: str) -> str:
         """Helper function to get the full trace
         from a path string."""
         return os.path.basename(path).split('-')[0].replace('.trace', '')
-    
     
     @staticmethod
     def _get_trace(path: str) -> str:
@@ -35,9 +38,8 @@ class ChampsimFile():
             return tokens[0], tokens[1]
         if len(tokens) == 3: # Cloudsuite    : e.g. cassandra_phase0_core0
             return tokens[0] + '_' + tokens[2], tokens[1] # Name_Core, Simpoint
-        
-        
-        
+
+
 class ChampsimTraceFile(ChampsimFile):
     """Class for handling trace path strings (.trace.gz)
     """
@@ -47,9 +49,7 @@ class ChampsimTraceFile(ChampsimFile):
                or path.endswith('.trace'), \
                ('Wrong file extension for ChampsimTraceFile, should be'
                 '.trace or .trace.(g|x)z')
-        super.__init__(path)
-        
-        
+        super.__init__(path) 
 
 
 class ChampsimResultsFile(ChampsimFile):
@@ -71,7 +71,6 @@ class ChampsimResultsFile(ChampsimFile):
         # Pythia
         self.pythia_level_threshold = \
             ChampsimResultsFile._get_pythia_level_threshold(path)
-        
         self.pythia_features = \
             ChampsimResultsFile._get_pythia_features(path)
         
@@ -79,7 +78,6 @@ class ChampsimResultsFile(ChampsimFile):
         self.champsim_seed = \
             ChampsimResultsFile._get_champsim_seed(path)
         
-    
     def read(self) -> Union[dict, None]:
         """Read and parse ChampSim results file, returning
         a dictionary of data.
@@ -124,7 +122,6 @@ class ChampsimResultsFile(ChampsimFile):
                 if 'le_featurewise_active_features' in line:
                     data['pythia_features'] = (line.replace(',','').split())[1:]
 
-
                 # Per-core, cache-level statistics
                 if f'Core_{cpu}' not in line:
                     continue
@@ -148,7 +145,6 @@ class ChampsimResultsFile(ChampsimFile):
             return None
         return data
     
-    
     def prefetchers_match(self, other: 'ChampsimResultsFile') -> bool:
         """Return whether the prefetchers used match the other
         ChampSim path.
@@ -157,8 +153,7 @@ class ChampsimResultsFile(ChampsimFile):
                 and self.l2_prefetcher == other.l2_prefetcher
                 and self.llc_prefetcher == other.llc_prefetcher)
     
-    
-    def prefetcher_at_level(self, level: str) -> Union[str, None]:
+    def get_prefetcher_at_level(self, level: str) -> Union[str, None]:
         """Get the prefetcher(s) at 
         the specified cache level (l1/l1d, l2/l2c, llc)
         """
@@ -171,8 +166,7 @@ class ChampsimResultsFile(ChampsimFile):
             return self.llc_prefetcher
         return None
     
-    
-    def prefetcher_degree_at_level(self, level: str) -> Tuple[Union[int, None], ...]:
+    def get_prefetcher_degree_at_level(self, level: str) -> Tuple[Union[int, None], ...]:
         """Get the prefetcher degree(s) at 
         the specified cache level (l1/l1d, l2/l2c, llc)
         """
@@ -185,6 +179,46 @@ class ChampsimResultsFile(ChampsimFile):
             return self.llc_prefetcher_degree
         return None
 
+    def get_all_prefetchers(self) -> Tuple[str, str, str]:
+        """Get a tuple of the prefetchers at all levels.
+        """
+        return (self.l1_prefetcher, self.l2_prefetcher, self.llc_prefetcher)
+    
+    def get_all_prefetcher_degrees(self) -> Tuple[Union[int, None], Union[int, None]]:
+        """Get a tuple of the prefetcher degrees at all levels (l2, llc)
+        """
+        return (self.l2_prefetcher_degree, self.llc_prefetcher_degree)
+    
+    def get_all_variants(self) -> Tuple:
+        """Get the key for the variant properties (degree, Pythia variables, etc.),
+        mainly for indexing inside a Directory.
+        """
+        variants = {
+            'l2_prefetcher_degree': self.l2_prefetcher_degree,
+            'llc_prefetcher_degree': self.llc_prefetcher_degree,
+            'pythia_level_threshold': self.pythia_level_threshold,
+            'pythia_features': self.pythia_features,
+        }
+        return tuple(sorted(variants.items()))
+    
+    @staticmethod
+    def get_baseline_prefetchers() -> Tuple[str, str, str]:
+        """Get a tuple of all prefetchers for the baseline.
+        """
+        return ('no', 'no', 'no')
+      
+    @staticmethod
+    def get_baseline_variants() -> Tuple:
+        """Get the key for the variants for the baseline. The
+        seed is a variant, but must be specified explicitly.
+        """
+        variants = {
+            'l2_prefetcher_degree': (None,),
+            'llc_prefetcher_degree': (None,),
+            'pythia_level_threshold': None,
+            'pythia_features': None,
+        }
+        return tuple(sorted(variants.items())) 
         
     @staticmethod
     def _get_prefetcher_names(path: str) -> Tuple[str, ...]:
@@ -200,9 +234,7 @@ class ChampsimResultsFile(ChampsimFile):
                 p[i] = (p[i].replace(',', '_')
                             .replace('sppdev2', 'spp_dev2')
                             .replace('scoobydouble', 'scooby_double'))
-        
         return (*p,)
-    
     
     @staticmethod
     def _get_prefetcher_degrees(path: str) -> Tuple[Tuple[Union[int, None], ...], ...]:
@@ -218,9 +250,7 @@ class ChampsimResultsFile(ChampsimFile):
                             .split('_')[1])
                 d[i] = tuple((None if d == 'na' else int(d)) 
                              for d in d[i].split(','))
-    
         return (*d,)
-    
     
     @staticmethod
     def _get_pythia_level_threshold(path: str) -> Union[float, None]:
@@ -232,10 +262,10 @@ class ChampsimResultsFile(ChampsimFile):
 
         path = os.path.basename(path)
         if 'threshold' in path:
-            return float(path[path.index('threshold'):].split('_')[1].split('.')[0])
-
+            return float(path[path.index('threshold'):]
+                             .split('_')[1]
+                             .split('.')[0])
         return None
-    
     
     @staticmethod
     def _get_pythia_features(path: str) -> Union[tuple, None]:
@@ -252,7 +282,6 @@ class ChampsimResultsFile(ChampsimFile):
                          .replace('seed','')
                          .split('.')[0])
             return tuple(int(f) for f in path_.split(','))
-        
     
     @staticmethod
     def _get_champsim_seed(path: str) -> Union[int, None]:
@@ -279,7 +308,6 @@ class ChampsimStatsFile(ChampsimResultsFile):
         
         self.level = path.split('_')[-1].split('.')[0] # l1d, l2c, llc, inferred from path
         self.index = index
-        
 
     def read(self) -> dict:
         """Read and parse ChampSim statistics file, returning
@@ -292,3 +320,76 @@ class ChampsimStatsFile(ChampsimResultsFile):
                 stats[index]['useful'] = int(line.split()[1])
                 stats[index]['useless'] = int(line.split()[2])
         return stats
+
+    
+"""
+Directory classes
+"""
+class ChampsimDirectory():
+    """Base class for handling directories relating to ChampSim.
+    
+    Inherited by:
+        ChampsimResultsDirectory: Directories for results paths (.txt)
+            ChampsimStatsDirectory: Directories for per-PC/address statistics (_(l1d|l2c|llc).txt)
+    """
+    def __init__(self, path: str):
+        self.path = path # Directory paths
+        self.paths = []  # File paths
+        self.files = defaultdict(lambda : defaultdict(lambda : defaultdict(dict)))
+        self._gather_files()
+        
+    def __len__(self) -> int:
+        return len(self.paths)
+        
+    def __getitem__(self, key) -> dict:
+        return self.files[key]
+        
+    def _gather_files(self) -> None:
+        raise NotImplementedError("Base class ChampsimDirectory does not implement _gather_files")
+        
+        
+class ChampsimResultsDirectory(ChampsimDirectory):
+    """A directory containing ChampSim results files (ChampsimResultFile).
+    
+    Organizes files into a hierarchical dictionary:
+        trace -> seed -> prefetchers -> variants (degree, Pythia variables, etc.)
+    """
+    def __init__(self, path: str):
+        super().__init__(path)
+        
+    def get_baseline(self, trace: str, seed: int) -> ChampsimResultsFile:
+        file = (self.files[trace]
+                          [seed]
+                          [ChampsimResultsFile.get_baseline_prefetchers()]
+                          [ChampsimResultsFile.get_baseline_variants()])
+        return file
+        
+    def _gather_files(self) -> None:
+        self.paths = glob.glob(os.path.join(self.path, '*.txt'))
+        for idx, path in enumerate(self.paths):
+            file = ChampsimResultsFile(path)
+            (self.files[file.full_trace]
+                       [file.champsim_seed]
+                       [file.get_all_prefetchers()]
+                       [file.get_all_variants()]) = file
+            
+            
+class ChampsimStatsDirectory(ChampsimResultsDirectory):
+    """A directory containing ChampSim per-PC address/stats files (ChampsimStatsFile).
+    
+    Organizes files into a hierarchical dictionary:
+        trace -> seed -> prefetchers -> variants (degree, Pythia variables, etc.)
+    """
+    def __init__(self, path: str, level: str = 'llc'):
+        self.level = level
+        super().__init__(path)
+        
+    def _gather_files(self) -> None:
+        self.paths = glob.glob(os.path.join(self.path, f'*_{self.level}.txt'))
+        for idx, path in enumerate(self.paths):
+            file = ChampsimStatsFile(path)
+            (self.files[file.full_trace]
+                       [file.champsim_seed]
+                       [file.get_all_prefetchers()]
+                       [file.get_all_variants()]) = file
+            

@@ -6,18 +6,19 @@ Authors: Quang Duong and Carson Molder
 from collections import defaultdict
 import os
 import glob
-from typing import Union
+from typing import Union, Optional
 
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from exp_utils.file import ChampsimResultsFile, ChampsimStatsFile
+from exp_utils.file import ChampsimResultsDirectory, ChampsimResultsFile, ChampsimStatsFile
 
     
 """
 Statistics helpers
 """
-def get_statistics(path: str, baseline_path: str = None) -> Union[dict, None]:
+def get_run_statistics(file: ChampsimResultsFile, 
+                   baseline_file: Optional[ChampsimResultsFile] = None) -> Union[dict, None]:
     """Get cumulative statistics from a ChampSim output / results file.
     """
     stats_columns = [
@@ -35,13 +36,11 @@ def get_statistics(path: str, baseline_path: str = None) -> Union[dict, None]:
         'pythia_low_conf_prefetches',
         'pythia_features',
         'seed',
-        'path', 'baseline_path'
+        'path', 
+        'baseline_path'
     ]
     
-    file = ChampsimResultsFile(path)
-    b_file = ChampsimResultsFile(baseline_path) if baseline_path else None
-        
-    if b_file and file.prefetchers_match(b_file): # Don't compare baseline to itself.
+    if baseline_file and file.prefetchers_match(baseline_file): # Don't compare baseline to itself.
         return None 
     
     # Get statistics
@@ -59,8 +58,8 @@ def get_statistics(path: str, baseline_path: str = None) -> Union[dict, None]:
     results['pythia_high_conf_prefetches'] = pf_data['pythia_high_conf_prefetches']
     results['pythia_low_conf_prefetches'] = pf_data['pythia_low_conf_prefetches']
     
-    if baseline_path:
-        b_data = b_file.read()
+    if baseline_file:
+        b_data = baseline_file.read()
         b_ipc, b_dram_bw_epochs, b_kilo_inst = (
             b_data['ipc'], b_data['dram_bw_epochs'], b_data['kilo_inst']
         )
@@ -80,36 +79,39 @@ def get_statistics(path: str, baseline_path: str = None) -> Union[dict, None]:
         total_miss = load_miss + rfo_miss + useful
         pf_mpki = (load_miss + rfo_miss) / pf_data['kilo_inst']
         
-        if baseline_path:
+        if baseline_file:
             b_load_miss, b_rfo_miss, b_useful = (
                b_data[f'{level}_load_miss'], b_data[f'{level}_rfo_miss'], b_data[f'{level}_useful']
             )
             #b_total_miss = load_miss + rfo_miss + useful # = b_data[f'{level}_total_miss']
             b_total_miss = b_data[f'{level}_total_miss']
             b_mpki = b_total_miss / b_data['kilo_inst']
-            assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
+            assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), \
+                (f'Traces {os.path.basename(baseline_file.path)}, {os.path.basename(file.path)} '
+                 f'did not run for the same amount of instructions. '
+                 f'({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)')
 
-        results[f'{level}_pref'] = file.prefetcher_at_level(level)
-        results[f'{level}_pref_degree'] = file.prefetcher_degree_at_level(level)
+        results[f'{level}_pref'] = file.get_prefetcher_at_level(level)
+        results[f'{level}_pref_degree'] = file.get_prefetcher_degree_at_level(level)
         results[f'{level}_accuracy'] = 100.0 if (useful + useless == 0) else useful / (useful + useless) * 100.
-        results[f'{level}_coverage'] = np.nan if (total_miss == 0 or baseline_path is None) else ((b_load_miss + b_rfo_miss) - (load_miss + rfo_miss)) / (b_load_miss + b_rfo_miss) * 100
+        results[f'{level}_coverage'] = np.nan if (total_miss == 0 or baseline_file is None) else ((b_load_miss + b_rfo_miss) - (load_miss + rfo_miss)) / (b_load_miss + b_rfo_miss) * 100
         results[f'{level}_mpki'] = pf_mpki
-        results[f'{level}_mpki_reduction'] = np.nan if (baseline_path is None) else (b_mpki - pf_mpki) / b_mpki * 100.
+        results[f'{level}_mpki_reduction'] = np.nan if (baseline_file is None) else (b_mpki - pf_mpki) / b_mpki * 100.
                 
         
     results['dram_bw_epochs'] = dram_bw_epochs
-    results['dram_bw_reduction'] = np.nan if (baseline_path is None) else (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
+    results['dram_bw_reduction'] = np.nan if (baseline_file is None) else (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
     results['ipc'] = ipc
-    results['ipc_improvement'] = np.nan if (baseline_path is None) else (ipc - b_ipc) / b_ipc * 100.  
+    results['ipc_improvement'] = np.nan if (baseline_file is None) else (ipc - b_ipc) / b_ipc * 100.  
     results['seed'] = pf_data['seed']
-    results['path'] = path
-    results['baseline_path'] = baseline_path 
-    assert all([k in stats_columns for k in results.keys()]), f'Columns missing for row in {path}'
+    results['path'] = file.path
+    results['baseline_path'] = baseline_file.path 
+    assert all([k in stats_columns for k in results.keys()]), f'Columns missing for row in {file.path}'
     
     return results
 
 
-def get_pc_statistics(path: str) -> list[dict]:
+def get_pc_statistics(file: ChampsimStatsFile) -> list[dict]:
     """Get per-PC statistics from a Champsim pc_pref_stats file.
     """
     pc_columns = [
@@ -118,7 +120,6 @@ def get_pc_statistics(path: str) -> list[dict]:
         'num_useless', 'accuracy',
     ]
     
-    file = ChampsimStatsFile(path)
 
     # Get statistics
     pc_out = []
@@ -128,8 +129,8 @@ def get_pc_statistics(path: str) -> list[dict]:
         row['full_trace'] = file.full_trace
         row['trace'] = file.trace
         row['simpoint'] = file.simpoint
-        row['pref'] = file.prefetcher_at_level(file.level)
-        row['pref_degree'] = file.prefetcher_degree_at_level(file.level)
+        row['pref'] = file.get_prefetcher_at_level(file.level)
+        row['pref_degree'] = file.get_prefetcher_degree_at_level(file.level)
         row['num_useful'] = pc_data[pc]['useful']
         row['num_useless'] =  pc_data[pc]['useless']
         row['accuracy'] = (100.0 if (pc_data[pc]['useful'] + pc_data[pc]['useless'] == 0) 
@@ -143,39 +144,32 @@ def get_pc_statistics(path: str) -> list[dict]:
 """
 CSV file creators
 """
-def generate_run_csv(results_dir: str, output_file: str, dry_run: bool = False):
+def generate_run_csv(results_dir: str, 
+                     output_file: str, 
+                     dry_run: bool = False) -> None:
     """Generate cumulative statistics for each run.
     """
-    traces = defaultdict(lambda : defaultdict(dict))
-    paths = [ChampsimResultsFile(p) for p in glob.glob(os.path.join(results_dir, '*.txt'))]
-    n_paths = len(paths)
-    
-    # Build trace paths
-    # TODO : Breakout into a Traceholder class.
-    for path in paths:
-        (traces[path.full_trace]
-               [(path.l1_prefetcher, path.l2_prefetcher, path.llc_prefetcher)]
-               [(path.l2_prefetcher_degree, path.llc_prefetcher_degree,
-                path.pythia_level_threshold, path.pythia_features,
-                path.champsim_seed)]) = path.path
-
-        
-    # Build statistics table
+    directory = ChampsimResultsDirectory(results_dir)
     stats = []
-    with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
-        for tr in traces:
-            assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline ("no", "no", "no") run for trace {tr}'
-            for pf in traces[tr]:
-                for d in traces[tr][pf]:
-                    _, _, _, _, seed = d
-                    pbar.update(1)
+    
+    # Build stats table
+    # TODO : Break this out into a function or write some code to cleanly
+    #        and orderly loop through the files in the Directory.
+    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
+        for tr in directory.files.keys():
+            for seed in directory[tr].keys():
+                assert directory.get_baseline(tr, seed) is not None, \
+                    f'Could not find baseline for trace {tr}, seed {seed}'
+                for pf in directory[tr][seed].keys():
+                    for v in directory[tr][seed][pf].keys():
+                        pbar.update(1)
+                        row = get_run_statistics(
+                            directory[tr][seed][pf][v], 
+                            baseline_file=directory.get_baseline(tr, seed)
+                        )         
 
-                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None, None, seed)])         
-                    if row is None: # Filter missing rows
-                        continue
-
-                    
-                    stats.append(row)
+                        if row is not None:
+                            stats.append(row) # Append row to list, if it isn't None
                     
     # Build and save statistics table
     stats = pd.DataFrame(stats)
@@ -191,41 +185,37 @@ def generate_best_degree_csv(results_dir: str,
                              dry_run: bool = False) -> None:
     """Generate the best degree for each prefetcher on each run.
     """
-    traces = defaultdict(lambda : defaultdict(dict))
+    directory = ChampsimResultsDirectory(results_dir)
     prefetchers = set()
     best_degree = defaultdict(dict)
-    paths = [ResultsPath(p) for p in glob.glob(os.path.join(results_dir, '*.txt'))]
-    n_paths = len(paths)
-
-    # Build trace paths
-    # TODO : Breakout into a Traceholder class.
-    for path in paths:
-        (traces[path.full_trace] # TODO: Index on PLT, features, seed
-               [(path.l1_prefetcher, path.l2_prefetcher, path.llc_prefetcher)]
-               [(path.l2_prefetcher_degree, path.llc_prefetcher_degree)]) = path.path
 
     # Build best degree dictionary
-    # - Compute the best_degree for each prefetcher on each trace.
-    with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
-        for tr in traces.keys():
-            for pf in traces[tr].keys():
-                if pf == 'no':
+    # Compute the best_degree for each prefetcher on each trace.
+    # TODO : Break this out into a function or write some code to cleanly
+    #        and orderly loop through the files in the Directory.
+    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
+        for tr in directory.files.keys():
+            seed = list(directory[tr].keys()[0]) # Just consider one seed, whichever one comes first in the list.
+            assert directory.get_baseline(tr, seed) is not None, \
+                f'Could not find baseline for trace {tr}, seed {seed}'
+            for pf in directory[tr][seed].keys():
+                if pf == ('no', 'no', 'no'):
                     pbar.update(1)
                     continue
                 prefetchers.add(pf)
-                    
                 scores = defaultdict(lambda : float('-inf'))
-                for d in traces[tr][pf].keys():
-                    pbar.update(1)    
-                    row = get_statistics(traces[tr][pf][d], baseline_path=None)
-                    #print('[DEBUG]', tr, pf, d, row[metric])
-                    if row is None:
-                        continue
-                    scores[d] = row[metric]
+
+                for v in directory[tr][seed][pf].keys():
+                    pbar.update(1)
+                    # TODO: Consider other parts of the variant?
+                    l2d, lld = v[0][1], v[1][1] # TODO: Do this without the hack.
+                    row = get_run_statistics(directory[tr][seed][pf][v])
+                    if row is not None:
+                        scores[','.join(str(l2d), str(lld))] = row[metric]
+                        #print('[DEBUG]', tr, seed, pf, l2d, lld, row[metric])
 
                 best_degree[tr][pf] = max(scores, key=scores.get)
-                #print('[DEBUG]', tr, pf, 'best_degree =', best_degree[tr][pf])
-    
+     
     # Turn best_degree dictionary into a table
     df = pd.DataFrame(columns=['Trace'] + list(prefetchers))
     for tr in best_degree.keys():
@@ -246,34 +236,25 @@ def generate_pc_csv(results_dir: str,
                     dry_run: bool = False) -> None:
     """Generate statistics on each PC for each prefetcher on each run.
     """
-    traces = defaultdict(lambda : defaultdict(dict))
-    paths = [ChampsimStatsFile(p) 
-             for p in glob.glob(
-                 os.path.join(results_dir, 'pc_pref_stats', f'*_{level}.txt'))]
-    
-    n_paths = len(paths)
-    
-    # Build trace paths
-    # TODO : Breakout into a Traceholder class.
-    for path in paths:
-        (traces[path.full_trace] # TODO: Index on PLT, features, seed
-               [(path.l1_prefetcher, path.l2_prefetcher, 
-                 path.llc_prefetcher)]
-               [(path.l2_prefetcher_degree, 
-                 path.llc_prefetcher_degree)]) = path.path
-       
-    # Build statistics table
+    directory = ChampsimStatsDirectory(os.path.join(results_dir, 'pc_pref_stats'))
     stats = []
-    with tqdm(total=n_paths, dynamic_ncols=True, unit='trace') as pbar:
-        for tr in traces.keys():
-            for pf in traces[tr].keys():
-                if pf == (('no',), ('no',), ('no',)):
+    
+    # Build stats table
+    # TODO : Break this out into a function or write some code to cleanly
+    #        and orderly loop through the files in the Directory.
+    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
+        for tr in directory.files.keys():
+            seed = list(directory[tr].keys()[0]) # Just consider one seed, whichever one comes first in the list.
+            for pf in directory[tr][seed].keys():
+                if pf == ('no', 'no', 'no'):
                     pbar.update(1)
                     continue
-                
-                for d in traces[tr][pf].keys():
+                    
+                for v in traces[tr][seed][pf].keys():
                     pbar.update(1)
-                    rows = get_pc_statistics(traces[tr][pf][d])
+                    rows = get_pc_statistics(
+                        traces[tr][seed][pf][v]
+                    )
                     stats.extend(rows)
 
     # Save statistics table
