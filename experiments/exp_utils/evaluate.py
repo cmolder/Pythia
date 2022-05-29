@@ -9,6 +9,7 @@ import glob
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from exp_utils.path import ResultsPath, PCStatsPath
 
 
 
@@ -28,6 +29,7 @@ def read_file(path, cpu=0):
     
     # Optional data (not checked in expected_keys)
     pythia_dyn_level = False
+    data['pythia_features'] = []
     data['pythia_level_threshold'] = None
     data['pythia_low_conf_prefetches'] = None
     data['pythia_high_conf_prefetches'] = None
@@ -49,6 +51,8 @@ def read_file(path, cpu=0):
                 data['pythia_low_conf_prefetches'] = int(line.split()[1])
             if 'scooby_high_conf_pref' in line:
                 data['pythia_high_conf_prefetches'] = int(line.split()[1])
+            if 'le_featurewise_active_features' in line:
+                data['pythia_features'] = (line.replace(',','').split())[1:]
                 
             
             # Per-core, cache-level statistics
@@ -100,32 +104,31 @@ stats_columns = [
     'dram_bw_epochs', 'dram_bw_reduction', 
     'ipc', 'ipc_improvement',
     'pythia_level_threshold', 'pythia_high_conf_prefetches', 'pythia_low_conf_prefetches',
+    'pythia_features',
     'seed',
     'path', 'baseline_path'
 ]
-def get_statistics(path, baseline_path=None):
+def get_statistics(path: str, baseline_path: str = None):
     """Get cumulative statistics from a ChampSim output / results file.
     """
-    full_trace = os.path.basename(path).split('-')[0]
-    trace, simpoint = get_trace_from_path(path)
-    l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
-    l2c_pref_degree, llc_pref_degree = get_prefetcher_degs_from_path(path)
-    
+    path = ResultsPath(path)
+
     # Don't compare baseline to itself.
-    if baseline_path and get_prefetcher_from_path(baseline_path) == (l1d_pref, l2c_pref, llc_pref):
+    if baseline_path and path.prefetchers_match(ResultsPath(baseline_path)):
         return None 
     
     # Get statistics
-    pf_data = read_file(path)
+    pf_data = read_file(path.path)
     if pf_data == None:
-        print(f'Warning: Missing data for {path}')
+        print(f'Warning: Missing data for {path.path}')
         return None
     
     results = {k : np.nan for k in stats_columns}
-    results['full_trace'] = full_trace
-    results['trace'] = trace
-    results['simpoint'] = simpoint
+    results['full_trace'] = path.full_trace
+    results['trace'] = path.trace
+    results['simpoint'] = path.simpoint
     results['pythia_level_threshold'] = pf_data['pythia_level_threshold']
+    results['pythia_features'] = pf_data['pythia_features']
     results['pythia_high_conf_prefetches'] = pf_data['pythia_high_conf_prefetches']
     results['pythia_low_conf_prefetches'] = pf_data['pythia_low_conf_prefetches']
     
@@ -135,9 +138,9 @@ def get_statistics(path, baseline_path=None):
             b_data['ipc'], b_data['dram_bw_epochs'], b_data['kilo_inst']
         )
     
-    pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches = (
+    pythia_level_threshold, pythia_high_conf_prefetches, pythia_low_conf_prefetches, pythia_features = (
         pf_data['pythia_level_threshold'], pf_data['pythia_high_conf_prefetches'],
-        pf_data['pythia_low_conf_prefetches']
+        pf_data['pythia_low_conf_prefetches'], pf_data['pythia_features']
     )
     
     ipc, dram_bw_epochs, kilo_inst = (
@@ -165,13 +168,13 @@ def get_statistics(path, baseline_path=None):
             assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), f'Traces {os.path.basename(path)}, {os.path.basename(baseline_path)} did not run for the same amount of instructions. ({b_data["kilo_inst"]}K vs {pf_data["kilo_inst"]}K)'
 
         if level == 'L1D':
-            results[f'{level}_pref'] = l1d_pref
+            results[f'{level}_pref'] = path.l1_prefetcher
         elif level == 'L2C':
-            results[f'{level}_pref'] = l2c_pref
-            results[f'{level}_pref_degree'] = l2c_pref_degree
+            results[f'{level}_pref'] = path.l2_prefetcher
+            results[f'{level}_pref_degree'] = path.l2_prefetcher_degree
         else:
-            results[f'{level}_pref'] = llc_pref
-            results[f'{level}_pref_degree'] = llc_pref_degree
+            results[f'{level}_pref'] = path.llc_prefetcher
+            results[f'{level}_pref_degree'] = path.llc_prefetcher_degree
         
         results[f'{level}_accuracy'] = 100.0 if (useful + useless == 0) else useful / (useful + useless) * 100.
         results[f'{level}_coverage'] = np.nan if (total_miss == 0 or baseline_path is None) else ((b_load_miss + b_rfo_miss) - (load_miss + rfo_miss)) / (b_load_miss + b_rfo_miss) * 100
@@ -183,6 +186,7 @@ def get_statistics(path, baseline_path=None):
     results['dram_bw_reduction'] = np.nan if (baseline_path is None) else (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
     results['ipc'] = ipc
     results['ipc_improvement'] = np.nan if (baseline_path is None) else (ipc - b_ipc) / b_ipc * 100.  
+    results['pythia_features'] = pythia_features
     results['pythia_level_threshold'] = pythia_level_threshold
     results['pythia_high_conf_prefetches'] = pythia_high_conf_prefetches
     results['pythia_low_conf_prefetches'] = pythia_low_conf_prefetches
@@ -195,34 +199,31 @@ pc_columns = [
     'pc', 'full_trace', 'trace', 'simpoint', 
     'pref', 'pref_degree', 'num_useful', 'num_useless', 'accuracy',
 ]
-def get_pc_statistics(path):
+def get_pc_statistics(path: str):
     """Get per-PC statistics from a Champsim pc_pref_stats file.
     """
-    full_trace = os.path.basename(path).split('-')[0]
-    trace, simpoint = get_trace_from_path(path)
-    l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
-    l2c_pref_degree, llc_pref_degree = get_prefetcher_degs_from_path(path)
-    
-    if path.endswith('l1d.txt'):
-        pref = l1d_pref
+    path = PCStatsPath(path)
+
+    if path.path.endswith('l1d.txt'):
+        pref = path.l1_prefetcher
         pref_degree = None
-    elif path.endswith('l2d.txt'):
-        pref = l2d_pref,
-        pref_degree = l2d_pref_degree
+    elif path.path.endswith('l2d.txt'):
+        pref = path.l2_prefetcher,
+        pref_degree = path.l2_prefetcher_degree
     else:
-        pref = llc_pref
-        pref_degree = llc_pref_degree
+        pref = path.llc_prefetcher
+        pref_degree = path.llc_prefetcher_degree
     
     # Get statistics
-    pc_data = read_pc_file(path)
+    pc_data = read_pc_file(path.path)
     pc_out = []
     
     for pc in pc_data.keys(): 
         row = {k : np.nan for k in pc_columns}
         row['pc'] = pc
-        row['full_trace'] = full_trace
-        row['trace'] = trace
-        row['simpoint'] = simpoint
+        row['full_trace'] = path.full_trace
+        row['trace'] = path.trace
+        row['simpoint'] = path.simpoint
         row['pref'] = pref
         row['pref_degree'] = pref_degree
         row['num_useful'] = pc_data[pc]['useful']
@@ -234,102 +235,23 @@ def get_pc_statistics(path):
     
 
 """
-Path helper functions
-"""
-def get_full_trace_from_path(path):
-    """Get the full trace name, including simpoint.
-    """
-    trace = os.path.basename(path).split('-')[0]
-    return trace
-
-
-def get_trace_from_path(path):
-    """Get the trace name and simpoint name.
-    
-    For multicore traces (e.g. CloudSuite),
-    will return trace name as name + core.
-    """
-    trace = os.path.basename(path).split('-')[0]
-    tokens = trace.split('_')
-    if len(tokens) == 1: # GAP          : e.g. bfs
-        return tokens[0], None
-    if len(tokens) == 2: # SPEC '06     : e.g. astar_313B, 603.bwaves_s
-        return tokens[0], tokens[1]
-    if len(tokens) == 3: # Cloudsuite   : e.g. cassandra_phase0_core0
-        return tokens[0] + '_' + tokens[2], tokens[1] # Name + core, simpoint
-    
-    
-def get_prefetcher_from_path(path):
-    """Get the prefetcher(s) name(s).
-    """
-    l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
-    
-    if llp not in ['no', 'multi_pc_trace']:
-        llp, _ = llp.replace('spp_dev2', 'sppdev2').split('_')
-        llp  = llp.replace(',','_').replace('sppdev2', 'spp_dev2')
-    if l2p not in ['no']:
-        l2p, _ = l2p.replace('spp_dev2', 'sppdev2').replace('scooby_double', 'scoobydouble').split('_')
-        l2p  = l2p.replace(',','_').replace('sppdev2', 'spp_dev2').replace('scoobydouble', 'scooby_double')
-    
-    return l1p, l2p, llp
-    
-    
-def get_prefetcher_degs_from_path(path):
-    """Get the prefetcher(s) degree(s).
-    """
-    l1p, l2p, llp = os.path.basename(path).split('-')[2:5]
-    
-    l2pd, llpd = (None,), (None,)
-    
-    if l2p not in ['no']:
-        _, l2pd = l2p.replace('spp_dev2', 'sppdev2').replace('scooby_double', 'scoobydouble').split('_')
-        l2pd = tuple((None if d == 'na' else int(d)) for d in l2pd.split(','))
-    if llp not in ['no', 'multi_pc_trace']:
-        _, llpd = llp.replace('spp_dev2', 'sppdev2').split('_')
-        llpd = tuple((None if d == 'na' else int(d)) for d in llpd.split(','))
-    
-    return l2pd, llpd
-
-def get_pythia_level_threshold(path):
-    """Get the level threshold for Pythia,
-    if is is being used.
-    """
-    if not any(p == 'scooby' for p in get_prefetcher_from_path(path)):
-        return None
-    
-    if 'threshold' in path:
-        path_ = path[path.index('threshold'):].split('_')[1].split('.')[0]
-        #path_ = path_.replace('threshold_', '').replace('.txt', '')
-        return float(path_)
-    
-    return None
-
-
-def get_seed(path):
-    if 'seed' in path:
-        path_ = path[path.index('seed'):].split('_')[1].split('.')[0]
-        return int(path_)
-    
-    return None
-
-
-"""
 CSV file creators
 """
 def generate_csv(results_dir, output_file, dry_run=False):
     """Generate cumulative statistics for each run.
     """
     traces = defaultdict(lambda : defaultdict(dict))
-    n_paths = len(glob.glob(os.path.join(results_dir, '*.txt')))
+    paths = [ResultsPath(p) for p in glob.glob(os.path.join(results_dir, '*.txt'))]
+    n_paths = len(paths)
     
     # Build trace paths
-    for path in glob.glob(os.path.join(results_dir, '*.txt')):
-        full_trace = os.path.basename(path).split('-')[0]
-        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
-        l2c_pref_deg, llc_pref_deg = get_prefetcher_degs_from_path(path)
-        pyt_level_th = get_pythia_level_threshold(path)
-        seed = get_seed(path)
-        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_deg, llc_pref_deg, pyt_level_th, seed)] = path
+    # TODO : Breakout into a Traceholder class.
+    for path in paths:
+        (traces[path.full_trace]
+               [(path.l1_prefetcher, path.l2_prefetcher, path.llc_prefetcher)]
+               [(path.l2_prefetcher_degree, path.llc_prefetcher_degree,
+                path.pythia_level_threshold, path.pythia_features,
+                path.champsim_seed)]) = path.path
 
         
     # Build statistics table
@@ -339,10 +261,10 @@ def generate_csv(results_dir, output_file, dry_run=False):
             assert ('no', 'no', 'no') in traces[tr].keys(), f'Could not find baseline ("no", "no", "no") run for trace {tr}'
             for pf in traces[tr]:
                 for d in traces[tr][pf]:
-                    _, _, _, seed = d
+                    _, _, _, _, seed = d
                     pbar.update(1)
 
-                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None, seed)])         
+                    row = get_statistics(traces[tr][pf][d], baseline_path=traces[tr][('no', 'no', 'no')][((None,), (None,), None, None, seed)])         
                     if row is None: # Filter missing rows
                         continue
 
@@ -364,15 +286,15 @@ def generate_best_degree_csv(results_dir, output_file,
     traces = defaultdict(lambda : defaultdict(dict))
     prefetchers = set()
     best_degree = defaultdict(dict)
-    paths = glob.glob(os.path.join(results_dir, '*.txt'))
+    paths = [ResultsPath(p) for p in glob.glob(os.path.join(results_dir, '*.txt'))]
     n_paths = len(paths)
 
     # Build trace paths
+    # TODO : Breakout into a Traceholder class.
     for path in paths:
-        full_trace = os.path.basename(path).split('-')[0]
-        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
-        l2c_pref_degrees, llc_pref_degrees = get_prefetcher_degs_from_path(path)
-        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_degrees, llc_pref_degrees)] = path
+        (traces[path.full_trace] # TODO: Index on PLT, features, seed
+               [(path.l1_prefetcher, path.l2_prefetcher, path.llc_prefetcher)]
+               [(path.l2_prefetcher_degree, path.llc_prefetcher_degree)]) = path.path
 
     # Build best degree dictionary
     # - Compute the best_degree for each prefetcher on each trace.
@@ -414,16 +336,20 @@ def generate_pc_csv(results_dir, output_file, level='llc', dry_run=False):
     """Generate statistics on each PC for each prefetcher on each run.
     """
     traces = defaultdict(lambda : defaultdict(dict))
-    paths = glob.glob(os.path.join(results_dir, 'pc_pref_stats', f'*_{level}.txt'))
+    paths = [ResultsPath(p) 
+             for p in glob.glob(
+                 os.path.join(results_dir, 'pc_pref_stats', f'*_{level}.txt'))]
+    
     n_paths = len(paths)
     
     # Build trace paths
+    # TODO : Breakout into a Traceholder class.
     for path in paths:
-        full_trace = os.path.basename(path).split('-')[0]
-        l1d_pref, l2c_pref, llc_pref = get_prefetcher_from_path(path)
-        l2c_pref_degrees, llc_pref_degrees = get_prefetcher_degs_from_path(path)
-        
-        traces[full_trace][(l1d_pref, l2c_pref, llc_pref)][(l2c_pref_degrees, llc_pref_degrees)] = path
+        (traces[path.full_trace] # TODO: Index on PLT, features, seed
+               [(path.l1_prefetcher, path.l2_prefetcher, 
+                 path.llc_prefetcher)]
+               [(path.l2_prefetcher_degree, 
+                 path.llc_prefetcher_degree)]) = path.path
        
     # Build statistics table
     stats = []
