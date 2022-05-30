@@ -8,18 +8,8 @@ Authors: Quang Duong and Carson Molder
 """
 
 import argparse
-import os
 import sys
-import shutil
-import itertools
-from collections import defaultdict
-
-import pandas as pd
-import numpy as np
-from scipy import stats
-from tqdm import tqdm
-
-from exp_utils import condor, config, evaluate, pc_trace
+from exp_utils import condor, config, evaluate
 
 # Defaults (TODO: Move to yml or launch args)
 default_eval_csv = './out/pythia_level.csv'
@@ -34,30 +24,34 @@ Available commands:
            can be displayed with `{prog} help command`
 '''.format(prog=sys.argv[0]),
 
-'condor': '''usage: {prog} condor <config-file> [-v / --verbose] [-d / --dry-run]
+'condor': '''usage: {prog} condor <config-file> [-v / --verbose] 
+                                                [-d / --dry-run]
 
 Description:
     {prog} condor <config-file>
-        Sets up a Pythia Level sweep for use on Condor. <config-file> is a path to a 
-        .yml file with the config (example: experiments/exp_utils/pythia_level.yml)
+        Sets up a Pythia Level sweep for use on Condor. <config-file> is 
+        a path to a .yml file with the config 
+        (example: experiments/exp_utils/pythia_level.yml)
         
 Options:
     -v / --verbose
         If passed, prints extra details about the experiment setup.
         
     -d / --dry-run
-        If passed, builds the experiment but writes nothing to <experiment-dir>.
+        If passed, builds the experiment but writes nothing to 
+        <experiment-dir>.
 '''.format(
     prog=sys.argv[0], 
 ),
     
-'eval': '''usage: {prog} eval <results-dir> [--output-file <output-file>] [--norm-baseline <baseline>]
+'eval': '''usage: {prog} eval <results-dir> [--output-file <out-file>] 
+                                            [--norm-baseline <baseline>]
 
 Description:
     {prog} eval <results-dir>
-        Runs the evaluation procedure on the ChampSim result files found in <results-dir>
-        and outputs a CSV at the specified output path. Determines the best degree for
-        each prefetcher combination.
+        Runs the evaluation procedure on the ChampSim result files found 
+        in <results-dir> and outputs a CSV at the specified output path. 
+        Determines the best degree for each prefetcher combination.
 
 Options:
     -o / --output-file <output-file>
@@ -65,14 +59,17 @@ Options:
         Default: `{default_output_file}`
         
     --dry-run
-        If passed, builds the spreadsheet but writes nothing to <output-file>.
+        If passed, builds the spreadsheet but writes nothing to 
+        <output-file>.
 
 Note:
-    To get stats comparing performance to a no-prefetcher baseline, it is necessary
-    to have run the base ChampSim binary on the same execution trace.
+    To get stats comparing performance to a no-prefetcher baseline, it 
+    is necessary to have run the base ChampSim binary on the same 
+    execution trace.
 
-    Without the base data, relative performance data comparing MPKI and IPC will
-    not be available and the coverage statistic will only be approximate.
+    Without the base data, relative performance data comparing MPKI and 
+    IPC will not be available and the coverage statistic will only be 
+    approximate.
 '''.format(
     prog=sys.argv[0], 
     default_output_file=default_eval_csv,
@@ -99,8 +96,8 @@ def condor_command():
     
     print('Setting up Condor Prefetcher Zoo experiment:')
     print('    ChampSim:')
-    print('        # sim inst        :', cfg.champsim.sim_instructions, 'million')
-    print('        # warmup inst     :', cfg.champsim.warmup_instructions, 'million')
+    print('        # sim inst        :', cfg.champsim.sim_instructions, 'M')
+    print('        # warmup inst     :', cfg.champsim.warmup_instructions, 'M')
     print('        track pc stats?   :', cfg.champsim.track_pc_pref)
     print('        track addr stats? :', cfg.champsim.track_addr_pref)
     print('        seeds             :', cfg.champsim.seeds)
@@ -125,9 +122,11 @@ def condor_command():
     print('        Epsilon           :', cfg.pythia.scooby_epsilon)
     print('        Policy            :', cfg.pythia.scooby_policy)
     print('        Learning type     :', cfg.pythia.scooby_learning_type)
-    print('        Thresh. candidates:', cfg.pythia.scooby_dyn_level_threshold, '(also running without dynamic level)')
+    print('        Thresh. candidates:', cfg.pythia.scooby_dyn_level_threshold, 
+          '(also running without dynamic level)')
     
-    condor.build_pythia_level_sweep(cfg, dry_run=args.dry_run, verbose=args.verbose)
+    condor.build_pythia_level_sweep(cfg, dry_run=args.dry_run,
+                                    verbose=args.verbose)
 
 
 
@@ -141,7 +140,8 @@ def eval_command():
     """
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
-    parser.add_argument('-o', '--output-file', type=str, default=default_eval_csv)
+    parser.add_argument('-o', '--output-file', type=str, 
+                        default=default_eval_csv)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
     
@@ -180,7 +180,8 @@ commands = {
 }
 
 def main():
-    # If no subcommand specified or invalid subcommand, print main help string and exit
+    # If no subcommand specified or invalid subcommand, print main help string 
+    # and exit
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         print(help_str['help'])
         exit(-1)

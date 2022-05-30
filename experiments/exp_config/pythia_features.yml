@@ -30,7 +30,7 @@ pythia:
     scooby_pt_size: 256
     scooby_lowconf_pt_size: 256
 paths:
-    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_spec06mini_features/'
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_features/'
     trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:
