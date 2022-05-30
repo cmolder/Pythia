@@ -6,7 +6,7 @@ Authors: Quang Duong and Carson Molder
 from collections import defaultdict
 import os
 import glob
-from typing import Union, Optional
+from typing import Optional
 
 import pandas as pd
 import numpy as np
@@ -18,7 +18,7 @@ from exp_utils.file import ChampsimResultsDirectory, ChampsimResultsFile, Champs
 Statistics helpers
 """
 def get_run_statistics(file: ChampsimResultsFile, 
-                   baseline_file: Optional[ChampsimResultsFile] = None) -> Union[dict, None]:
+                       baseline_file: Optional[ChampsimResultsFile] = None) -> Optional[dict]:
     """Get cumulative statistics from a ChampSim output / results file.
     """
     stats_columns = [
@@ -68,7 +68,7 @@ def get_run_statistics(file: ChampsimResultsFile,
         pf_data['ipc'], pf_data['dram_bw_epochs']
     )
     
-    
+    # Get per-level statistics
     for level in ['L1D', 'L2C', 'LLC']:
         iss_prefetches, useful, useless, load_miss, rfo_miss = (
             pf_data[f'{level}_issued_prefetches'],
@@ -98,7 +98,7 @@ def get_run_statistics(file: ChampsimResultsFile,
         results[f'{level}_mpki'] = pf_mpki
         results[f'{level}_mpki_reduction'] = np.nan if (baseline_file is None) else (b_mpki - pf_mpki) / b_mpki * 100.
                 
-        
+    # Get cumulative statistics  
     results['dram_bw_epochs'] = dram_bw_epochs
     results['dram_bw_reduction'] = np.nan if (baseline_file is None) else (b_dram_bw_epochs - dram_bw_epochs) / b_dram_bw_epochs * 100.
     results['ipc'] = ipc
@@ -107,7 +107,6 @@ def get_run_statistics(file: ChampsimResultsFile,
     results['path'] = file.path
     results['baseline_path'] = baseline_file.path 
     assert all([k in stats_columns for k in results.keys()]), f'Columns missing for row in {file.path}'
-    
     return results
 
 
@@ -119,7 +118,6 @@ def get_pc_statistics(file: ChampsimStatsFile) -> list[dict]:
         'pref', 'pref_degree', 'num_useful', 
         'num_useless', 'accuracy',
     ]
-    
 
     # Get statistics
     pc_out = []
@@ -153,32 +151,31 @@ def generate_run_csv(results_dir: str,
     stats = []
     
     # Build stats table
-    # TODO : Break this out into a function or write some code to cleanly
-    #        and orderly loop through the files in the Directory.
-    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
-        for tr in directory.files.keys():
-            for seed in directory[tr].keys():
-                assert directory.get_baseline(tr, seed) is not None, \
-                    f'Could not find baseline for trace {tr}, seed {seed}'
-                for pf in directory[tr][seed].keys():
-                    for v in directory[tr][seed][pf].keys():
-                        pbar.update(1)
-                        row = get_run_statistics(
-                            directory[tr][seed][pf][v], 
-                            baseline_file=directory.get_baseline(tr, seed)
-                        )         
-
-                        if row is not None:
-                            stats.append(row) # Append row to list, if it isn't None
+    # TODO: Can we wrap this routine by passing a callable? That way, we can
+    #       reuse code between the CSV file creators.
+    for file in tqdm(directory, dynamic_ncols=True, unit='file'):
+        assert directory.get_baseline(file.full_trace, file.champsim_seed) is not None, \
+            f'Could not find baseline for trace {file.full_trace}, seed {file.champsim_seed}'
+        baseline_file = directory.get_baseline(file.full_trace, file.champsim_seed)
+        row = get_run_statistics(file, baseline_file=baseline_file)
+        
+        if row is not None:
+            stats.append(row) # Append row to list, if it isn't None
                     
     # Build and save statistics table
     stats = pd.DataFrame(stats)
+    stats.sort_values(
+         by=['full_trace', 'L1D_pref', 'L2C_pref', 'LLC_pref', 
+         'L2C_pref_degree', 'LLC_pref_degree', 'pythia_level_threshold',
+         'pythia_features'],
+         inplace=True
+    )
     if not dry_run:
         print(f'Saving statistics table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         stats.to_csv(output_file, index=False)
-            
-            
+
+
 def generate_best_degree_csv(results_dir: str, 
                              output_file: str,
                              metric: str = 'ipc', 
@@ -187,49 +184,50 @@ def generate_best_degree_csv(results_dir: str,
     """
     directory = ChampsimResultsDirectory(results_dir)
     prefetchers = set()
+    scores = defaultdict(lambda : defaultdict(dict))
+    
+    # Build scores dictionary
+    # TODO: Can we wrap this routine by passing a callable? That way, we can
+    #       reuse code between the CSV file creators.
+    for file in tqdm(directory, dynamic_ncols=True, unit='file'):
+        tr = file.full_trace
+        pf = file.get_all_prefetchers()
+        
+        # Skip baseline
+        if pf == ChampsimResultsFile.get_baseline_prefetchers():
+            continue
+            
+        prefetchers.add(pf)
+        row = get_run_statistics(file)
+        
+        # TODO : Consider other parts of the variant, seed (currently
+        #        overrides with the last-seen file)
+        if row is not None:
+            scores[tr][pf][','.join(
+                    file.l2c_prefetcher_degeree, 
+                    file.llc_prefetcher_degree)] = row[metric]
+            
+    # Loop through trace+prefetchers and get best score on each.
     best_degree = defaultdict(dict)
+    for tr in scores:
+        for pf in scores[tr]:
+            best_degree[tr][pf] = max(scores[tr][pf], key=scores[tr][pf].get)
 
-    # Build best degree dictionary
-    # Compute the best_degree for each prefetcher on each trace.
-    # TODO : Break this out into a function or write some code to cleanly
-    #        and orderly loop through the files in the Directory.
-    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
-        for tr in directory.files.keys():
-            seed = list(directory[tr].keys()[0]) # Just consider one seed, whichever one comes first in the list.
-            assert directory.get_baseline(tr, seed) is not None, \
-                f'Could not find baseline for trace {tr}, seed {seed}'
-            for pf in directory[tr][seed].keys():
-                if pf == ('no', 'no', 'no'):
-                    pbar.update(1)
-                    continue
-                prefetchers.add(pf)
-                scores = defaultdict(lambda : float('-inf'))
-
-                for v in directory[tr][seed][pf].keys():
-                    pbar.update(1)
-                    # TODO: Consider other parts of the variant?
-                    l2d, lld = v[0][1], v[1][1] # TODO: Do this without the hack.
-                    row = get_run_statistics(directory[tr][seed][pf][v])
-                    if row is not None:
-                        scores[','.join(str(l2d), str(lld))] = row[metric]
-                        #print('[DEBUG]', tr, seed, pf, l2d, lld, row[metric])
-
-                best_degree[tr][pf] = max(scores, key=scores.get)
-     
     # Turn best_degree dictionary into a table
     df = pd.DataFrame(columns=['Trace'] + list(prefetchers))
     for tr in best_degree.keys():
         row = best_degree[tr]
         row['Trace'] = tr
         df = df.append(best_degree[tr], ignore_index=True)
+    stats.sort_values('Trace', inplace=True)
     
     # Save best degree table
     if not dry_run:
         print(f'Saving best degree table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         df = df.to_csv(output_file, index=False)
-       
-                
+
+        
 def generate_pc_csv(results_dir: str, 
                     output_file: str, 
                     level: str = 'llc', 
@@ -240,25 +238,22 @@ def generate_pc_csv(results_dir: str,
     stats = []
     
     # Build stats table
-    # TODO : Break this out into a function or write some code to cleanly
-    #        and orderly loop through the files in the Directory.
-    with tqdm(total=len(directory), dynamic_ncols=True, unit='trace') as pbar:
-        for tr in directory.files.keys():
-            seed = list(directory[tr].keys()[0]) # Just consider one seed, whichever one comes first in the list.
-            for pf in directory[tr][seed].keys():
-                if pf == ('no', 'no', 'no'):
-                    pbar.update(1)
-                    continue
-                    
-                for v in traces[tr][seed][pf].keys():
-                    pbar.update(1)
-                    rows = get_pc_statistics(
-                        traces[tr][seed][pf][v]
-                    )
-                    stats.extend(rows)
+    # TODO: Try to filter on or explicitly track seed / variants if we can, to avoid
+    #       excessive repeats. But this might not be necessary.
+    # TODO: Can we wrap this routine by passing a callable? That way, we can
+    #       reuse code between the CSV file creators.
+    for file in tqdm(directory, dynamic_ncols=True, unit='file'):
+        if file.get_all_prefetchers() == ChampsimStatsFile.get_baseline_prefetchers():
+            continue
+        rows = get_pc_statistics(file)
+        stats.extend(rows)
 
     # Save statistics table
     stats = pd.DataFrame(stats)
+    stats.sort_values(
+        by=['full_trace', 'pref', 'pref_degree']
+        inplace=True
+    )
     if not dry_run:
         print(f'Saving per-PC {level} prefetch statistics table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)

@@ -10,8 +10,9 @@ import shutil
 from exp_utils import defaults
 
 
-
-def change_llc_sets(cacheh_path, num_cpus, num_sets):
+def change_llc_sets(cacheh_path: str, 
+                    num_cpus: int, 
+                    num_sets: int) -> None:
     """Replace the number of LLC sets in the ChampSim LLC definition."""
     print(f'Changing LLC sets in inc/cache.h to NUM_CPUS*{num_sets} (effectively {num_cpus} * {num_sets}, {num_cpus*num_sets*16 / 1024} KB)...')
 
@@ -26,21 +27,23 @@ def change_llc_sets(cacheh_path, num_cpus, num_sets):
         print(replacement, file=f)
 
 
-def build_binary(branch_pred, l1d_pref, l2c_pref, llc_pref, llc_repl, num_cpus):
+def build_binary(branch_pred: str, l1d_pref: str, 
+                 l2c_pref: str, llc_pref: str, 
+                 llc_repl: str, num_cpus: int) -> None:
     """System call to build the binary."""
     cmd = f'./build_champsim.sh {branch_pred} {l1d_pref} {l2c_pref} {llc_pref} {llc_repl} {num_cpus}'
     print(f'Calling "{cmd}"...')
     os.system(cmd)
 
 
-def backup_file(path):
+def backup_file(path: str) -> None:
     """Back up a file."""
     if os.path.exists(path):
         print(f'Backing up {path}...')
         shutil.copyfile(path, path + '.bak')
 
 
-def restore_file(path):
+def restore_file(path: str) -> None:
     """Restore a file from backup."""
     if os.path.exists(path + '.bak'):
         print(f'Restoring {path} from backup...')
@@ -48,7 +51,7 @@ def restore_file(path):
         os.remove(path + '.bak')
 
 
-def move_file(old_path, new_path):
+def move_file(old_path: str, new_path: str) -> None:
     """Move a file from <old_path> to <new_path>"""
     if os.path.exists(old_path):
         print(f'Moving {old_path} to {new_path}...')
@@ -57,11 +60,13 @@ def move_file(old_path, new_path):
         print(f'[DEBUG] {old_path} does not exist, cannot move to {new_path}.')
 
 
-def build_config(num_cpus, 
-                 branch_pred='perceptron',
-                 l1d_pref='no', l2c_pref='no', llc_pref='no',
-                 llc_repl='ship',
-                 llc_num_sets=2048):
+def build_config(num_cpus: int, 
+                 branch_pred: str = 'perceptron',
+                 l1d_pref: str = 'no', 
+                 l2c_pref: str = 'no', 
+                 llc_pref: str = 'no',
+                 llc_repl: str = 'ship',
+                 llc_num_sets: int = 2048) -> None:
     """Build a configuration of ChampSim.
     
     Parameters:
