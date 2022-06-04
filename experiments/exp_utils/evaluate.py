@@ -12,9 +12,6 @@ import numpy as np
 from tqdm import tqdm
 from exp_utils.file import (ChampsimResultsDirectory, ChampsimStatsDirectory,
                             ChampsimResultsFile, ChampsimStatsFile)
-"""
-Statistics helpers
-"""
 
 
 def get_run_statistics(
@@ -151,11 +148,6 @@ def get_pc_statistics(file: ChampsimStatsFile) -> list[dict]:
     return pc_out
 
 
-"""
-CSV file creators
-"""
-
-
 def generate_run_csv(results_dir: str,
                      output_file: str,
                      dry_run: bool = False) -> None:
@@ -269,9 +261,7 @@ def generate_pc_csv(results_dir: str,
     stats = pd.DataFrame(stats)
     stats.sort_values(by=['full_trace', 'pref', 'pref_degree'], inplace=True)
     if not dry_run:
-        print(
-            f'Saving per-PC {level} prefetch statistics table '
-            f'to {output_file}...'
-        )
+        print(f'Saving per-PC {level} prefetch statistics table '
+              f'to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         stats.to_csv(output_file, index=False)

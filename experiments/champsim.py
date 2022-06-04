@@ -22,8 +22,8 @@ from exp_utils import defaults, build, run
 #   2 MB cache size
 
 help_str = {
-    'help':
-    '''usage: {prog} command [<args>]
+'help':
+'''usage: {prog} command [<args>]
 
 Available commands:
     build            Build ChampSim binaries
@@ -32,12 +32,12 @@ Available commands:
                      messages can be displayed with 
                      `{prog} help command`
 '''.format(prog=sys.argv[0]),
-    'build':
-    '''usage: {prog} build [--l1d-pref <l1d-prefetcher>] 
-                                [--l2c-pref <l2c-prefetcher>] 
-                                [--llc-pref <llc-prefetcher>]
-                                [-c / --cores <core-count-list>] 
-                                [-s / --llc-sets <llc-set-count-list>]
+'build':
+'''usage: {prog} build [--l1d-pref <l1d-prefetcher>] 
+                            [--l2c-pref <l2c-prefetcher>] 
+                            [--llc-pref <llc-prefetcher>]
+                            [-c / --cores <core-count-list>] 
+                            [-s / --llc-sets <llc-set-count-list>]
 
 Description:
     {prog} build 
@@ -104,15 +104,15 @@ Notes:
 '''.format(prog=sys.argv[0],
            default_llc_ways=defaults.default_llc_ways,
            default_llc_sets=defaults.default_llc_sets),
-    'run':
-    '''usage: {prog} run <execution-traces> 
-                            [-c / --cores <num-cores>] 
-                            [-s / --sets <num-llc-sets>]
-                            [-t / --llc-pref <list-of-llc-prefetchers>]
-                            [--llc-pref-degrees <list-of-llc-degrees>]
-                            [--results-dir <results-dir>] 
-                            [--warmup-instructions <warm-inst-millions>] 
-                            [--num-instructions <num-inst-millions>] 
+'run':
+'''usage: {prog} run <execution-traces> 
+                        [-c / --cores <num-cores>] 
+                        [-s / --sets <num-llc-sets>]
+                        [-t / --llc-pref <list-of-llc-prefetchers>]
+                        [--llc-pref-degrees <list-of-llc-degrees>]
+                        [--results-dir <results-dir>] 
+                        [--warmup-instructions <warm-inst-millions>] 
+                        [--num-instructions <num-inst-millions>] 
 
 Description:
     {prog} run <execution-traces>
@@ -217,9 +217,6 @@ Options:
         default_llc_sets=defaults.default_llc_sets,
     )
 }
-"""
-Build
-"""
 
 
 def build_command():
@@ -279,11 +276,6 @@ def build_command():
                                llc_pref=args.llc_pref,
                                llc_repl=args.llc_repl,
                                llc_num_sets=s)
-
-
-"""
-Run
-"""
 
 
 def run_command():
@@ -443,11 +435,6 @@ def run_command():
     os.system(cmd)
 
 
-"""
-Help
-"""
-
-
 def help_command():
     """Help command
     """
@@ -461,17 +448,12 @@ def help_command():
         exit(-1)
 
 
-"""
-Main
-"""
-commands = {
-    'build': build_command,
-    'run': run_command,
-    'help': help_command,
-}
-
-
 def main():
+    commands = {
+        'build': build_command,
+        'run': run_command,
+        'help': help_command,
+    }
     # If no subcommand specified or invalid subcommand, print
     # main help string and exit
     if len(sys.argv) < 2 or sys.argv[1] not in commands:

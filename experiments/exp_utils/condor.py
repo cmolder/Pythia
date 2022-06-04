@@ -443,6 +443,8 @@ def get_extra_knobs_pythia_level(cfg,
     if features is not None:
         extra_knobs += (' --le_featurewise_active_features='
                         f'{",".join([str(f) for f in features])}')
+        extra_knobs += (' --le_featurewise_enable_tiling_offset='
+                        f'{"1," * len(features)}')
 
     extra_knobs += f' --scooby_alpha={cfg.pythia.scooby_alpha}'
     extra_knobs += f' --scooby_gamma={cfg.pythia.scooby_gamma}'
