@@ -32,6 +32,7 @@ namespace knob
     // Automatically pick the LLC prefetcher types based on what is inside the pc_trace.
     extern bool           spp_dev2_pf_llc_only;
     extern bool           bingo_pf_llc_only;
+    extern bool           scooby_enable_dyn_level;
     extern string         pc_trace_llc;
     extern bool           pc_trace_invoke_all;      // If True:  Invoke all prefetchers, regardless of whether
                                                     //           they are one of the PC's prefetchers.
@@ -144,6 +145,7 @@ void add_prefetchers(CACHE *cache, vector<Prefetcher*> &prefetchers) {
 		}
 		else if(!pref.compare("scooby"))
 		{
+            assert(!knob::scooby_enable_dyn_level); // Can't prefetch to L2 if Pythia operating in LLC. (knob must be false)
 			cout << "adding LLC_PREFETCHER: Scooby" << endl;
 			Scooby *pref_scooby = new Scooby(pref);
 			prefetchers.push_back(pref_scooby);

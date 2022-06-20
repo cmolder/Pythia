@@ -40,10 +40,13 @@ namespace knob
 	extern uint32_t scooby_max_pcs;
 	extern uint32_t scooby_max_offsets;
 	extern uint32_t scooby_max_deltas;
-	extern int32_t  scooby_reward_none;
+	extern int32_t  scooby_reward_none; // Default / low bandwidth rewards
 	extern int32_t  scooby_reward_incorrect;
+    //extern int32_t  scooby_reward_incorrect_lowconf;
 	extern int32_t  scooby_reward_correct_untimely;
+    //extern int32_t  scooby_reward_correct_untimely_lowconf;
 	extern int32_t  scooby_reward_correct_timely;
+    //extern int32_t  scooby_reward_correct_timely_lowconf;
 	extern bool		scooby_brain_zero_init;
 	extern bool     scooby_enable_reward_all;
 	extern bool     scooby_enable_track_multiple;
@@ -73,15 +76,22 @@ namespace knob
 	extern vector<int32_t> scooby_dyn_degrees_type2;
 	extern uint32_t scooby_action_tracker_size;
 	extern uint32_t scooby_high_bw_thresh;
-	extern bool     scooby_enable_hbw_reward;
+	extern bool     scooby_enable_hbw_reward; // High bandwidth rewards
 	extern int32_t  scooby_reward_hbw_correct_timely;
+    //extern int32_t  scooby_reward_hbw_correct_timely_lowconf;
 	extern int32_t  scooby_reward_hbw_correct_untimely;
+    //extern int32_t  scooby_reward_hbw_correct_untimely_lowconf;
 	extern int32_t  scooby_reward_hbw_incorrect;
+    //extern int32_t  scooby_reward_hbw_incorrect_lowconf;
 	extern int32_t  scooby_reward_hbw_none;
 	extern int32_t  scooby_reward_hbw_out_of_bounds;
 	extern int32_t  scooby_reward_hbw_tracker_hit;
 	extern vector<int32_t> scooby_last_pref_offset_conf_thresholds_hbw;
 	extern vector<int32_t> scooby_dyn_degrees_type2_hbw;
+    extern bool     scooby_enable_dyn_level; // Prefetch in L2 if high-confidence, LLC if low-confidence
+    extern float    scooby_dyn_level_threshold;
+    extern bool     scooby_separate_lowconf_pt; // If true, use a separate EQ for low-confidence prefetches.
+    extern uint32_t scooby_lowconf_pt_size;
 
 	/* Learning Engine knobs */
 	extern bool     le_enable_trace;
@@ -161,6 +171,7 @@ Scooby::Scooby(string type) : Prefetcher(type)
 	recorder = new ScoobyRecorder();
 
 	last_evicted_tracker = NULL;
+    last_evicted_tracker_lowconf = NULL;
 
 	/* init learning engine */
 	brain_featurewise = NULL;
@@ -220,6 +231,9 @@ void Scooby::print_config()
 		<< "scooby_reward_incorrect " << knob::scooby_reward_incorrect << endl
 		<< "scooby_reward_correct_untimely " << knob::scooby_reward_correct_untimely << endl
 		<< "scooby_reward_correct_timely " << knob::scooby_reward_correct_timely << endl
+        //<< "scooby_reward_incorrect_lowconf " << knob::scooby_reward_incorrect_lowconf << endl
+        //<< "scooby_reward_correct_untimely_lowconf " << knob::scooby_reward_correct_untimely_lowconf << endl
+		//<< "scooby_reward_correct_timely_lowconf " << knob::scooby_reward_correct_timely_lowconf << endl
 		<< "scooby_brain_zero_init " << knob::scooby_brain_zero_init << endl
 		<< "scooby_enable_reward_all " << knob::scooby_enable_reward_all << endl
 		<< "scooby_enable_track_multiple " << knob::scooby_enable_track_multiple << endl
@@ -249,11 +263,18 @@ void Scooby::print_config()
 		<< "scooby_reward_hbw_correct_timely " << knob::scooby_reward_hbw_correct_timely << endl
 		<< "scooby_reward_hbw_correct_untimely " << knob::scooby_reward_hbw_correct_untimely << endl
 		<< "scooby_reward_hbw_incorrect " << knob::scooby_reward_hbw_incorrect << endl
+        //<< "scooby_reward_hbw_correct_timely_lowconf " << knob::scooby_reward_hbw_correct_timely_lowconf << endl
+		//<< "scooby_reward_hbw_correct_untimely_lowconf " << knob::scooby_reward_hbw_correct_untimely_lowconf << endl
+		//<< "scooby_reward_hbw_incorrect_lowconf " << knob::scooby_reward_hbw_incorrect_lowconf << endl
 		<< "scooby_reward_hbw_none " << knob::scooby_reward_hbw_none << endl
 		<< "scooby_reward_hbw_out_of_bounds " << knob::scooby_reward_hbw_out_of_bounds << endl
 		<< "scooby_reward_hbw_tracker_hit " << knob::scooby_reward_hbw_tracker_hit << endl
 		<< "scooby_last_pref_offset_conf_thresholds_hbw " << array_to_string(knob::scooby_last_pref_offset_conf_thresholds_hbw) << endl
 		<< "scooby_dyn_degrees_type2_hbw " << array_to_string(knob::scooby_dyn_degrees_type2_hbw) << endl
+        << "scooby_enable_dyn_level " << knob::scooby_enable_dyn_level << endl
+        << "scooby_dyn_level_threshold " << knob::scooby_dyn_level_threshold << endl
+        << "scooby_separate_lowconf_pt " << knob::scooby_separate_lowconf_pt << endl
+        << "scooby_lowconf_pt_size" << knob::scooby_lowconf_pt_size << endl
 		<< endl
 		<< "le_enable_trace " << knob::le_enable_trace << endl
 		<< "le_trace_interval " << knob::le_trace_interval << endl
@@ -383,6 +404,14 @@ Scooby_STEntry* Scooby::update_local_state(uint64_t pc, uint64_t page, uint32_t 
 	}
 }
 
+bool Scooby::is_high_confidence(float action_value) {
+    /* Return true if <action_value> is large enough to be a high_confidence action,
+     * Return false otherwise */
+    if (!knob::scooby_enable_dyn_level)
+        return true;
+    return (action_value >= knob::scooby_dyn_level_threshold);
+}
+
 uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	MYLOG("addr@%lx page %lx off %u state %x", base_address, page, offset, state->value());
@@ -391,13 +420,14 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 
 	/* query learning engine to get the next prediction */
 	uint32_t action_index = 0;
+    float action_value = 0.0;
 	uint32_t pref_degree = knob::scooby_pref_degree;
 	vector<bool> consensus_vec; // only required for featurewise engine
 
 	if (knob::scooby_enable_featurewise_engine)
 	{
 		float max_to_avg_q_ratio = 1.0;
-		action_index = brain_featurewise->chooseAction(state, max_to_avg_q_ratio, consensus_vec);
+		action_index = brain_featurewise->chooseAction(state, action_value, max_to_avg_q_ratio, consensus_vec);
 		if(knob::scooby_enable_dyn_degree)
 		{
 			pref_degree = get_dyn_pref_degree(max_to_avg_q_ratio, page, Actions[action_index]);
@@ -411,7 +441,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 	{
 		uint32_t state_index = state->value();
 		assert(state_index < knob::scooby_max_states);
-		action_index = brain->chooseAction(state_index);
+		action_index = brain->chooseAction(state_index, action_value);
 		if(knob::scooby_enable_state_action_stats)
 		{
 			update_stats(state_index, action_index, pref_degree);
@@ -432,16 +462,25 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 			addr = (page << LOG2_PAGE_SIZE) + (predicted_offset << LOG2_BLOCK_SIZE);
 			MYLOG("pred_off %d pred_addr %lx", predicted_offset, addr);
 			/* track prefetch */
-			bool new_addr = track(addr, state, action_index, &ptentry);
+			bool new_addr = track(addr, state, action_index, action_value, &ptentry);
 			if(new_addr)
 			{
+                // Prefetch address
 				pref_addr.push_back(addr);
-                pref_level.push_back(0); // TODO : Level prediction
+                
+                // Prefetch level (0 = default, if knob disabled, otherwise  or default (high confidence) or LLC (low confidence.)
+                // Always high confidence, if scooby_enable_dyn_level is false.
+                pref_level.push_back(is_high_confidence(action_value) ? 0 : FILL_LLC);
+
+                if (is_high_confidence(action_value))
+                    stats.confidence.high_conf++;
+                else stats.confidence.low_conf++;
+                
 				track_in_st(page, predicted_offset, Actions[action_index]);
 				stats.predict.issue_dist[action_index]++;
 				if(pref_degree > 1)
 				{
-					gen_multi_degree_pref(page, offset, Actions[action_index], pref_degree, pref_addr, pref_level);
+					gen_multi_degree_pref(page, offset, Actions[action_index], action_value, pref_degree, pref_addr, pref_level);
 				}
 				stats.predict.deg_histogram[pref_degree]++;
 				ptentry->consensus_vec = consensus_vec;
@@ -453,7 +492,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 				if(knob::scooby_enable_reward_tracker_hit)
 				{
 					addr = 0xdeadbeef;
-					track(addr, state, action_index, &ptentry);
+					track(addr, state, action_index, action_value, &ptentry);
 					assert(ptentry);
 					assign_reward(ptentry, RewardType::tracker_hit);
 					ptentry->consensus_vec = consensus_vec;
@@ -469,7 +508,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 			if(knob::scooby_enable_reward_out_of_bounds)
 			{
 				addr = 0xdeadbeef;
-				track(addr, state, action_index, &ptentry);
+				track(addr, state, action_index, action_value, &ptentry);
 				assert(ptentry);
 				assign_reward(ptentry, RewardType::out_of_bounds);
 				ptentry->consensus_vec = consensus_vec;
@@ -482,7 +521,7 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 		/* agent decided not to prefetch */
 		addr = 0xdeadbeef;
 		/* track no prefetch */
-		track(addr, state, action_index, &ptentry);
+		track(addr, state, action_index, action_value, &ptentry);
 		stats.predict.action_dist[action_index]++;
 		ptentry->consensus_vec = consensus_vec;
 	}
@@ -495,21 +534,29 @@ uint32_t Scooby::predict(uint64_t base_address, uint64_t page, uint32_t offset, 
 
 /* Returns true if the address is not already present in prefetch_tracker
  * false otherwise */
-bool Scooby::track(uint64_t address, State *state, uint32_t action_index, Scooby_PTEntry **tracker)
+bool Scooby::track(uint64_t address, State *state, uint32_t action_index, float action_value, Scooby_PTEntry **tracker)
 {
-	MYLOG("addr@%lx state %x act_idx %u act %d", address, state->value(), action_index, Actions[action_index]);
+	MYLOG(
+        "addr@%lx state %x act_idx %u act %d confidence %d", 
+        address, state->value(), action_index, Actions[action_index], is_high_confidence(action_value)
+    );
 	stats.track.called++;
+    
+    deque<Scooby_PTEntry*> *pt = NULL;
+    Scooby_PTEntry **let = NULL;
+    uint32_t pt_size = 0;
+    if(knob::scooby_separate_lowconf_pt && !is_high_confidence(action_value)) {
+        pt = &prefetch_tracker_lowconf;
+        let = &last_evicted_tracker_lowconf;
+        pt_size = knob::scooby_lowconf_pt_size;
+    } else {
+        pt = &prefetch_tracker;
+        let = &last_evicted_tracker;
+        pt_size = knob::scooby_pt_size;
+    }
 
-	bool new_addr = true;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, false);
-	if(ptentries.empty())
-	{
-		new_addr = true;
-	}
-	else
-	{
-		new_addr = false;
-	}
+	vector<Scooby_PTEntry*> ptentries = search_pt(address, false, *pt);
+    bool new_addr = ptentries.empty() ? true : false;
 
 	if(!new_addr && address != 0xdeadbeef && !knob::scooby_enable_track_multiple)
 	{
@@ -520,27 +567,35 @@ bool Scooby::track(uint64_t address, State *state, uint32_t action_index, Scooby
 
 	/* new prefetched address that hasn't been seen before */
 	Scooby_PTEntry *ptentry = NULL;
-
-	if(prefetch_tracker.size() >= knob::scooby_pt_size)
+	if(pt->size() >= pt_size)
 	{
 		stats.track.evict++;
-		ptentry = prefetch_tracker.front();
-		prefetch_tracker.pop_front();
-		MYLOG("victim_state %x victim_act_idx %u victim_act %d", ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index]);
-		if(last_evicted_tracker)
+		ptentry = pt->front();
+		pt->pop_front();
+		MYLOG(
+            "victim_state %x victim_act_idx %u victim_act %d confidence %d", 
+            ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index], ptentry->high_confidence
+        );
+		if(*let)
 		{
-			MYLOG("last_victim_state %x last_victim_act_idx %u last_victim_act %d", last_evicted_tracker->state->value(), last_evicted_tracker->action_index, Actions[last_evicted_tracker->action_index]);
+			MYLOG(
+                "last_victim_state %x last_victim_act_idx %u last_victim_act %d confidence %d", 
+                (*let)->state->value(), (*let)->action_index, Actions[(*let)->action_index], (*let)->high_confidence
+            );
 			/* train the agent */
-			train(ptentry, last_evicted_tracker);
-			delete last_evicted_tracker->state;
-			delete last_evicted_tracker;
+			train(ptentry, *let);
+            
+			delete (*let)->state;
+			delete *let;
+            
 		}
-		last_evicted_tracker = ptentry;
+        
+        *let = ptentry;
 	}
 
-	ptentry = new Scooby_PTEntry(address, state, action_index);
-	prefetch_tracker.push_back(ptentry);
-	assert(prefetch_tracker.size() <= knob::scooby_pt_size);
+	ptentry = new Scooby_PTEntry(address, state, action_index, is_high_confidence(action_index));
+	pt->push_back(ptentry);
+	assert(pt->size() <= pt_size);
 
 	(*tracker) = ptentry;
 	MYLOG("end@%lx", address);
@@ -548,11 +603,13 @@ bool Scooby::track(uint64_t address, State *state, uint32_t action_index, Scooby
 	return new_addr;
 }
 
-void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
+void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, float action_value, uint32_t pref_degree,
+                                   vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
 	stats.predict.multi_deg_called++;
 	uint64_t addr = 0xdeadbeef;
 	int32_t predicted_offset = 0;
+
 	if(action != 0)
 	{
 		for(uint32_t degree = 2; degree <= pref_degree; ++degree)
@@ -562,8 +619,16 @@ void Scooby::gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t actio
 			{
 				addr = (page << LOG2_PAGE_SIZE) + (predicted_offset << LOG2_BLOCK_SIZE);
 				pref_addr.push_back(addr);
-                pref_level.push_back(0); // TODO Add level prediction
-				MYLOG("degree %u pred_off %d pred_addr %lx", degree, predicted_offset, addr);
+                
+                // Prefetch level (0 = default, if knob disabled, otherwise  or default (high confidence) or LLC (low confidence.)
+                // Always high confidence, if scooby_enable_dyn_level is false.
+                pref_level.push_back(is_high_confidence(action_value) ? 0 : FILL_LLC);
+
+                if (is_high_confidence(action_value))
+                    stats.confidence.high_conf++;
+                else stats.confidence.low_conf++;
+                
+				MYLOG("degree %u pred_off %d pred_addr %lx confidence %d", degree, predicted_offset, addr, is_high_confidence(action_value));
 				stats.predict.multi_deg++;
 				stats.predict.multi_deg_histogram[degree]++;
 			}
@@ -623,7 +688,7 @@ void Scooby::reward(uint64_t address)
 	MYLOG("addr @ %lx", address);
 
 	stats.reward.demand.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 
 	if(ptentries.empty())
 	{
@@ -668,7 +733,11 @@ void Scooby::reward(uint64_t address)
 /* This reward function is called during eviction from prefetch_tracker */
 void Scooby::reward(Scooby_PTEntry *ptentry)
 {
-	MYLOG("reward PT evict %lx state %x act_idx %u act %d", ptentry->address, ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index]);
+	MYLOG(
+        "reward PT evict %lx state %x act_idx %u act %d confidence %d", 
+        ptentry->address, ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index],
+        ptentry->high_confidence
+    );
 
 	stats.reward.train.called++;
 	assert(!ptentry->has_reward);
@@ -690,7 +759,11 @@ void Scooby::reward(Scooby_PTEntry *ptentry)
 
 void Scooby::assign_reward(Scooby_PTEntry *ptentry, RewardType type)
 {
-	MYLOG("assign_reward PT evict %lx state %x act_idx %u act %d", ptentry->address, ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index]);
+    MYLOG(
+        "assign_reward PT evict %lx state %x act_idx %u act %d confidence %d", 
+        ptentry->address, ptentry->state->value(), ptentry->action_index, Actions[ptentry->action_index],
+        ptentry->high_confidence
+    );
 	assert(!ptentry->has_reward);
 
 	/* compute the reward */
@@ -711,6 +784,9 @@ void Scooby::assign_reward(Scooby_PTEntry *ptentry, RewardType type)
 		case RewardType::none: 				stats.reward.no_pref++; break;
 		case RewardType::out_of_bounds: 	stats.reward.out_of_bounds++; break;
 		case RewardType::tracker_hit: 		stats.reward.tracker_hit++; break;
+        case RewardType::correct_timely_lowconf: 	stats.reward.correct_timely_lowconf++; break;
+		case RewardType::correct_untimely_lowconf: 	stats.reward.correct_untimely_lowconf++; break;
+		case RewardType::incorrect_lowconf: 		stats.reward.incorrect_lowconf++; break;
 		default:							assert(false);
 	}
 	stats.reward.dist[ptentry->action_index][type]++;
@@ -746,6 +822,18 @@ int32_t Scooby::compute_reward(Scooby_PTEntry *ptentry, RewardType type)
 	else if(type == RewardType::tracker_hit)
 	{
 		reward = high_bw ? knob::scooby_reward_hbw_tracker_hit : knob::scooby_reward_tracker_hit;
+	}
+    else if(type == RewardType::correct_timely_lowconf)
+	{
+		//reward = high_bw ? knob::scooby_reward_hbw_correct_timely_lowconf : knob::scooby_reward_correct_timely_lowconf;
+	}
+    else if(type == RewardType::correct_untimely_lowconf)
+	{
+		//reward = high_bw ? knob::scooby_reward_hbw_correct_untimely_lowconf : knob::scooby_reward_correct_untimely_lowconf;
+	}
+    else if(type == RewardType::incorrect_lowconf)
+	{
+		//reward = high_bw ? knob::scooby_reward_hbw_incorrect_lowconf : knob::scooby_reward_incorrect_lowconf;
 	}
 	else
 	{
@@ -793,17 +881,73 @@ void Scooby::register_fill(uint64_t address)
 	MYLOG("fill @ %lx", address);
 
 	stats.register_fill.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 	if(!ptentries.empty())
 	{
 		stats.register_fill.set++;
 		for(uint32_t index = 0; index < ptentries.size(); ++index)
 		{
 			stats.register_fill.set_total++;
+            stats.register_fill.set_actions[ptentries[index]->action_index]++;
+            stats.register_fill.set_conf[ptentries[index]->high_confidence]++;
 			ptentries[index]->is_filled = true;
-			MYLOG("fill PT hit. pref with act_idx %u act %d", ptentries[index]->action_index, Actions[ptentries[index]->action_index]);
+			MYLOG(
+                "fill PT hit. pref with act_idx %u act %d confidence %d", 
+                ptentries[index]->action_index, Actions[ptentries[index]->action_index],
+                ptentries[index]->high_confidence,
+            );
 		}
 	}
+}
+
+void Scooby::register_llc_fill(uint64_t address)
+{
+    if (!knob::scooby_enable_dyn_level) // Don't care about LLC fills, if we only prefetch to L2.
+        return;
+    
+    
+	MYLOG("LLC fill @ %lx", address);
+
+	stats.register_llc_fill.called++;
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
+    
+	if(!ptentries.empty())
+	{
+        //cout << "[DEBUG] [register_llc_fill] found in EQ: " << hex << address << endl;
+		stats.register_llc_fill.set++;
+		for(uint32_t index = 0; index < ptentries.size(); ++index)
+		{
+            // if (ptentries[index]->high_confidence) {
+            //    cout << "[DEBUG] [register_llc_fill] HIGH CONFIDENCE ptentry found: addr=" << hex << address 
+            //         << " action=" << dec << Actions[ptentries[index]->action_index]
+            //         << " action_index=" << dec << ptentries[index]->action_index
+            //         << " is_filled=" << dec << ptentries[index]->is_filled
+            //         << " pf_cache_hit=" << dec << ptentries[index]->pf_cache_hit
+            //         << " reward=" << dec << ptentries[index]->reward
+            //         << endl;
+            // } else {
+            //    cout << "[DEBUG] [register_llc_fill] Low confidence ptentry found: addr=" << hex << address 
+            //         << " action=" << dec << Actions[ptentries[index]->action_index]
+            //         << " action_index=" << dec << ptentries[index]->action_index
+            //         << " is_filled=" << dec << ptentries[index]->is_filled
+            //         << " pf_cache_hit=" << dec << ptentries[index]->pf_cache_hit
+            //         << " reward=" << dec << ptentries[index]->reward
+            //         << endl;
+            // }
+                
+			stats.register_llc_fill.set_total++;
+            stats.register_llc_fill.set_actions[ptentries[index]->action_index]++;
+            stats.register_llc_fill.set_conf[ptentries[index]->high_confidence]++;
+			ptentries[index]->is_filled = true;
+			MYLOG(
+                "fill PT hit. LLC pref with act_idx %u act %d confidence %d", 
+                ptentries[index]->action_index, Actions[ptentries[index]->action_index],
+                ptentries[index]->high_confidence,
+            );
+		}
+	} //else {
+    //    cout << "[DEBUG] [register_llc_fill] NOT found in EQ: " << hex << address << endl;
+    //}
 }
 
 void Scooby::register_prefetch_hit(uint64_t address)
@@ -811,7 +955,7 @@ void Scooby::register_prefetch_hit(uint64_t address)
 	MYLOG("pref_hit @ %lx", address);
 
 	stats.register_prefetch_hit.called++;
-	vector<Scooby_PTEntry*> ptentries = search_pt(address, knob::scooby_enable_reward_all);
+	vector<Scooby_PTEntry*> ptentries = search_all_pts(address, knob::scooby_enable_reward_all);
 	if(!ptentries.empty())
 	{
 		stats.register_prefetch_hit.set++;
@@ -819,24 +963,42 @@ void Scooby::register_prefetch_hit(uint64_t address)
 		{
 			stats.register_prefetch_hit.set_total++;
 			ptentries[index]->pf_cache_hit = true;
-			MYLOG("pref_hit PT hit. pref with act_idx %u act %d", ptentries[index]->action_index, Actions[ptentries[index]->action_index]);
+            MYLOG(
+                "pref_hit PT hit. pref with act_idx %u act %d confidence %d", 
+                ptentries[index]->action_index, Actions[ptentries[index]->action_index],
+                ptentries[index]->high_confidence,
+            );
 		}
 	}
 }
 
-vector<Scooby_PTEntry*> Scooby::search_pt(uint64_t address, bool search_all)
+vector<Scooby_PTEntry*> Scooby::search_pt(uint64_t address, bool search_all, const deque<Scooby_PTEntry*> &pt)
 {
-	vector<Scooby_PTEntry*> entries;
-	for(uint32_t index = 0; index < prefetch_tracker.size(); ++index)
+    vector<Scooby_PTEntry*> entries;
+	for(uint32_t index = 0; index < pt.size(); ++index)
 	{
-		if(prefetch_tracker[index]->address == address)
+		if(pt[index]->address == address)
 		{
-			entries.push_back(prefetch_tracker[index]);
+			entries.push_back(pt[index]);
 			if(!search_all) break;
 		}
 	}
 	return entries;
 }
+
+vector<Scooby_PTEntry*> Scooby::search_all_pts(uint64_t address, bool search_all)
+{
+    vector<Scooby_PTEntry*> entries = search_pt(address, search_all, prefetch_tracker);
+    
+    if(knob::scooby_separate_lowconf_pt) {
+        vector<Scooby_PTEntry*> entries_lowconf = search_pt(address, search_all, prefetch_tracker_lowconf);
+        entries.insert(entries.end(), entries_lowconf.begin(), entries_lowconf.end());
+    }
+    return entries;
+
+}
+
+
 
 void Scooby::update_stats(uint32_t state, uint32_t action_index, uint32_t pref_degree)
 {
@@ -1027,6 +1189,9 @@ void Scooby::dump_stats()
 		<< "scooby_reward_correct_timely " << stats.reward.correct_timely << endl
 		<< "scooby_reward_out_of_bounds " << stats.reward.out_of_bounds << endl
 		<< "scooby_reward_tracker_hit " << stats.reward.tracker_hit << endl
+        << "scooby_reward_incorrect_lowconf " << stats.reward.incorrect_lowconf << endl
+		<< "scooby_reward_correct_untimely_lowconf " << stats.reward.correct_untimely_lowconf << endl
+		<< "scooby_reward_correct_timely_lowconf " << stats.reward.correct_timely_lowconf << endl
 		<< endl;
 
 	for(uint32_t reward = 0; reward < RewardType::num_rewards; ++reward)
@@ -1052,10 +1217,31 @@ void Scooby::dump_stats()
 		<< "scooby_train_compute_reward " << stats.train.compute_reward << endl
 		<< endl
 
-		<< "scooby_register_fill_called " << stats.register_fill.called << endl
+        << "scooby_register_fill_called " << stats.register_fill.called << endl
 		<< "scooby_register_fill_set " << stats.register_fill.set << endl
 		<< "scooby_register_fill_set_total " << stats.register_fill.set_total << endl
-		<< endl
+        << "scooby_register_fill_set_actions ";
+        for(uint32_t action_index = 0; action_index < Actions.size(); ++action_index) {
+            cout << stats.register_fill.set_actions[action_index] << ",";
+        }
+        cout << endl << "scooby_register_fill_set_conf "; 
+        for(uint32_t index = 0; index < 2; ++index) {
+            cout << stats.register_fill.set_conf[index] << ",";
+        }
+        cout << endl << endl
+        
+        << "scooby_register_llc_fill_called " << stats.register_llc_fill.called << endl
+		<< "scooby_register_llc_fill_set " << stats.register_llc_fill.set << endl
+		<< "scooby_register_llc_fill_set_total " << stats.register_llc_fill.set_total << endl
+        << "scooby_register_llc_fill_set_actions ";
+        for(uint32_t action_index = 0; action_index < Actions.size(); ++action_index) {
+            cout << stats.register_llc_fill.set_actions[action_index] << ",";
+        }
+        cout << endl << "scooby_register_llc_fill_set_conf "; 
+        for(uint32_t index = 0; index < 2; ++index) {
+            cout << stats.register_llc_fill.set_conf[index] << ",";
+        }
+        cout << endl << endl
 
 		<< "scooby_register_prefetch_hit_called " << stats.register_prefetch_hit.called << endl
 		<< "scooby_register_prefetch_hit_set " << stats.register_prefetch_hit.set << endl
@@ -1063,6 +1249,8 @@ void Scooby::dump_stats()
 		<< endl
 
 		<< "scooby_pref_issue_scooby " << stats.pref_issue.scooby << endl
+        << "scooby_low_conf_pref " << stats.confidence.low_conf << endl
+        << "scooby_high_conf_pref " << stats.confidence.high_conf << endl
 		// << "scooby_pref_issue_shaggy " << stats.pref_issue.shaggy << endl
 		<< endl;
 

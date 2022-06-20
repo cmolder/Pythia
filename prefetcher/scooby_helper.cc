@@ -50,7 +50,7 @@ const char* getFeatureString(Feature feature)
 	return MapFeatureString[(uint32_t)feature];
 }
 
-const char* MapRewardTypeString[] = {"none", "incorrect", "correct_untimely", "correct_timely", "out_of_bounds", "tracker_hit"};
+const char* MapRewardTypeString[] = {"none", "incorrect", "correct_untimely", "correct_timely", "out_of_bounds", "tracker_hit", "incorrect_lowconf", "correct_untimely_lowconf", "correct_timely_lowconf"};
 const char* getRewardTypeString(RewardType type)
 {
 	assert(type < RewardType::num_rewards);

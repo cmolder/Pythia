@@ -1,0 +1,37 @@
+champsim:
+    warmup_instructions: 25
+    sim_instructions: 100
+    track_pc_stats: true
+    track_addr_stats: false
+    track_pref: true
+    branch_pred: 'perceptron'
+    seeds: [1337]
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates: []
+    max_hybrid: 1
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates:
+        - 'bingo'    # Bingo
+        - 'bop'      # Best Offset
+        - 'scooby'   # Pythia
+        - 'sisb'     # Idealized ISB
+        - 'sms'      # SMS
+        - 'spp_dev2' # SPP
+        #- 'triage'   # Triage
+        #- 'reeses'   # Reese's
+    max_hybrid: 2
+paths:
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/2022_04_25_spec06/'
+    trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+    degree_csv: '/u/cmolder/GitHub/Pythia/out/prefetcher_degree_sweep/2022_04_25_2hyb_spec06.csv' # Optional
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Prefetcher Zoo'

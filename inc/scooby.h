@@ -27,7 +27,9 @@ private:
 	LearningEngineBasic *brain;
 	LearningEngineFeaturewise *brain_featurewise;
 	deque<Scooby_PTEntry*> prefetch_tracker;
+    deque<Scooby_PTEntry*> prefetch_tracker_lowconf; // Only used if scooby_separate_lowconf_pt = true
 	Scooby_PTEntry *last_evicted_tracker;
+    Scooby_PTEntry *last_evicted_tracker_lowconf;  // Only used if scooby_separate_lowconf_pt = true
 	uint8_t bw_level;
 	uint8_t core_ipc;
 	uint32_t acc_level;
@@ -104,6 +106,9 @@ private:
 			uint64_t incorrect;
 			uint64_t out_of_bounds;
 			uint64_t tracker_hit;
+            uint64_t correct_timely_lowconf;
+            uint64_t correct_untimely_lowconf;
+            uint64_t incorrect_lowconf;
 			uint64_t dist[MAX_ACTIONS][MAX_REWARDS];
 		} reward;
 
@@ -118,7 +123,18 @@ private:
 			uint64_t called;
 			uint64_t set;
 			uint64_t set_total;
+            uint64_t set_actions[MAX_ACTIONS];
+            uint64_t set_conf[2];
 		} register_fill;
+        
+        struct
+		{
+			uint64_t called;
+			uint64_t set;
+			uint64_t set_total;
+            uint64_t set_actions[MAX_ACTIONS];
+            uint64_t set_conf[2];
+		} register_llc_fill;
 
 		struct
 		{
@@ -131,6 +147,12 @@ private:
 		{
 			uint64_t scooby;
 		} pref_issue;
+        
+        struct
+        {
+            uint64_t low_conf; // Prefetched to higher level
+            uint64_t high_conf; // Prefetched to lower level
+        } confidence;
 
 		struct 
 		{
@@ -162,17 +184,19 @@ private:
 	void update_global_state(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address);
 	Scooby_STEntry* update_local_state(uint64_t pc, uint64_t page, uint32_t offset, uint64_t address);
 	uint32_t predict(uint64_t address, uint64_t page, uint32_t offset, State *state, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
-	bool track(uint64_t address, State *state, uint32_t action_index, Scooby_PTEntry **tracker);
+	bool track(uint64_t address, State *state, uint32_t action_index, float action_value, Scooby_PTEntry **tracker);
 	void reward(uint64_t address);
 	void reward(Scooby_PTEntry *ptentry);
 	void assign_reward(Scooby_PTEntry *ptentry, RewardType type);
 	int32_t compute_reward(Scooby_PTEntry *ptentry, RewardType type);
 	void train(Scooby_PTEntry *curr_evicted, Scooby_PTEntry *last_evicted);
-	vector<Scooby_PTEntry*> search_pt(uint64_t address, bool search_all = false);
+	vector<Scooby_PTEntry*> search_pt(uint64_t address, bool search_all, const deque<Scooby_PTEntry*> &pt);
+    vector<Scooby_PTEntry*> search_all_pts(uint64_t address, bool search_all);
 	void update_stats(uint32_t state, uint32_t action_index, uint32_t pref_degree = 1);
 	void update_stats(State *state, uint32_t action_index, uint32_t degree = 1);
 	void track_in_st(uint64_t page, uint32_t pred_offset, int32_t pref_offset);
-	void gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, uint32_t pref_degree, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
+	void gen_multi_degree_pref(uint64_t page, uint32_t offset, int32_t action, float action_value, uint32_t pref_degree,
+                               vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	uint32_t get_dyn_pref_degree(float max_to_avg_q_ratio, uint64_t page = 0xdeadbeef, int32_t action = 0); /* only implemented for CMAC engine 2.0 */
 	bool is_high_bw();
 
@@ -181,9 +205,11 @@ public:
 	~Scooby();
 	void invoke_prefetcher(uint64_t pc, uint64_t address, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level);
 	void register_fill(uint64_t address);
+    void register_llc_fill(uint64_t address);
 	void register_prefetch_hit(uint64_t address);
 	void dump_stats();
 	void print_config();
+    bool is_high_confidence(float action_value);
 	int32_t getAction(uint32_t action_index);
 	void update_bw(uint8_t bw_level);
 	void update_ipc(uint8_t ipc);

@@ -14,16 +14,15 @@ def get_pc_trace_file(trace, metric, level='llc'):
     """Return name of a pc trace file.
     """
     return f'{trace}_{metric}_{level}_pc_trace.txt'
-    
 
 def _format_prefetcher(pref):
     pref = pref.replace('spp_dev2', 'sppdev2')
     pref = pref.replace('_', ',')
     pref = pref.replace('sppdev2', 'spp_dev2')
     return pref
-    
+
+
 def _format_degree(deg):
-    
     deg = eval(deg)
     deg = ','.join([str(d) if d != None else 'na' for d in deg])
     return deg
@@ -104,7 +103,8 @@ def build_online_pc_traces(pc_stats_file, output_dir, metric, level='llc', dry_r
     
     For evaluation of the prefetcher choices online (via multi_pc_trace).
     """
-     
+    assert metric in metrics, (
+        f'Metric {metric} not in supported metrics {metrics}')
     data = pd.read_csv(pc_stats_file)
     benchmarks = sorted(data.full_trace.unique().tolist())
     
@@ -234,7 +234,3 @@ def build_offline_pc_traces(pref_traces_dir, pc_stats_file, metric, level='llc',
            for b in benchmarks
         ]
         pool.map(_process_offline_pc_benchmark, inputs)
-       
-
-
-        

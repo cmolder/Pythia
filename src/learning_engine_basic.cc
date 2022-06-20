@@ -5,6 +5,7 @@
 #include <sstream>
 #include "learning_engine_basic.h"
 #include "scooby.h"
+#include "scooby_double.h"
 // #include "velma.h"
 #include "util.h"
 
@@ -100,7 +101,7 @@ LearningEngineBasic::~LearningEngineBasic()
 	}
 }
 
-uint32_t LearningEngineBasic::chooseAction(uint32_t state)
+uint32_t LearningEngineBasic::chooseAction(uint32_t state, float &value)
 {
 	stats.action.called++;
 	assert(state < m_states);
@@ -135,6 +136,7 @@ uint32_t LearningEngineBasic::chooseAction(uint32_t state)
 		action_trace_interval = 0;
 	}
 
+    value = consultQ(state, action); // Return Q(s, a) by reference 
 	return action;
 }
 
@@ -230,14 +232,20 @@ void LearningEngineBasic::print_aux_stats()
 
 void LearningEngineBasic::dump_stats()
 {
-	Scooby *scooby = (Scooby*)m_parent;
 	fprintf(stdout, "learning_engine.action.called %lu\n", stats.action.called);
 	fprintf(stdout, "learning_engine.action.explore %lu\n", stats.action.explore);
 	fprintf(stdout, "learning_engine.action.exploit %lu\n", stats.action.exploit);
 	for(uint32_t action = 0; action < m_actions; ++action)
 	{
-		fprintf(stdout, "learning_engine.action.index_%d_explored %lu\n", scooby->getAction(action), stats.action.dist[action][0]);
-		fprintf(stdout, "learning_engine.action.index_%d_exploited %lu\n", scooby->getAction(action), stats.action.dist[action][1]);
+        if(m_parent->get_type() == "scooby_double") {
+            ScoobyDouble *scooby = (ScoobyDouble*)m_parent;
+            fprintf(stdout, "learning_engine.action.index_%d_%s_explored %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? "high" : "low", stats.action.dist[action][0]);
+            fprintf(stdout, "learning_engine.action.index_%d_%s_exploited %lu\n", scooby->getAction(action), scooby->is_high_confidence(action) ? "high" : "low", stats.action.dist[action][1]);
+        } else {
+            Scooby *scooby = (Scooby*)m_parent;
+            fprintf(stdout, "learning_engine.action.index_%d_explored %lu\n", scooby->getAction(action), stats.action.dist[action][0]);
+            fprintf(stdout, "learning_engine.action.index_%d_exploited %lu\n", scooby->getAction(action), stats.action.dist[action][1]);
+        }
 	}
 	fprintf(stdout, "learning_engine.learn.called %lu\n", stats.learn.called);
 	fprintf(stdout, "\n");

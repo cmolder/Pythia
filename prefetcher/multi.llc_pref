@@ -31,7 +31,8 @@ namespace knob
     extern string         prefetch_trace_llc;
     
     extern bool           spp_dev2_pf_llc_only;
-    extern bool           bingo_pf_llc_only;   
+    extern bool           bingo_pf_llc_only;
+    extern bool           scooby_enable_dyn_level;
 }
 
 // vector<Prefetcher*> prefetchers;
@@ -92,6 +93,7 @@ void CACHE::llc_prefetcher_initialize()
 		}
 		else if(!knob::llc_prefetcher_types[index].compare("scooby"))
 		{
+            assert(!knob::scooby_enable_dyn_level); // Can't prefetch to L2 if Pythia operating in LLC. (knob must be false)
 			cout << "adding LLC_PREFETCHER: Scooby" << endl;
 			Scooby *pref_scooby = new Scooby(knob::llc_prefetcher_types[index]);
 			prefetchers.push_back(pref_scooby);
