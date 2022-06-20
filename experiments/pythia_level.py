@@ -40,7 +40,7 @@ Options:
         
     -d / --dry-run
         If passed, builds the experiment but writes nothing to 
-        <experiment-dir>.
+        <experiment-dir>.∂
 '''.format(prog=sys.argv[0], ),
 'eval':
 '''usage: {prog} eval <results-dir> [--output-file <out-file>] 
@@ -53,6 +53,11 @@ Description:
         Determines the best degree for each prefetcher combination.
 
 Options:
+    -w / --weight-file <weights-file>
+        Specifies SimPoint weights for the traces, and caluclates
+        a weighted SimPoint average for the metrics, adding it
+        to the ouput under a "weighted" SimPoint.
+
     -o / --output-file <output-file>
         Specifies what file path to save the stats CSV data to. 
         Default: `{default_output_file}`
@@ -127,10 +132,12 @@ def condor_command():
     print('        Level-awareness:')
     print('            Level threshs  :', cfg.pythia.dyn_level_threshold,
           '(also running without dynamic level)')
-    print('            Separate PT    :', cfg.pythia.separate_lowconf_pt, '(for low-confidence prefetches)')
+    print('            Separate PT    :', cfg.pythia.separate_lowconf_pt, 
+          '(for low-confidence prefetches)')
     print('        Prefetch table:')
     print('            Size           :', cfg.pythia.pt_size)
-    print('            Low conf. size :', cfg.pythia.lowconf_pt_size, '(if separate PT enabled)')
+    print('            Low conf. size :', cfg.pythia.lowconf_pt_size, 
+          '(if separate PT enabled)')
 
     condor.build_pythia_sweep(cfg,
                               dry_run=args.dry_run,
@@ -144,6 +151,10 @@ def eval_command():
     """
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
+    parser.add_argument('-w',
+                        '--weight-file',
+                        type=str,
+                        default=None)
     parser.add_argument('-o',
                         '--output-file',
                         type=str,
@@ -153,6 +164,7 @@ def eval_command():
 
     evaluate.generate_run_csv(args.results_dir,
                               args.output_file,
+                              weights_file=args.weight_file,
                               dry_run=args.dry_run)
 
 

@@ -9,7 +9,7 @@ import os
 import glob
 from tqdm import tqdm
 from itertools import combinations, product
-from exp_utils import defaults, run, pc_trace
+from exp_utils import run, pc_trace
 from exp_utils.file import ChampsimTraceFile
 
 condor_template = 'experiments/exp_utils/condor_template.txt'

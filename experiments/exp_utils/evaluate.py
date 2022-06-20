@@ -5,13 +5,15 @@ Authors: Quang Duong and Carson Molder
 """
 from collections import defaultdict
 import os
-from typing import Optional
+from typing import Optional, Dict
 
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from scipy import stats
 from exp_utils.file import (ChampsimResultsDirectory, ChampsimStatsDirectory,
-                            ChampsimResultsFile, ChampsimStatsFile)
+                            ChampsimResultsFile, ChampsimStatsFile, 
+                            ChampsimFile)
 
 
 def get_run_statistics(
@@ -27,8 +29,8 @@ def get_run_statistics(
         'LLC_accuracy', 'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
         'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
         'pythia_level_threshold', 'pythia_high_conf_prefetches',
-        'pythia_low_conf_prefetches', 'pythia_features', 'seed', 'path',
-        'baseline_path'
+        'pythia_low_conf_prefetches', 'pythia_features', 
+        'pythia_pooling', 'seed', 'path','baseline_path'
     ]
 
     # Don't compare baseline to itself.
@@ -51,6 +53,7 @@ def get_run_statistics(
         'pythia_high_conf_prefetches']
     results['pythia_low_conf_prefetches'] = pf_data[
         'pythia_low_conf_prefetches']
+    results['pythia_pooling'] = pf_data['pythia_pooling']
 
     if baseline_file:
         b_data = baseline_file.read()
@@ -71,10 +74,10 @@ def get_run_statistics(
         pf_mpki = (load_miss + rfo_miss) / pf_data['kilo_inst']
 
         if baseline_file:
-            b_load_miss, b_rfo_miss, b_useful = (b_data[f'{level}_load_miss'],
-                                                 b_data[f'{level}_rfo_miss'],
-                                                 b_data[f'{level}_useful'])
-            #b_total_miss = load_miss + rfo_miss + useful # = b_data[f'{level}_total_miss']
+            b_load_miss, b_rfo_miss = (b_data[f'{level}_load_miss'],
+                                       b_data[f'{level}_rfo_miss'])
+            #b_total_miss = load_miss + rfo_miss + useful 
+            #b_total_miss = b_data[f'{level}_total_miss']
             b_total_miss = b_data[f'{level}_total_miss']
             b_mpki = b_total_miss / b_data['kilo_inst']
             assert np.isclose(b_data['kilo_inst'], pf_data['kilo_inst']), \
@@ -147,16 +150,99 @@ def get_pc_statistics(file: ChampsimStatsFile) -> list[dict]:
 
     return pc_out
 
+def compute_weighted_run(run_df: pd.DataFrame, 
+                         weights: Dict[str, float]) -> pd.Series:
+    """Compute the weighted statistics for a single trace/run (as a DataFrame).
+    """
+    # Sort phases
+    weights = dict(sorted(weights.items()))
+    run_df = run_df.sort_values(by='simpoint')
+    assert run_df.simpoint.tolist() == list(weights.keys()), \
+        'SimPoints do not match'
+
+    wts = np.array(list(weights.values()))
+    weighted_run = run_df.iloc[-1].copy()
+    weighted_run.simpoint = 'weighted'
+
+    weighted_run.L1D_accuracy = np.average(run_df.L1D_accuracy, weights=wts)
+    weighted_run.L1D_coverage = np.average(run_df.L1D_coverage, weights=wts)
+    weighted_run.L1D_mpki = stats.gmean(run_df.L1D_mpki, weights=wts)
+    weighted_run.L1D_mpki_reduction = stats.gmean(run_df.L1D_mpki_reduction, 
+                                                  weights=wts)
+
+    weighted_run.L2C_accuracy = np.average(run_df.L2C_accuracy, weights=wts)
+    weighted_run.L2C_coverage = np.average(run_df.L2C_coverage, weights=wts)
+    weighted_run.L2C_mpki = stats.gmean(run_df.L2C_mpki, weights=wts)
+    weighted_run.L2C_mpki_reduction = stats.gmean(run_df.L2C_mpki_reduction, 
+                                                  weights=wts)
+
+    weighted_run.LLC_accuracy = np.average(run_df.LLC_accuracy, weights=wts)
+    weighted_run.LLC_coverage = np.average(run_df.LLC_coverage, weights=wts)
+    weighted_run.LLC_mpki = stats.gmean(run_df.LLC_mpki, weights=wts)
+    weighted_run.LLC_mpki_reduction = stats.gmean(run_df.LLC_mpki_reduction, 
+                                                  weights=wts)
+
+    weighted_run.dram_bw_epochs = np.average(run_df.dram_bw_epochs, 
+                                             weights=wts)
+    weighted_run.dram_bw_reduction = np.average(run_df.dram_bw_reduction, 
+                                                weights=wts)
+
+    weighted_run.ipc = stats.gmean(run_df.ipc, weights=wts)
+    weighted_run.ipc_improvement = stats.gmean(run_df.ipc_improvement, 
+                                               weights=wts)
+
+    weighted_run.pythia_high_conf_prefetches = np.average(
+        run_df.pythia_high_conf_prefetches, weights=wts)
+    weighted_run.pythia_low_conf_prefetches = np.average(
+        run_df.pythia_low_conf_prefetches, weights=wts)
+
+    return weighted_run
+
+
+def get_weighted_statistics(stats_df: pd.DataFrame, 
+                            weights_file: str) -> pd.DataFrame:
+    """Add weighted statistics to a stats DataFrame.
+    """
+    # Get weights
+    weights = defaultdict(dict) # Trace -> phase -> weight
+    with open(weights_file) as f:
+        for line in f:
+            full_trace, weight = line.split()
+            trace, phase = ChampsimFile._get_trace(full_trace)
+            weights[trace][phase] = float(weight)
+
+    weighted_runs = []
+    for tr in weights:
+        runs = stats_df[stats_df.trace == tr]
+        # Split runs by base features (prefetchers, Pythia stuff)
+        # so that we only have one row per SimPoint in each run.
+        runs.pythia_level_threshold.fillna(value='None', inplace=True)
+        runs.pythia_features.fillna(value='None', inplace=True)
+        run_groups = runs.groupby([
+            'L1D_pref', 'L1D_pref_degree', 'L2C_pref', 'L2C_pref_degree', 
+            'LLC_pref', 'LLC_pref_degree', 'pythia_level_threshold',
+            'pythia_features', 'pythia_pooling', 'seed'])
+        for _, run_df in run_groups:
+            assert(not run_df.simpoint.duplicated().any()), \
+                f'Duplicated SimPoint found for {tr}'
+            assert(len(run_df) == len(weights[tr])), \
+                f'Incorrect number of phases in run for {tr}'
+            weighted_run = compute_weighted_run(run_df, weights[tr])
+            weighted_runs.append(weighted_run)
+            
+    return pd.DataFrame(weighted_runs)
+
 
 def generate_run_csv(results_dir: str,
                      output_file: str,
+                     weights_file: Optional[str] = None,
                      dry_run: bool = False) -> None:
     """Generate cumulative statistics for each run.
     """
     directory = ChampsimResultsDirectory(results_dir)
     stats = []
 
-    # Build stats table
+    # Build stats dictionary
     # TODO: Can we wrap this routine by passing a callable? That way, we can
     #       reuse code between the CSV file creators.
     for file in tqdm(directory, dynamic_ncols=True, unit='file'):
@@ -171,13 +257,22 @@ def generate_run_csv(results_dir: str,
         if row is not None:
             stats.append(row)  # Append row to list, if it isn't None
 
-    # Build and save statistics table
+    # Build stats table
     stats = pd.DataFrame(stats)
+
+    # Add weighted SimPoint, if weights provided
+    # TODO: Also support longest SimPoint
+    if weights_file:
+        print('Computing weighted statistics...')
+        weighted_runs = get_weighted_statistics(stats, weights_file)
+        stats = pd.concat([stats, weighted_runs], ignore_index=True)
+        print(stats)
+
     stats.sort_values(by=[
         'full_trace', 'L1D_pref', 'L2C_pref', 'LLC_pref', 'L2C_pref_degree',
         'LLC_pref_degree', 'pythia_level_threshold', 'pythia_features'
-    ],
-                      inplace=True)
+    ], inplace=True)
+
     if not dry_run:
         print(f'Saving statistics table to {output_file}...')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -246,8 +341,8 @@ def generate_pc_csv(results_dir: str,
     stats = []
 
     # Build stats table
-    # TODO: Try to filter on or explicitly track seed / variants if we can, to avoid
-    #       excessive repeats. But this might not be necessary.
+    # TODO: Try to filter on or explicitly track seed / variants if we can, to 
+    #       avoid excessive repeats. But this might not be necessary.
     # TODO: Can we wrap this routine by passing a callable? That way, we can
     #       reuse code between the CSV file creators.
     for file in tqdm(directory, dynamic_ncols=True, unit='file'):

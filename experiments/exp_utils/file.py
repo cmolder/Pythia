@@ -2,6 +2,7 @@ import os
 import glob
 from collections import defaultdict
 from typing import Optional, Tuple
+from urllib.parse import non_hierarchical
 
 
 class ChampsimFile():
@@ -97,6 +98,7 @@ class ChampsimResultsFile(ChampsimFile):
         # Optional data (not checked in expected_keys)
         pythia_dyn_level = False
         data['pythia_features'] = []
+        data['pythia_pooling'] = non_hierarchical
         data['pythia_level_threshold'] = None
         data['pythia_low_conf_prefetches'] = None
         data['pythia_high_conf_prefetches'] = None
@@ -121,6 +123,8 @@ class ChampsimResultsFile(ChampsimFile):
                 if 'le_featurewise_active_features' in line:
                     data['pythia_features'] = \
                         tuple((line.replace(',','').split())[1:])
+                if 'le_featurewise_pooling_type' in line:
+                    data['pythia_pooling'] = int(line.split()[1])
 
                 # Per-core, cache-level statistics
                 if f'Core_{cpu}' not in line:
