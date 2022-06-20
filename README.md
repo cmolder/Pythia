@@ -1,18 +1,9 @@
-# CS 394R Final project: Improving the Pythia Paper
+This is a fork of https://github.com/CMU-SAFARI/Pythia, with additional improvements and capabilities, described below.
 
-This is the code for our CS 394R project.
-
-Ishan's code can be found in the `ishan` branch.
-
-# ChampSim Experiments
-
-You can launch these scripts from the base repoistory directory.
-- *Example*: In `Pythia/`, run `./experiments/champsim.py run <args>`.
-- *Warning*: Launching these inside the `Pythia/experiments` directory may cause unexpected results, as it doesn't expect to be launched from here.
-
-If you need help, you can run:
-- `./experiments/<experiment.py> help` to get a list of commands
-- `./experiments/<experiment.py> help <command>` to get help for a certain command.
+Highlights:
+- Experiment code (written in Python) that works on HTCondor
+- A robust scheme for evaluating hybrid prefetcher schemes (Prefetcher Zoo)
+- New features for the Pythia prefetcher (level-awareness)
 
 ---
 # Prerequisites
