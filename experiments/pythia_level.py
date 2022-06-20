@@ -4,6 +4,8 @@ Set up and evaluate sweeps for the level-aware
 Pythia prefetcher experiments.
 
 Authors: Quang Duong and Carson Molder
+
+TODO: Refactor to pythia.py
 """
 
 import argparse
@@ -93,38 +95,46 @@ def condor_command():
 
     print('Setting up Condor Prefetcher Zoo experiment:')
     print('    ChampSim:')
-    print('        # sim inst        :', cfg.champsim.sim_instructions, 'M')
-    print('        # warmup inst     :', cfg.champsim.warmup_instructions, 'M')
-    print('        track pc stats?   :', cfg.champsim.track_pc_pref)
-    print('        track addr stats? :', cfg.champsim.track_addr_pref)
-    print('        seeds             :', cfg.champsim.seeds)
+    print('        # sim inst         :', cfg.champsim.sim_instructions, 'M')
+    print('        # warmup inst      :', cfg.champsim.warmup_instructions, 'M')
+    print('        track pc stats?    :', cfg.champsim.track_pc_pref)
+    print('        track addr stats?  :', cfg.champsim.track_addr_pref)
+    print('        seeds              :', cfg.champsim.seeds)
     print('    Directories:')
-    print('        ChampSim          :', cfg.paths.champsim_dir)
-    print('        Experiment        :', cfg.paths.exp_dir)
-    print('        Traces            :', cfg.paths.trace_dir)
+    print('        ChampSim           :', cfg.paths.champsim_dir)
+    print('        Experiment         :', cfg.paths.exp_dir)
+    print('        Traces             :', cfg.paths.trace_dir)
     print('    L1D:')
-    print('        Pref. candidates  :', ', '.join(cfg.l1d.pref_candidates))
-    print('        Max hybrid        :', cfg.l1d.max_hybrid)
+    print('        Pref. candidates   :', ', '.join(cfg.l1d.pref_candidates))
+    print('        Max hybrid         :', cfg.l1d.max_hybrid)
     print('    L2C:')
-    print('        Pref. candidates  :', ', '.join(cfg.l2c.pref_candidates))
-    print('        Max hybrid        :', cfg.l2c.max_hybrid)
+    print('        Pref. candidates   :', ', '.join(cfg.l2c.pref_candidates))
+    print('        Max hybrid         :', cfg.l2c.max_hybrid)
     print('    LLC:')
-    print('        Sets              :', cfg.llc.sets)
-    print('        Pref. candidates  :', ', '.join(cfg.llc.pref_candidates))
-    print('        Replacement       :', cfg.llc.repl)
-    print('        Max hybrid        :', cfg.llc.max_hybrid)
+    print('        Sets               :', cfg.llc.sets)
+    print('        Pref. candidates   :', ', '.join(cfg.llc.pref_candidates))
+    print('        Replacement        :', cfg.llc.repl)
+    print('        Max hybrid         :', cfg.llc.max_hybrid)
     print('    Pythia:')
-    print('        Alpha             :', cfg.pythia.scooby_alpha)
-    print('        Gamma             :', cfg.pythia.scooby_gamma)
-    print('        Epsilon           :', cfg.pythia.scooby_epsilon)
-    print('        Policy            :', cfg.pythia.scooby_policy)
-    print('        Learning type     :', cfg.pythia.scooby_learning_type)
-    print('        Thresh. candidates:', cfg.pythia.scooby_dyn_level_threshold,
+    print('        Learning:')
+    print('            Feature set(s) :', cfg.pythia.features)
+    print('            Pooling        :', cfg.pythia.pooling)
+    print('            Alpha          :', cfg.pythia.alpha)
+    print('            Gamma          :', cfg.pythia.gamma)
+    print('            Epsilon        :', cfg.pythia.epsilon)
+    print('            Policy         :', cfg.pythia.policy)
+    print('            Learning type  :', cfg.pythia.learning_type)
+    print('        Level-awareness:')
+    print('            Level threshs  :', cfg.pythia.dyn_level_threshold,
           '(also running without dynamic level)')
+    print('            Separate PT    :', cfg.pythia.separate_lowconf_pt, '(for low-confidence prefetches)')
+    print('        Prefetch table:')
+    print('            Size           :', cfg.pythia.pt_size)
+    print('            Low conf. size :', cfg.pythia.lowconf_pt_size, '(if separate PT enabled)')
 
-    condor.build_pythia_level_sweep(cfg,
-                                    dry_run=args.dry_run,
-                                    verbose=args.verbose)
+    condor.build_pythia_sweep(cfg,
+                              dry_run=args.dry_run,
+                              verbose=args.verbose)
 
 
 def eval_command():

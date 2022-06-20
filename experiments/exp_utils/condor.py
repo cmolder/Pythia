@@ -420,10 +420,9 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
         generate_condor_list(condor_out_path, condor_paths)
 
 
-def get_extra_knobs_pythia_level(cfg,
-                                 seed=None,
-                                 level_threshold=None,
-                                 features=None):
+def get_extra_knobs_pythia(cfg,
+                           seed=None, level_threshold=None,
+                           features=None, pooling='max'):
     extra_knobs = ''
 
     if level_threshold is not None:
@@ -435,7 +434,7 @@ def get_extra_knobs_pythia_level(cfg,
     if seed is not None:
         extra_knobs += f' --champsim_seed={seed} --scooby_seed={seed}'
 
-    if cfg.pythia.scooby_separate_lowconf_pt is True:
+    if cfg.pythia.separate_lowconf_pt is True:
         extra_knobs += f' --scooby_separate_lowconf_pt=true'
     else:
         extra_knobs += f' --scooby_separate_lowconf_pt=false'
@@ -445,15 +444,19 @@ def get_extra_knobs_pythia_level(cfg,
                         f'{",".join([str(f) for f in features])}')
         extra_knobs += (' --le_featurewise_enable_tiling_offset='
                         f'{"1," * len(features)}')
+    if pooling is not None:
+        if pooling == 'sum':
+            extra_knobs += (' --le_featurewise_pooling_type=1')   # Sum
+        else: extra_knobs += (' --le_featurewise_pooling_type=2') # Max
 
-    extra_knobs += f' --scooby_alpha={cfg.pythia.scooby_alpha}'
-    extra_knobs += f' --scooby_gamma={cfg.pythia.scooby_gamma}'
-    extra_knobs += f' --scooby_epsilon={cfg.pythia.scooby_epsilon}'
-    extra_knobs += f' --scooby_policy={cfg.pythia.scooby_policy}'
-    extra_knobs += f' --scooby_learning_type={cfg.pythia.scooby_learning_type}'
-    extra_knobs += f' --scooby_pt_size={cfg.pythia.scooby_pt_size}'
+    extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
+    extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
+    extra_knobs += f' --scooby_epsilon={cfg.pythia.epsilon}'
+    extra_knobs += f' --scooby_policy={cfg.pythia.policy}'
+    extra_knobs += f' --scooby_learning_type={cfg.pythia.learning_type}'
+    extra_knobs += f' --scooby_pt_size={cfg.pythia.pt_size}'
     extra_knobs += (' --scooby_lowconf_pt_size='
-                    f'{cfg.pythia.scooby_lowconf_pt_size}')
+                    f'{cfg.pythia.lowconf_pt_size}')
 
     return extra_knobs
 
@@ -468,8 +471,8 @@ def any_pythia(l1p, l2p, llp):
     return False
 
 
-def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
-    """Build a level-aware Pythia sweep, for pythia_level.py
+def build_pythia_sweep(cfg, dry_run=False, verbose=False):
+    """Build a sweep over Pythia configurations, for pythia.py
     """
     condor_paths = []
     paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.[g|x]z'))
@@ -487,14 +490,15 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
         p for h in range(1, cfg.llc.max_hybrid + 1)
         for p in combinations(cfg.llc.pref_candidates, h)
     ] + [('no', )]
+    pooling = cfg.pythia.pooling
 
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
         for path in paths:
             for seed in cfg.champsim.seeds:
                 for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                    for feats in cfg.pythia.scooby_features:
-                        for thresh in cfg.pythia.scooby_dyn_level_threshold:
+                    for feats in cfg.pythia.features:
+                        for thresh in cfg.pythia.dyn_level_threshold:
 
                             if all([p == ('no', )
                                     for p in (l1p, l2p, llp)]) or any([
@@ -509,16 +513,17 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                                 l1d_pref=l1p,
                                 l2c_pref=l2p,
                                 llc_pref=llp,
-                                extra_knobs=get_extra_knobs_pythia_level(
+                                extra_knobs=get_extra_knobs_pythia(
                                     cfg,
                                     seed=seed,
                                     level_threshold=thresh,
                                     features=feats,
-                                ),
+                                    pooling=pooling),
                                 extra_suffix=(
                                     f'threshold_{thresh}_'
                                     'features_'
                                     f'{",".join([str(f) for f in feats])}_'
+                                    f'pooling_{pooling}_'
                                     f'seed_{seed}'),
                                 dry_run=dry_run,
                                 verbose=verbose)
@@ -535,14 +540,16 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                                 l1d_pref=l1p,
                                 l2c_pref=l2p,
                                 llc_pref=llp,
-                                extra_knobs=get_extra_knobs_pythia_level(
+                                extra_knobs=get_extra_knobs_pythia(
                                     cfg,
                                     seed=seed,
                                     level_threshold=None,
-                                    features=feats),
+                                    features=feats,
+                                    pooling=pooling),
                                 extra_suffix=(
                                     'features_'
                                     f'{",".join([str(f) for f in feats])}_'
+                                    f'pooling_{pooling}_'
                                     f'seed_{seed}'),
                                 dry_run=dry_run,
                                 verbose=verbose)
@@ -558,11 +565,12 @@ def build_pythia_level_sweep(cfg, dry_run=False, verbose=False):
                             l1d_pref=l1p,
                             l2c_pref=l2p,
                             llc_pref=llp,
-                            extra_knobs=get_extra_knobs_pythia_level(
+                            extra_knobs=get_extra_knobs_pythia(
                                 cfg,
                                 seed=seed,
                                 level_threshold=None,
-                                features=None),
+                                features=None,
+                                pooling=pooling),
                             extra_suffix=f'seed_{seed}',
                             dry_run=dry_run,
                             verbose=verbose)

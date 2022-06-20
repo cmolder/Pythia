@@ -4,19 +4,12 @@ champsim:
     track_pc_pref: false
     track_addr_pref: false
     branch_pred: 'perceptron'
-    seeds:
-        - 1337
-        - 1883
-        - 314159
-        - 271828
-        - 318954
-        - 99814
-        - 650891
+    seeds: [1337]
 l1d:
     pref_candidates: []
     max_hybrid: 1
 l2c:
-    pref_candidates: ['scooby', 'scooby_double']
+    pref_candidates: ['scooby']
     max_hybrid: 1
 llc:
     sets: 2048
@@ -27,54 +20,25 @@ pythia:
     # Learning
     features:
         - [0, 10] # PC+Delta + PC
-    pooling: 'max'
+        - [8, 10] # PC+Delta + Last 4 Deltas
+        - [0, 8, 10] # PC+Delta + PC + Last 4 Deltas
+        - [0, 5, 10] # PC+Delta + PC+Addr + Last 4 Deltas
+        - [0, 5, 8, 10] # PC+Delta + PC+Addr + PC + Last 4 Deltas
+    pooling: 'sum'
     alpha: 0.006508802942367162
-    gamma: 0
+    gamma: 0.556300959940946
     epsilon: 0.0018228444309622588
     policy: 'EGreedy'
     learning_type: 'SARSA'  
     # Double/level-aware Pythia
-    dyn_level_threshold:
-        - -100.0
-        #- -87.5
-        - -75.0
-        #- -62.5
-        - -50.0
-        #- -37.5
-        - -25.0
-        #- -22.5
-        - -20.0
-        #- -17.5
-        - -15.0
-        #- -12.5
-        - -10.0
-        #- -7.5
-        - -5.0
-        #- -2.5
-        - 0.0
-        #- 2.5
-        - 5.0
-        #- 7.5
-        - 10.0
-        #- 12.5
-        - 15.0
-        #- 17.5
-        - 20.0
-        #- 22.5
-        - 25.0
-        #- 37.5
-        - 50.0
-        #- 62.5
-        - 75.0
-        #- 87.5
-        - 100.0 
-    separate_lowconf_pt: true  # Whether to use separate EQs for high- and 
+    dyn_level_threshold: [] 
+    separate_lowconf_pt: false # Whether to use separate EQs for high- and 
                                # low-confidence prefetches (Double Pythia only, for now).
     # Prefetch table
     pt_size: 256
     lowconf_pt_size: 256
 paths:
-    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_separate_eq/'
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_features_sum/'
     trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
     champsim_dir: '/u/cmolder/GitHub/Pythia/'
 condor:

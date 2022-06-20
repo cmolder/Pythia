@@ -24,7 +24,17 @@ llc:
     pref_candidates: []
     max_hybrid: 1
 pythia:
-    scooby_dyn_level_threshold:
+    # Learning
+    features:
+        - [0, 10] # PC+Delta + PC
+    pooling: 'max'
+    alpha: 0.006508802942367162
+    gamma: 0
+    epsilon: 0.0018228444309622588
+    policy: 'EGreedy'
+    learning_type: 'SARSA'  
+    # Double/level-aware Pythia
+    dyn_level_threshold:
         - -100.0
         #- -87.5
         - -75.0
@@ -57,15 +67,12 @@ pythia:
         #- 62.5
         - 75.0
         #- 87.5
-        - 100.0
-    scooby_alpha: 0.006508802942367162
-    scooby_gamma: 0
-    scooby_epsilon: 0.0018228444309622588
-    scooby_policy: 'EGreedy'
-    scooby_learning_type: 'SARSA'   
-    scooby_separate_lowconf_pt: true # Whether to use separate EQs for high- and low-confidence prefetches (Scooby Double only, for now).
-    scooby_pt_size: 256
-    scooby_lowconf_pt_size: 256
+        - 100.0 
+    separate_lowconf_pt: true  # Whether to use separate EQs for high- and 
+                               # low-confidence prefetches (Double Pythia only, for now).
+    # Prefetch table
+    pt_size: 256
+    lowconf_pt_size: 256
 paths:
     exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_gamma_0_separate_eq/'
     trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
