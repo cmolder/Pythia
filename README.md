@@ -5,8 +5,7 @@ Highlights:
 - A robust scheme for evaluating hybrid prefetcher schemes (Prefetcher Zoo)
 - New features for the Pythia prefetcher (level-awareness)
 
----
-# Prerequisites
+## Prerequisites
 - [Python 3](https://www.python.org/)
     - Running and building (via champsim.py) needs no additional libraries.
     - For other scripts:
@@ -17,14 +16,18 @@ Highlights:
     2. [Create a Conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands)
     3. [Activate the environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#activating-an-environment)
     4. Inside the environment, run these commands:
-        - `conda install -c conda-forge "python=3.9" pandas numpy scipy tqdm`
-        - `pip install attrdict PyYAML`
+     ```
+     conda install -c conda-forge "python=3.9" pandas numpy scipy tqdm
+     pip install attrdict PyYAML
+     ```
 
----
-# ChampSim (champsim.py)
-Contains useful commands for building specific ChampSim binaries and running them.
+## Scripts
+Located inside experiments/.
 
-## champsim.py build
+### ChampSim 
+champsim.py: Useful commands for building and running ChampSim.
+
+#### champsim.py build
 Builds a ChampSim binary. The L1D, L2, and LLC prefetchers are configurable, as well as the number of cores, LLC sets, branch predictor, and LLC replacement policy.
 
 Make sure to install `libbf` into your repository before building, see the steps 2/3 of Installation in the original readme below.
@@ -33,67 +36,68 @@ Details about prefetchers:
 - **no**: No prefetcher
 - **multi**: Designed so that a single binary contains all prefetchers, and the prefetchers can be chosen at runtime. Each level has a different set of prefetchers inside its "multi" prefetcher.
 
-## champsim.py run
+#### champsim.py run
 Runs a ChampSim binary, on (a series of) ChampSim traces.
 
----
-# Experiment configurations (exp_config/)
-Defines parameters for creating the experiment sweeps below. Some parameters are specific to the experiment type, and others are used across all experiments. Example files are contained in `experiments/exp_config`.
+### Zoo 
+prefetcher_zoo.py: (TODO)
 
-List of parameters:
-- `champsim`: Specifies parameters of the simulator:
-    - `warmup_instructions`: The number of warmup instructions (in millions)
-    - `sim_instructions`: The number of simulation instructions, after warmup finishes (in millions)
-    - `branch_pred`: The branch predictor to use, defined in `branch/*.bpred`
-- `l1d`, `l2c`, `llc`: Specifies parameters of each level of the cache.
-    - `sets` (LLC only): The number of sets for the cache
-    - `repl` (LLC only): The replacement policy for the cache
-    - `pref_candidates`: A list of prefetch candidates, defined in `prefetchers/multi.<level>_pref`, that will be used within the level.
-    - `max_hybrid`: The maximum hybrid to sweep over. For example, `max_hybrid: 2` will run all combinations of `pref_candiates` up to 2 running at the same time (including each candidate separately, and no prefetcher).
-- `paths`: Specifies paths the experiment will need.
-    - `exp_dir`: Where the outputs of the experiment, and necessary files to run the experiment, will be placed. The structure is as follows:
-        - `<exp_dir>/condor/`: Condor configurations for each run
-        - `<exp_dir>/scripts/`: Scripts to launch each run
-        - `<exp_dir>/champsim_results/`: Saves what ChampSim prints on each run, plus (if requested) additional outputs (e.g. Per-PC stats, Per-address stats, prefetch address traces)
-        - `<exp_dir>/logs/`: Output of the scripts, both stdout (.OUT) and stderr (.ERR)
-        - `<exp_dir>/condor_configs_champsim.txt`: A manifest of condor files, one per line. You can [submit each job manually](https://research.cs.wisc.edu/htcondor/tutorials/intl-grid-school-3/submit_first.html), or use a script to do so in batches.
-    - `trace_dir`: Where the traces reside. It expects compressed traces, with the extension `.trace.gz`.
-    - `champsim_dir`: Where ChampSim resides. Use the base directory of this repository (and don't forget to build the binaries.)
-- `condor`: Specifies the configuration for running on a Condor cluster. This might need to be changed, if your Condor cluster is different.
-    - `user`: The user / email address of the account running the experiments.
-    - `group`: The group of the account running the experiments.
-    - `project`: Similar to group
-    - `description`: A short summary of the experiment name.
-- `pythia`: Specifies parameters for Pythia
-  - `scooby_dyn_level_threshold`: A list of thresholds to sweep over, for Static Threshold Pythia.
-  - `scooby_alpha`: Alpha
-  - `scooby_gamma`: Gamma
-  - `scooby_epsilon`: Epsilon
-  - `scooby_policy`: Action selection policy
-  - `scooby_learning_type`: Update rule (e.g. Sarsa)
-  - `scooby_separate_lowconf_pt`: Whether to use a separate EQ for low-confidence prefetches (for Static Threshold and Double Pythia)
-  - `scooby_pt_size`: Number of entries in the high-confidence/single EQ
-  - `scooby_lowconf_pt_size`: Number of entries in the low-confidence EQ (if it's enabled)
+### Pythia 
+pythia_level.py: Build and evaluate a sweep of the Pythia prefetcher and its variants.
 
-# Pythia (pythia_level.py)
-Build and evaluate a sweep of the Pythia prefetcher and its variants.
-
-## pythia_level.py condor
+#### pythia_level.py condor
 Generates a sweep for the Condor cluster, using a .yml file (see above) for the configuration.
 
 - To test Double Pythia, add `scooby_double` to the list of prefetchers.
 - To test Static Threshold Pythia, add `scooby_dyn_level_threshold` to the `pythia` section.
 - Example files are in `experiments/exp_config`.
 
-## pythia_level.py eval
+#### pythia_level.py eval
 Evaluates a run of the sweep, and outputs statistics to a .csv file.
 
-# Original source code
-- The repository where we worked on Pythia can be found [here](https://github.com/cmolder/Pythia/tree/pythia_level). (Some of the code here is being reused for another project.)
-- The original source code for Pythia can be found [here](https://github.com/CMU-SAFARI/Pythia).
-- The original source code for the Condor scripts can be found [here](https://github.com/Quangmire/ChampSim).
+## Experiment configurations (experiments/exp_config/)
+Experiments are defined in the YAML format. Some parameters are specific to the experiment type, and others are used across all experiments. Example files are in `experiments/exp_config`.
 
-The original readme is below.
+List of parameters:
+- `champsim`: Simulator parameters:
+    - `warmup_instructions`: Number of warmup instructions (in millions)
+    - `sim_instructions`: Number of simulation instructions, after warmup finishes (in millions)
+    - `branch_pred`: Branch predictor (defined in `branch/*.bpred`)
+- `l1d`, `l2c`, `llc`: Cache parameters:
+    - `sets` (LLC only): Number of sets
+    - `repl` (LLC only): Replacement policy
+    - `pref_candidates`: A list of prefetchers to evaluate, on this level's cache (defined in `prefetchers/multi.<level>_pref`).
+    - `max_hybrid`: The maximum hybrid to evaluate. 
+     - *Example*: `max_hybrid: 2` will run all combinations of `pref_candiates`, up to 2 running at the same time (including each candidate separately, and no prefetcher).
+- `paths`: Path parameters:
+    - `exp_dir`: Where outputs of the experiment, and necessary files to run the experiment, will be placed. The structure is as follows:
+        - `<exp_dir>/condor/`: Condor configurations for each run
+        - `<exp_dir>/scripts/`: Scripts to launch each run
+        - `<exp_dir>/champsim_results/`: Saves what ChampSim prints on each run, plus (if requested) additional outputs (e.g. Per-PC stats, Per-address stats, prefetch address traces)
+        - `<exp_dir>/logs/`: Output of the scripts, both stdout (.OUT) and stderr (.ERR)
+        - `<exp_dir>/condor_configs_champsim.txt`: A manifest of condor files, one per line. You can [submit each job manually](https://research.cs.wisc.edu/htcondor/tutorials/intl-grid-school-3/submit_first.html), or use a script to do so in batches.
+    - `trace_dir`: Where traces reside. It expects compressed traces, with the extension `.trace.gz`.
+    - `champsim_dir`: Where ChampSim resides. Use the base directory of this repository (and don't forget to build the binaries.)
+- `condor`: Condor parameters:
+    - `user`: The user / email address of the account running the experiments.
+    - `group`: The group of the account running the experiments.
+    - `project`: Similar to group
+    - `description`: A short summary of the experiment name.
+- `pythia`: Pythia prefetcher parameters:
+  - `dyn_level_threshold`: A list of thresholds to sweep over, for Static Threshold Pythia.
+  - `alpha`: Alpha
+  - `gamma`: Gamma
+  - `epsilon`: Epsilon
+  - `policy`: Action selection policy
+  - `learning_type`: Update rule (e.g. Sarsa)
+  - `separate_lowconf_pt`: Whether to use a separate EQ for low-confidence prefetches (for Static Threshold and Double Pythia)
+  - `pt_size`: Number of entries in the high-confidence/single EQ
+  - `lowconf_pt_size`: Number of entries in the low-confidence EQ (if it's enabled)
+
+## Original source code
+- Pythia / ChampSim: https://github.com/CMU-SAFARI/Pythia
+- Condor scripts: https://github.com/Quangmire/ChampSim
+- gzstream: https://www.cs.unc.edu/Research/compgeom/gzstream
 
 # Original readme
 <p align="center">
