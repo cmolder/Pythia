@@ -20,6 +20,8 @@ llc:
 pythia:
     # Learning
     features:
+        - [0] # PC+Delta
+        - [10] # PC
         - [0, 10] # PC+Delta + PC
         - [8, 10] # PC+Delta + Last 4 Deltas
         - [0, 8, 10] # PC+Delta + PC + Last 4 Deltas

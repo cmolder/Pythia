@@ -24,7 +24,10 @@ class ChampsimFile():
     def __get_full_trace(path: str) -> str:
         """Helper function to get the full trace
         from a path string."""
-        return (os.path.basename(path).split('-')[0].split('.')[0])
+        return '.'.join( # Universally parses SPEC '06, '17, GAP.
+            os.path.basename(path).split('-')[0]
+                                  .replace('.trace', '')
+                                  .split('.')[:-1])
 
     @staticmethod
     def __get_trace(path: str) -> str:
