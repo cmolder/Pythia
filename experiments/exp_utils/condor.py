@@ -10,7 +10,7 @@ import glob
 from tqdm import tqdm
 from itertools import combinations, product
 from exp_utils import run, pc_trace
-from exp_utils.file import ChampsimTraceFile
+from exp_utils.file import ChampsimTraceDirectory, ChampsimTraceFile
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -76,7 +76,7 @@ def generate_condor_list(out, condor_paths):
             print(path, file=f)
 
 
-def generate_run_name(trace_path,
+def generate_run_name(trace: ChampsimTraceFile,
                       llc_sets,
                       branch_pred,
                       llc_repl,
@@ -85,10 +85,8 @@ def generate_run_name(trace_path,
                       l2c_pref_degrees=[],
                       llc_pref=[],
                       llc_pref_degrees=[],
-                      extra_suffix=None):
+                      extra_suffix=None) -> str:
     """Generate a unique run name, given the trace, and prefetchers+degrees."""
-    trace_name = ChampsimTraceFile(trace_path).full_trace
-
     if len(l2c_pref_degrees) == len(l2c_pref):
         l2c_pref_degrees_suffix = ",".join([str(d) for d in l2c_pref_degrees])
     else:
@@ -99,7 +97,7 @@ def generate_run_name(trace_path,
     else:
         llc_pref_degrees_suffix = ",".join(['na' for d in llc_pref])
 
-    out = '-'.join((trace_name, branch_pred, ','.join(l1d_pref),
+    out = '-'.join((trace.full_trace, branch_pred, ','.join(l1d_pref),
                     ','.join(l2c_pref) + '_' + l2c_pref_degrees_suffix,
                     ','.join(llc_pref) + '_' + llc_pref_degrees_suffix,
                     llc_repl, f'{llc_sets}llc_sets'))
@@ -109,7 +107,7 @@ def generate_run_name(trace_path,
 
 
 def build_run(cfg,
-              tr_path,
+              trace: ChampsimTraceFile,
               l1d_pref=['no'],
               l2c_pref=['no'],
               l2c_pref_degrees=[],
@@ -117,14 +115,14 @@ def build_run(cfg,
               llc_pref_degrees=[],
               extra_suffix=None,
               extra_knobs=None,
-              dry_run=False,
-              verbose=False):
+              dry_run: bool=False,
+              verbose: bool=False) -> str:
     """Build a single run and its necessary files. Return
     the path to the saved condor file.
     
     Parameters:
-        tr_path: string
-            Path to trace
+        trace: ChampsimTraceFile
+            Trace file
             
         llc_pref: List[string]
             List of prefetchers that are in multi.llc_pref 
@@ -155,7 +153,7 @@ def build_run(cfg,
         condor_file: string
             Path to Condor file
     """
-    run_name = generate_run_name(tr_path,
+    run_name = generate_run_name(trace,
                                  cfg.llc.sets,
                                  cfg.champsim.branch_pred,
                                  cfg.llc.repl,
@@ -216,13 +214,10 @@ def build_run(cfg,
 
     # Add PC trace path, if we are running the pc_trace prefetcher.
     if llc_pref == ('pc_trace', ):
-        full_trace = (ChampsimTraceFile(tr_path).full_trace
-                                                .split('.')[0])
         pc_trace_file = os.path.join(
             cfg.paths.pc_trace_dir, 
-            pc_trace.get_pc_trace_file(full_trace, cfg.pc_trace.metric, 
-                                       level='llc')
-        )
+            pc_trace.get_pc_trace_file(trace.full_trace, 
+                                       cfg.pc_trace.metric, level='llc'))
         pc_trace_credit = cfg.pc_trace.credit
         pc_trace_invoke_all = cfg.pc_trace.invoke_all
         
@@ -233,16 +228,13 @@ def build_run(cfg,
         pc_trace_invoke_all = False
         pc_trace_credit = False
         
-        
     # Add prefetch trace path, if we are running the from_file prefetcher.
     # NOTE: Running from_file for the Prefetcher zoo defaults to the relevant offline PC trace.
     if llc_pref == ('from_file',):
-        full_trace = (ChampsimTraceFile(tr_path).full_trace
-                                                .split('.')[0])
         pref_trace_file = os.path.join(
             cfg.paths.pref_trace_dir, 
-            pc_trace.get_pref_trace_file(full_trace, cfg.pref_trace.metric, level='llc')
-        )
+            pc_trace.get_pref_trace_file(trace.full_trace, 
+                                         cfg.pref_trace.metric, level='llc'))
         
         if verbose:
             print(f'    pref_trace file  : {pref_trace_file}' )    
@@ -254,7 +246,7 @@ def build_run(cfg,
         script_file,
         dry_run,
         champsim_dir=cfg.paths.champsim_dir,
-        trace_file=tr_path,
+        trace_file=trace.path,
         cores=1,
         l1d_pref=' '.join(l1d_pref),
         l2c_pref=' '.join(l2c_pref),
@@ -300,7 +292,7 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
                if 'degree_csv' in cfg.paths else None)
 
     condor_paths = []
-    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
+    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
 
     # Get all combinations of hybrids up to <max_hybrid>
     l1d_prefs = [
@@ -318,27 +310,22 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
 
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for path in paths:
+        for trace in traces:
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-
-                trace_name = ChampsimTraceFile(path).full_trace
-
                 if not isinstance(degrees, type(None)):
                     l2c_pref_degree = list(
-                        eval(degrees[degrees.Trace == trace_name][str(
+                        eval(degrees[degrees.Trace == trace.full_trace][str(
                             ('_'.join(l1p), '_'.join(l2p), '_'.join(llp)
                              ))].item())[0]) if l2p != ('no', ) else []
                     llc_pref_degree = list(
-                        eval(degrees[degrees.Trace == trace_name][str(
+                        eval(degrees[degrees.Trace == trace.full_trace][str(
                             ('_'.join(l1p), '_'.join(l2p), '_'.join(llp)
                              ))].item())[1]) if llp != ('no', ) else []
                 else:
                     l2c_pref_degree, llc_pref_degree = [], []
 
-                #print('[DEBUG]', trace_name, l1p, l2p, llp, l2c_pref_degree, llc_pref_degree)
-
                 c_path = build_run(cfg,
-                                   path,
+                                   trace,
                                    l1d_pref=l1p,
                                    l2c_pref=l2p,
                                    llc_pref=llp,
@@ -385,7 +372,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
         'Cannot tune pc_trace for degree')
 
     condor_paths = []
-    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.trace.*'))
+    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
 
     # Get all combinations of hybrids up to <max_hybrid>
     l1d_prefs = [
@@ -403,7 +390,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
 
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for path in paths:
+        for trace in traces:
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
                 for d in product(
                         *[list(range(1, cfg.l2c.max_degree + 1))] * len(l2p),
@@ -416,7 +403,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
 
                     #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
                     c_path = build_run(cfg,
-                                       path,
+                                       trace,
                                        l1d_pref=l1p,
                                        l2c_pref=l2p,
                                        l2c_pref_degrees=l2d,
@@ -493,7 +480,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
     """Build a sweep over Pythia configurations, for pythia.py
     """
     condor_paths = []
-    paths = glob.glob(os.path.join(cfg.paths.trace_dir, '*.[g|x]z'))
+    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
 
     # Get all combinations of hybrids up to <max_hybrid>
     l1d_prefs = [
@@ -512,7 +499,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
 
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for path in paths:
+        for trace in traces:
             for seed in cfg.champsim.seeds:
                 for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
                     for feats in cfg.pythia.features:
@@ -527,7 +514,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
 
                             c_path = build_run(
                                 cfg,
-                                path,
+                                trace,
                                 l1d_pref=l1p,
                                 l2c_pref=l2p,
                                 llc_pref=llp,
@@ -554,7 +541,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
                         if any_pythia(l1p, l2p, llp):
                             c_path = build_run(
                                 cfg,
-                                path,
+                                trace,
                                 l1d_pref=l1p,
                                 l2c_pref=l2p,
                                 llc_pref=llp,
@@ -579,7 +566,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
                     if not any_pythia(l1p, l2p, llp):
                         c_path = build_run(
                             cfg,
-                            path,
+                            trace,
                             l1d_pref=l1p,
                             l2c_pref=l2p,
                             llc_pref=llp,

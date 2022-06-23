@@ -24,10 +24,13 @@ class ChampsimFile():
     def __get_full_trace(path: str) -> str:
         """Helper function to get the full trace
         from a path string."""
-        return '.'.join( # Universally parses SPEC '06, '17, GAP.
-            os.path.basename(path).split('-')[0]
-                                  .replace('.trace', '')
-                                  .split('.')[:-1])
+
+        # Universally parses SPEC '06, '17, GAP.
+        return (os.path.basename(path)
+                .split('-')[0]
+                .replace('.xz', '')
+                .replace('.gz', '')
+                .replace('.trace', ''))
 
     @staticmethod
     def __get_trace(path: str) -> str:
@@ -41,32 +44,6 @@ class ChampsimFile():
         if len(tokens) == 3:  # Cloudsuite, e.g. cassandra_phase0_core0
             # Trace: name_core; Simpoint: phase
             return tokens[0] + '_' + tokens[2], tokens[1]
-
-
-class WeightFile():
-    """Class for handling weights files for SimPoints (weights.txt)
-
-    Format of each line:
-    <trace_phase> <weight normalized to 1.0>
-    """
-    def __init__(self, path: str):
-        self.weights = defaultdict(dict)
-        with open(path) as f:
-            for line in f:
-                if line == '\n':
-                    continue
-                full_trace, weight = line.split()
-                dummy = ChampsimFile(full_trace) # TODO: Remove dummy "file"
-                self.weights[dummy.trace][dummy.simpoint] = float(weight)
-
-    def get_trace_weights(self, trace: str) -> Dict[str, float]:
-        return self.weights[trace]
-
-    def get_simpoint_weight(self, trace: str, simpoint: str) -> float:
-        return self.weights[trace][simpoint]
-
-    def get_traces(self):
-        return self.weights.keys()
 
 
 class ChampsimTraceFile(ChampsimFile):
@@ -366,6 +343,32 @@ class ChampsimStatsFile(ChampsimResultsFile):
         return stats
 
 
+class WeightFile():
+    """Class for handling weights files for SimPoints (weights.txt)
+
+    Format of each line:
+    <trace_phase> <weight normalized to 1.0>
+    """
+    def __init__(self, path: str):
+        self.weights = defaultdict(dict)
+        with open(path) as f:
+            for line in f:
+                if line == '\n':
+                    continue
+                full_trace, weight = line.split()
+                dummy = ChampsimFile(full_trace) # TODO: Remove dummy "file"
+                self.weights[dummy.trace][dummy.simpoint] = float(weight)
+
+    def get_trace_weights(self, trace: str) -> Dict[str, float]:
+        return self.weights[trace]
+
+    def get_simpoint_weight(self, trace: str, simpoint: str) -> float:
+        return self.weights[trace][simpoint]
+
+    def get_traces(self):
+        return self.weights.keys()
+
+
 class ChampsimDirectory():
     """Base class for handling directories relating to ChampSim.
     
@@ -377,8 +380,6 @@ class ChampsimDirectory():
     def __init__(self, path: str):
         self.paths = []
         self.files = []
-        self.baselines: dict = {}  # Points to the baseline ChampsimFile
-        # for (full_trace, seed)
 
     def __len__(self) -> int:
         return len(self.files)
@@ -394,6 +395,23 @@ class ChampsimDirectory():
             'Base class ChampsimDirectory does not implement _gather_files')
 
 
+class ChampsimTraceDirectory(ChampsimDirectory):
+    """A directory of ChampSim trace files (ChampsimTraceFile).
+    
+    Organizes files into a flat dictionary:
+        trace
+    """    
+    def __init__(self, path: str):
+        super().__init__(path)
+        self.paths = glob.glob(os.path.join(path, '*.[g|x]z'))
+        self.__gather_files()
+
+    def __gather_files(self) -> None:
+        for path in self.paths:
+            file = ChampsimTraceFile(path)
+            self.files.append(file)
+            
+
 class ChampsimResultsDirectory(ChampsimDirectory):
     """A directory of ChampSim result files (ChampsimResultFile).
     
@@ -404,6 +422,8 @@ class ChampsimResultsDirectory(ChampsimDirectory):
     def __init__(self, path: str):
         super().__init__(path)
         self.paths = glob.glob(os.path.join(path, '*.txt'))
+        self.baselines: dict = {}  # Points to the baseline ChampsimFile
+                                   # for (full_trace, seed)
         self.__gather_files()
 
     def get_baseline(self, trace: str, seed: int) -> ChampsimResultsFile:
