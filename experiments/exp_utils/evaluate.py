@@ -253,6 +253,10 @@ def generate_run_csv(results_dir: str,
                      dry_run: bool = False) -> None:
     """Generate cumulative statistics for each run.
     """
+    # Automatically append "champsim_results/" if it wasn't supplied.
+    if not os.path.dirname(results_dir).endswith('champsim_results'):
+        results_dir = os.path.join(results_dir, 'champsim_results/')
+    print(f'Reading result files from "{results_dir}"')
     directory = ChampsimResultsDirectory(results_dir)
     stats = []
 
@@ -299,6 +303,10 @@ def generate_best_degree_csv(results_dir: str,
                              dry_run: bool = False) -> None:
     """Generate the best degree for each prefetcher on each run.
     """
+    # Automatically append "champsim_results/" if it wasn't supplied.
+    if not os.path.dirname(results_dir).endswith('champsim_results'):
+        results_dir = os.path.join(results_dir, 'champsim_results/')
+    print(f'Reading result files from "{results_dir}"')
     directory = ChampsimResultsDirectory(results_dir)
     prefetchers = set()
     scores = defaultdict(lambda: defaultdict(dict))
@@ -350,6 +358,10 @@ def generate_pc_csv(results_dir: str,
                     dry_run: bool = False) -> None:
     """Generate statistics on each PC for each prefetcher on each run.
     """
+    # Automatically append "champsim_results/" if it wasn't supplied.
+    if not os.path.dirname(results_dir).endswith('champsim_results'):
+        results_dir = os.path.join(results_dir, 'champsim_results/')
+    print(f'Reading result files from "{results_dir}"')
     directory = ChampsimStatsDirectory(
         os.path.join(results_dir, 'pc_pref_stats'))
     stats = []
