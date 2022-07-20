@@ -346,7 +346,7 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
         generate_condor_list(condor_out_path, condor_paths)
 
 
-def _should_skip_degree_combination(l2c_pref, llc_pref, degs):
+def _should_skip_degree_combination(l2c_pref, llc_pref, degs, cfg):
     """Helper function to skip redundant degree sweeps,
     on prefetchers that aren't tunable w.r.t degree.
     
@@ -359,6 +359,8 @@ def _should_skip_degree_combination(l2c_pref, llc_pref, degs):
     #print('[DEBUG]', prefs, degs)
 
     for i, pref in enumerate(prefs):
+        if pref == 'scooby' and cfg.pythia.dyn_degree is True:
+            return True
         if pref not in run.pref_degree_knobs.keys() and degs[i] != 1:
             return True
     return False
@@ -396,11 +398,10 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
                         *[list(range(1, cfg.l2c.max_degree + 1))] * len(l2p),
                         *[list(range(1, cfg.llc.max_degree + 1))] * len(llp)):
 
-                    if _should_skip_degree_combination(l2p, llp, d):
+                    if _should_skip_degree_combination(l2p, llp, d, cfg):
                         continue
 
                     l2d, lld = d[:len(l2p)], d[len(l2p):]
-
                     #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
                     c_path = build_run(cfg,
                                        trace,
@@ -410,7 +411,11 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
                                        llc_pref=llp,
                                        llc_pref_degrees=lld,
                                        dry_run=dry_run,
-                                       verbose=verbose)
+                                       verbose=verbose,
+                                       extra_knobs=get_extra_knobs_pythia(
+                                        cfg,
+                                        dyn_degree=cfg.pythia.dyn_degree
+                                       ))
 
                     condor_paths.append(c_path)
                     pbar.update(1)
@@ -427,7 +432,8 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
 
 def get_extra_knobs_pythia(cfg,
                            seed=None, level_threshold=None,
-                           features=None, pooling='max'):
+                           features=None, pooling='max', 
+                           dyn_degree=True):
     extra_knobs = ''
 
     if level_threshold is not None:
@@ -441,6 +447,8 @@ def get_extra_knobs_pythia(cfg,
 
     if cfg.pythia.separate_lowconf_pt is True:
         extra_knobs += f' --scooby_separate_lowconf_pt=true'
+        extra_knobs += (' --scooby_lowconf_pt_size='
+                       f'{cfg.pythia.lowconf_pt_size}')
     else:
         extra_knobs += f' --scooby_separate_lowconf_pt=false'
 
@@ -453,6 +461,10 @@ def get_extra_knobs_pythia(cfg,
         if pooling == 'sum':
             extra_knobs += (' --le_featurewise_pooling_type=1')   # Sum
         else: extra_knobs += (' --le_featurewise_pooling_type=2') # Max
+    if dyn_degree is True:
+        extra_knobs += (' --scooby_enable_dyn_degree=true')
+    else:
+        extra_knobs += (' --scooby_enable_dyn_degree=false')
 
     extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
     extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
@@ -460,8 +472,6 @@ def get_extra_knobs_pythia(cfg,
     extra_knobs += f' --scooby_policy={cfg.pythia.policy}'
     extra_knobs += f' --scooby_learning_type={cfg.pythia.learning_type}'
     extra_knobs += f' --scooby_pt_size={cfg.pythia.pt_size}'
-    extra_knobs += (' --scooby_lowconf_pt_size='
-                    f'{cfg.pythia.lowconf_pt_size}')
 
     return extra_knobs
 

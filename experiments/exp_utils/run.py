@@ -13,7 +13,7 @@ pref_degree_knobs = {
     'bop': 'bop_pref_degree',
     'dspatch': 'dspatch_pref_degree',
     'mlop': 'mlop_pref_degree',
-    #'scooby'  : 'scooby_pref_degree', # Default - it can be dynamic
+    'scooby'  : 'scooby_pref_degree', # Note, it can be dynamic
     'sisb': 'sisb_pref_degree',
     'sms': 'sms_pref_degree',
     #'spp_dev2': 'spp_pref_degree', # Has no effect on SPP.

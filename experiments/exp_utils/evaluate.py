@@ -28,7 +28,7 @@ def get_run_statistics(
         'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
         'pythia_level_threshold', 'pythia_high_conf_prefetches',
         'pythia_low_conf_prefetches', 'pythia_features', 
-        'pythia_pooling', 'seed', 'path','baseline_path'
+        'pythia_pooling', 'all_pref', 'seed', 'path', 'baseline_path'
     ]
 
     # Don't compare baseline to itself.
@@ -107,6 +107,8 @@ def get_run_statistics(
     results['seed'] = pf_data['seed']
     results['path'] = file.path
     results['baseline_path'] = baseline_file.path
+    results['all_pref'] = (
+        results['L1D_pref'], results['L2C_pref'], results['LLC_pref'])
     assert all([k in stats_columns for k in results.keys()
                 ]), f'Columns missing for row in {file.path}'
     return results

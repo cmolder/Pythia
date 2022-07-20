@@ -1,0 +1,49 @@
+# Evaluate baselines (SPP, Bingo, IP Stride) for Pythia Features runs.
+# (see exp_config/pythia/features for comparisons)
+#
+# Fixed for degree.
+
+champsim:
+    warmup_instructions: 25
+    sim_instructions: 100
+    track_pc_stats: true
+    track_addr_stats: false
+    track_pref: true
+    branch_pred: 'perceptron'
+    seeds: [1337]
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates:
+        - 'bingo'    # Bingo
+        - 'spp_dev2' # SPP
+        - 'stride'   # IP Stride
+        - 'scooby'
+    max_hybrid: 2
+    max_degree: 2
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates: []
+    max_hybrid: 1
+    max_degree: 1
+paths:
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_features_degree/'
+    trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Prefetcher Degree Sweep'
+pythia:
+    alpha: 0.006508802942367162
+    gamma: 0.556300959940946
+    epsilon: 0.0018228444309622588
+    policy: 'EGreedy'
+    learning_type: 'SARSA'  
+    pooling: 'max'
+    pt_size: 256
+    separate_lowconf_pt: False
+    dyn_degree: false  # Dynamic prefetch degree

@@ -129,7 +129,11 @@ class ChampsimResultsFile(ChampsimFile):
                     data['pythia_features'] = \
                         tuple((line.replace(',','').split())[1:])
                 if 'le_featurewise_pooling_type' in line:
-                    data['pythia_pooling'] = int(line.split()[1])
+                    pythia_pooling = int(line.split()[1])
+                    if pythia_pooling == 1:
+                        data['pythia_pooling'] = 'sum'
+                    else:
+                        data['pythia_pooling'] = 'max'
 
                 # Per-core, cache-level statistics
                 if f'Core_{cpu}' not in line:

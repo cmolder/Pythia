@@ -4,22 +4,12 @@
 Set up and evaluate sweeps to tune prefetchers'
 degrees.
 
-TODO : Need to implement
-
 Authors: Quang Duong and Carson Molder
 """
 
 import argparse
 import os
 import sys
-import shutil
-import itertools
-from collections import defaultdict
-
-import pandas as pd
-import numpy as np
-from scipy import stats
-from tqdm import tqdm
 
 from exp_utils import config, condor, evaluate
 
