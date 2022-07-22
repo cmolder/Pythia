@@ -412,10 +412,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
                                        llc_pref_degrees=lld,
                                        dry_run=dry_run,
                                        verbose=verbose,
-                                       extra_knobs=get_extra_knobs_pythia(
-                                        cfg,
-                                        dyn_degree=cfg.pythia.dyn_degree
-                                       ))
+                                       extra_knobs=get_extra_knobs_pythia(cfg))
 
                     condor_paths.append(c_path)
                     pbar.update(1)
@@ -432,8 +429,7 @@ def build_degree_sweep(cfg, dry_run=False, verbose=False):
 
 def get_extra_knobs_pythia(cfg,
                            seed=None, level_threshold=None,
-                           features=None, pooling='max', 
-                           dyn_degree=True):
+                           features=None):
     extra_knobs = ''
 
     if level_threshold is not None:
@@ -454,17 +450,20 @@ def get_extra_knobs_pythia(cfg,
 
     if features is not None:
         extra_knobs += (' --le_featurewise_active_features='
-                        f'{",".join([str(f) for f in features])}')
+                        f'{",".join([str(f) for f in featqures])}')
         extra_knobs += (' --le_featurewise_enable_tiling_offset='
                         f'{"1," * len(features)}')
-    if pooling is not None:
-        if pooling == 'sum':
-            extra_knobs += (' --le_featurewise_pooling_type=1')   # Sum
-        else: extra_knobs += (' --le_featurewise_pooling_type=2') # Max
-    if dyn_degree is True:
-        extra_knobs += (' --scooby_enable_dyn_degree=true')
+
+    if cfg.pythia.pooling == 'sum':
+        extra_knobs += (' --le_featurewise_pooling_type=1') # Sum
     else:
+        extra_knobs += (' --le_featurewise_pooling_type=2') # Max
+    
+    if cfg.pythia.dyn_degree is False:
         extra_knobs += (' --scooby_enable_dyn_degree=false')
+        extra_knobs += (f' --scooby_pref_degree={cfg.pythia.degree}')
+    else:
+        extra_knobs += (' --scooby_enable_dyn_degree=true')
 
     extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
     extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
@@ -505,7 +504,6 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
         p for h in range(1, cfg.llc.max_hybrid + 1)
         for p in combinations(cfg.llc.pref_candidates, h)
     ] + [('no', )]
-    pooling = cfg.pythia.pooling
 
     print('Generating runs...')
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
@@ -532,8 +530,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
                                     cfg,
                                     seed=seed,
                                     level_threshold=thresh,
-                                    features=feats,
-                                    pooling=pooling),
+                                    features=feats),
                                 extra_suffix=(
                                     f'threshold_{thresh}_'
                                     'features_'
@@ -559,12 +556,11 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
                                     cfg,
                                     seed=seed,
                                     level_threshold=None,
-                                    features=feats,
-                                    pooling=pooling),
+                                    features=feats),
                                 extra_suffix=(
                                     'features_'
                                     f'{",".join([str(f) for f in feats])}_'
-                                    f'pooling_{pooling}_'
+                                    f'pooling_{cfg.pythia.pooling}_'
                                     f'seed_{seed}'),
                                 dry_run=dry_run,
                                 verbose=verbose)
@@ -584,8 +580,7 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
                                 cfg,
                                 seed=seed,
                                 level_threshold=None,
-                                features=None,
-                                pooling=pooling),
+                                features=None),
                             extra_suffix=f'seed_{seed}',
                             dry_run=dry_run,
                             verbose=verbose)
@@ -599,5 +594,5 @@ def build_pythia_sweep(cfg, dry_run=False, verbose=False):
     if not dry_run:
         condor_out_path = os.path.join(cfg.paths.exp_dir,
                                        'condor_configs_champsim.txt')
-        print(f'Saving condor configs to {condor_out_path}...')
+        print(f'Saving condor configs to "{condor_out_path}"')
         generate_condor_list(condor_out_path, condor_paths)

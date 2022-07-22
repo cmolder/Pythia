@@ -20,15 +20,24 @@ def get_run_statistics(
     """Get cumulative statistics from a ChampSim output / results file.
     """
     stats_columns = [
-        'full_trace', 'trace', 'simpoint', 'L1D_pref', 'L1D_pref_degree',
-        'L1D_accuracy', 'L1D_coverage', 'L1D_mpki', 'L1D_mpki_reduction',
-        'L2C_pref', 'L2C_pref_degree', 'L2C_accuracy', 'L2C_coverage',
-        'L2C_mpki', 'L2C_mpki_reduction', 'LLC_pref', 'LLC_pref_degree',
-        'LLC_accuracy', 'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
-        'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
+        # Trace and SimPoint
+        'full_trace', 'trace', 'simpoint', 
+        # L1D Stats
+        'L1D_pref', 'L1D_pref_degree', 'L1D_issued_prefetches', 'L1D_accuracy', 
+        'L1D_coverage', 'L1D_mpki',  'L1D_mpki_reduction', 
+        # L2C stats
+        'L2C_pref', 'L2C_pref_degree', 'L2C_issued_prefetches', 'L2C_accuracy', 
+        'L2C_coverage', 'L2C_mpki', 'L2C_mpki_reduction', 
+        # LLC stats
+        'LLC_pref', 'LLC_pref_degree', 'LLC_issued_prefetches', 'LLC_accuracy', 
+        'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
+        # DRAM / CPU stats
+        'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement', 
+        # Pythia stats
         'pythia_level_threshold', 'pythia_high_conf_prefetches',
-        'pythia_low_conf_prefetches', 'pythia_features', 
-        'pythia_pooling', 'all_pref', 'seed', 'path', 'baseline_path'
+        'pythia_low_conf_prefetches', 'pythia_features', 'pythia_pooling', 
+        # General info (prefetcher, simulator, results file, etc.)
+        'all_pref', 'seed', 'path', 'baseline_path'
     ]
 
     # Don't compare baseline to itself.
@@ -87,6 +96,7 @@ def get_run_statistics(
         results[f'{level}_pref'] = file.get_prefetcher_at_level(level)
         results[f'{level}_pref_degree'] = file.get_prefetcher_degree_at_level(
             level)
+        results[f'{level}_issued_prefetches'] = iss_prefetches
         results[f'{level}_accuracy'] = 100.0 if (
             useful + useless == 0) else useful / (useful + useless) * 100.
         results[f'{level}_coverage'] = np.nan if (
@@ -292,7 +302,7 @@ def generate_run_csv(results_dir: str,
     ], inplace=True)
 
     if not dry_run:
-        print(f'Saving statistics table to {output_file}...')
+        print(f'Saving statistics table to "{output_file}"')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         stats.to_csv(output_file, index=False)
 
@@ -347,7 +357,7 @@ def generate_best_degree_csv(results_dir: str,
 
     # Save best degree table
     if not dry_run:
-        print(f'Saving best degree table to {output_file}...')
+        print(f'Saving best degree table to "{output_file}"')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         df = df.to_csv(output_file, index=False)
 
@@ -383,6 +393,6 @@ def generate_pc_csv(results_dir: str,
     stats.sort_values(by=['full_trace', 'pref', 'pref_degree'], inplace=True)
     if not dry_run:
         print(f'Saving per-PC {level} prefetch statistics table '
-              f'to {output_file}...')
+              f'to "{output_file}"')
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         stats.to_csv(output_file, index=False)
