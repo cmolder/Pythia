@@ -450,7 +450,7 @@ def get_extra_knobs_pythia(cfg,
 
     if features is not None:
         extra_knobs += (' --le_featurewise_active_features='
-                        f'{",".join([str(f) for f in featqures])}')
+                        f'{",".join([str(f) for f in features])}')
         extra_knobs += (' --le_featurewise_enable_tiling_offset='
                         f'{"1," * len(features)}')
 

@@ -1,6 +1,6 @@
 champsim:
-    warmup_instructions: 25
-    sim_instructions: 100
+    warmup_instructions: 50
+    sim_instructions: 200
     track_pc_stats: false
     track_addr_stats: false
     track_pref: false
