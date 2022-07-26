@@ -271,6 +271,7 @@ uint32_t CACHE::llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
         if(pref_name != "spp_ppf_dev" 
            && pref_name != "mlop" 
            && pref_name != "triage" 
+		   && pref_name != "bingo"
            && !pref_addr.empty())
         {
             assert(pref_addr.size() == pref_level.size());

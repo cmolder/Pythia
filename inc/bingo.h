@@ -17,6 +17,7 @@ using namespace std;
 namespace knob
 {
     extern bool bingo_pf_llc_only;
+    extern uint32_t bingo_max_degree;
 }
 
 class FilterTableData {
@@ -359,6 +360,15 @@ public:
       Super::set_mru(key);
    }
 
+   bool should_continue_prefetch_(const CACHE *cache, const vector<uint64_t> &pref_addr) const {
+             // There is remaining space in the MSHR.
+      return ((cache->PQ.occupancy + cache->MSHR.occupancy < cache->MSHR.SIZE - 1)
+              // There is remaining space in the PQ.
+              && (cache->PQ.occupancy < cache->PQ.SIZE)
+              // Cap the number of prefetches if degree knob is enabled.
+              && (knob::bingo_max_degree == 0 || pref_addr.size() < knob::bingo_max_degree));
+   }
+
    int prefetch(CACHE *cache, uint64_t block_address, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level) {
       if (this->debug_level >= 2) {
          cerr << "PrefetchStreamer::prefetch(cache=" << cache->NAME << ", block_address=0x" << hex << block_address
@@ -390,10 +400,10 @@ public:
             pf_offset = region_offset + sgn * d;
             if (0 <= pf_offset && pf_offset < this->pattern_len && pattern[pf_offset] > 0) {
                uint64_t pf_address = (region_number * this->pattern_len + pf_offset) << LOG2_BLOCK_SIZE;
-               if (cache->PQ.occupancy + cache->MSHR.occupancy < cache->MSHR.SIZE - 1 && cache->PQ.occupancy < cache->PQ.SIZE) {
+               if (should_continue_prefetch_(cache, pref_addr)) {
                   pref_addr.push_back(pf_address);
                   pref_level.push_back((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]);
-                  //cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
+                  cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
                   pf_issued += 1;
                   pattern[pf_offset] = 0;
                } else {

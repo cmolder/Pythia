@@ -99,6 +99,7 @@ namespace knob
 	/* SPP_dev2 */
 	uint32_t spp_dev2_fill_threshold = 90;
 	uint32_t spp_dev2_pf_threshold = 25;
+	uint32_t spp_dev2_max_degree = 0;  // 0 = no limit
     bool     spp_dev2_pf_llc_only = false;
 
 	/* BOP */
@@ -176,6 +177,7 @@ namespace knob
 	uint32_t bingo_pht_ways = 16;
 	uint32_t bingo_pf_streamer_size = 128;
 	uint32_t bingo_debug_level = 0;
+	uint32_t bingo_max_degree = 0;  // 0 = no limit
 	float    bingo_l1d_thresh;
 	float    bingo_l2c_thresh;
 	float    bingo_llc_thresh;
@@ -679,6 +681,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 		knob::spp_dev2_pf_threshold = atoi(value);
 	}
+	else if (MATCH("", "spp_dev2_max_degree"))
+	{
+		knob::spp_dev2_max_degree = atoi(value);
+	}
     else if (MATCH("", "spp_dev2_pf_llc_only"))
 	{
 		knob::spp_dev2_pf_llc_only = !strcmp(value, "true") ? true : false;
@@ -941,6 +947,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	else if (MATCH("", "bingo_debug_level"))
 	{
 	   knob::bingo_debug_level = atoi(value);
+	}
+	else if (MATCH("", "bingo_max_degree"))
+	{
+	   knob::bingo_max_degree = atoi(value);
 	}
 	else if (MATCH("", "bingo_l1d_thresh"))
 	{

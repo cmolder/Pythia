@@ -9,6 +9,7 @@ namespace knob
 {
     extern uint32_t spp_dev2_fill_threshold;
     extern uint32_t spp_dev2_pf_threshold;
+    extern uint32_t spp_dev2_max_degree;
     extern bool spp_dev2_pf_llc_only;
 }
 
@@ -106,19 +107,19 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
 
         do_lookahead = 0;
         breadth = 0;
-        for (uint32_t i = pf_q_head; i < pf_q_tail; i++) {
+        uint32_t i = pf_q_head; // Index
+        while ((i < pf_q_tail)
+               && (knob::spp_dev2_max_degree == 0 || pref_addr.size() <= knob::spp_dev2_max_degree)) {
             if (confidence_q[i] >= knob::spp_dev2_pf_threshold) {
                 uint64_t pf_addr = (base_addr & ~(BLOCK_SIZE - 1)) + (delta_q[i] << LOG2_BLOCK_SIZE);
 
                 if ((addr & ~(PAGE_SIZE - 1)) == (pf_addr & ~(PAGE_SIZE - 1))) { // Prefetch request is in the same physical page
                     if (FILTER.check(pf_addr, confidence_q[i] >= knob::spp_dev2_fill_threshold ? SPP_L2C_PREFETCH : SPP_LLC_PREFETCH, GHR)) {
                         
-                        
+                        pref_addr.push_back(pf_addr);
                         if(knob::spp_dev2_pf_llc_only) {
-                            pref_addr.push_back(pf_addr);
                             pref_level.push_back(FILL_LLC);
                         } else {
-                            pref_addr.push_back(pf_addr);
                             pref_level.push_back((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC);
                         }
                         
@@ -165,6 +166,7 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
                 do_lookahead = 1;
                 pf_q_head++;
             }
+            i++;
         }
 
         // Update base_addr and curr_sig
@@ -195,6 +197,10 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
     stats.depth.total += depth;
     if(depth >= stats.depth.max) stats.depth.max = depth;
     if(depth <= stats.depth.min) stats.depth.min = depth;
+
+    // (DEBUG) Check that if we are under the prefetch degree cap, if degree knob is enabled.
+    assert(knob::spp_dev2_max_degree == 0 || pref_addr.size() <= knob::spp_dev2_max_degree);
+    assert(knob::spp_dev2_max_degree == 0 || pref_level.size() <= knob::spp_dev2_max_degree);
 }
 
 void SPP_dev2::cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr)

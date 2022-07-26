@@ -164,6 +164,7 @@ uint32_t CACHE::l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache
         if(pref_name != "spp_ppf_dev" 
            && pref_name != "mlop" 
            && pref_name != "ipcp" 
+		   && pref_name != "bingo"
            && !pref_addr.empty())
         {
             for(uint32_t addr_index = 0; addr_index < pref_addr.size(); ++addr_index)
