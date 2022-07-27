@@ -288,8 +288,7 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
             f'not in options {pc_trace.metrics}')
 
     # Get best degrees (if provided)
-    degrees = (pd.read_csv(cfg.paths.degree_csv) 
-               if 'degree_csv' in cfg.paths else None)
+    degrees_df = (pd.read_csv(cfg.paths.degree_csv) if 'degree_csv' in cfg.paths else None)
 
     condor_paths = []
     traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
@@ -312,17 +311,17 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
     with tqdm(dynamic_ncols=True, unit='run') as pbar:
         for trace in traces:
             for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                if not isinstance(degrees, type(None)):
-                    l2c_pref_degree = list(
-                        eval(degrees[degrees.Trace == trace.full_trace][str(
-                            ('_'.join(l1p), '_'.join(l2p), '_'.join(llp)
-                             ))].item())[0]) if l2p != ('no', ) else []
-                    llc_pref_degree = list(
-                        eval(degrees[degrees.Trace == trace.full_trace][str(
-                            ('_'.join(l1p), '_'.join(l2p), '_'.join(llp)
-                             ))].item())[1]) if llp != ('no', ) else []
+                if isinstance(degrees_df, pd.DataFrame):
+                    pf_key = str(('_'.join(l1p), '_'.join(l2p), '_'.join(llp)))
+                    l2c_pref_degree = list(eval(
+                        degrees_df[degrees_df.Trace == trace.full_trace][pf_key].item())[0]) if l2p != ('no', ) else []
+                    llc_pref_degree = list(eval(
+                        degrees_df[degrees_df.Trace == trace.full_trace][pf_key].item())[1]) if llp != ('no', ) else []
                 else:
-                    l2c_pref_degree, llc_pref_degree = [], []
+                    l2c_pref_degree = [cfg.l2c.degree] * len(l2p) if 'degree' in cfg.l2c else []
+                    llc_pref_degree = [cfg.llc.degree] * len(llp) if 'degree' in cfg.llc else []
+
+                print(l1p, l2p, llp, l2c_pref_degree, llc_pref_degree)
 
                 c_path = build_run(cfg,
                                    trace,

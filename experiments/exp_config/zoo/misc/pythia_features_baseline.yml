@@ -2,8 +2,8 @@
 # (see exp_config/pythia/features for comparisons)
 
 champsim:
-    warmup_instructions: 25
-    sim_instructions: 100
+    warmup_instructions: 50
+    sim_instructions: 200
     track_pc_stats: true
     track_addr_stats: false
     track_pref: true
@@ -16,8 +16,9 @@ l2c:
     pref_candidates:
         - 'bingo'    # Bingo
         - 'spp_dev2' # SPP
-        - 'stride'   # IP Stride
+        - 'bop'   # Best Offset
     max_hybrid: 2
+    degree: 1
 llc:
     sets: 2048
     repl: 'ship'

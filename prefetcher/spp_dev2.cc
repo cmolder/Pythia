@@ -42,6 +42,7 @@ SPP_dev2::SPP_dev2(std::string type, CACHE *cache) : Prefetcher(type), m_parent_
         << "FILTER_SET: " << FILTER_SET << endl
         << "fill_threshold: " << knob::spp_dev2_fill_threshold << endl
         << "pf_threshold: " << knob::spp_dev2_pf_threshold << endl
+        << "max_degree: " << knob::spp_dev2_max_degree << endl
         << "pf_llc_only: " << knob::spp_dev2_pf_llc_only << endl
         << endl;
 }
@@ -109,7 +110,7 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
         breadth = 0;
         uint32_t i = pf_q_head; // Index
         while ((i < pf_q_tail)
-               && (knob::spp_dev2_max_degree == 0 || pref_addr.size() <= knob::spp_dev2_max_degree)) {
+               && (knob::spp_dev2_max_degree == 0 || pref_addr.size() < knob::spp_dev2_max_degree)) {
             if (confidence_q[i] >= knob::spp_dev2_pf_threshold) {
                 uint64_t pf_addr = (base_addr & ~(BLOCK_SIZE - 1)) + (delta_q[i] << LOG2_BLOCK_SIZE);
 

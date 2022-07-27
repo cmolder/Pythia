@@ -16,6 +16,7 @@ namespace knob
 	extern uint32_t bingo_pht_ways;
 	extern uint32_t bingo_pf_streamer_size;
 	extern uint32_t bingo_debug_level;
+   extern uint32_t bingo_max_degree;
    extern float    bingo_l1d_thresh;
    extern float    bingo_l2c_thresh;
    extern float    bingo_llc_thresh;
@@ -63,6 +64,7 @@ void Bingo::print_config() {
    << "bingo_pht_ways " << knob::bingo_pht_ways << endl
    << "bingo_pf_streamer_size " << knob::bingo_pf_streamer_size << endl
    << "bingo_debug_level " << knob::bingo_debug_level << endl
+   << "bingo_max_degree " << knob::bingo_max_degree << endl
    << "bingo_l1d_thresh " << knob::bingo_l1d_thresh << endl
    << "bingo_l2c_thresh " << knob::bingo_l2c_thresh << endl
    << "bingo_llc_thresh " << knob::bingo_llc_thresh << endl
