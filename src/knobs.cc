@@ -100,6 +100,7 @@ namespace knob
 	uint32_t spp_dev2_fill_threshold = 90;
 	uint32_t spp_dev2_pf_threshold = 25;
 	uint32_t spp_dev2_max_degree = 0;  // 0 = no limit
+	bool     spp_dev2_pf_l2_only = false;
     bool     spp_dev2_pf_llc_only = false;
 
 	/* BOP */
@@ -182,6 +183,7 @@ namespace knob
 	float    bingo_l2c_thresh;
 	float    bingo_llc_thresh;
 	string   bingo_pc_address_fill_level;
+	bool     bingo_pf_l2_only;
     bool     bingo_pf_llc_only;
 
 	/* Stride */
@@ -685,6 +687,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	{
 		knob::spp_dev2_max_degree = atoi(value);
 	}
+	else if (MATCH("", "spp_dev2_pf_l2_only"))
+	{
+		knob::spp_dev2_pf_l2_only = !strcmp(value, "true") ? true : false;
+	}
     else if (MATCH("", "spp_dev2_pf_llc_only"))
 	{
 		knob::spp_dev2_pf_llc_only = !strcmp(value, "true") ? true : false;
@@ -967,6 +973,10 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	else if (MATCH("", "bingo_pc_address_fill_level"))
 	{
 	   knob::bingo_pc_address_fill_level = string(value);
+	}
+	else if (MATCH("", "bingo_pf_l2_only"))
+	{
+	   knob::bingo_pf_l2_only = !strcmp(value, "true") ? true : false;
 	}
     else if (MATCH("", "bingo_pf_llc_only"))
 	{

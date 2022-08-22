@@ -16,6 +16,7 @@ using namespace std;
 
 namespace knob
 {
+    extern bool bingo_pf_l2_only;
     extern bool bingo_pf_llc_only;
     extern uint32_t bingo_max_degree;
 }
@@ -401,9 +402,17 @@ public:
             if (0 <= pf_offset && pf_offset < this->pattern_len && pattern[pf_offset] > 0) {
                uint64_t pf_address = (region_number * this->pattern_len + pf_offset) << LOG2_BLOCK_SIZE;
                if (should_continue_prefetch_(cache, pref_addr)) {
+                  uint64_t pf_level = 0;
+                  if (knob::bingo_pf_l2_only) {
+                     pf_level = FILL_L2;
+                  } else if (knob::bingo_pf_llc_only) {
+                     pf_level = FILL_LLC;
+                  } else {
+                     pf_level = pattern[pf_offset];
+                  }
                   pref_addr.push_back(pf_address);
-                  pref_level.push_back((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]);
-                  cache->prefetch_line(0, base_addr, pf_address, ((knob::bingo_pf_llc_only) ? FILL_LLC : pattern[pf_offset]), 0);
+                  pref_level.push_back(pf_level);
+                  cache->prefetch_line(0, base_addr, pf_address, pf_level, 0);
                   pf_issued += 1;
                   pattern[pf_offset] = 0;
                } else {

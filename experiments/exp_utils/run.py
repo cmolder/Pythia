@@ -10,7 +10,7 @@ from exp_utils import defaults
 
 pref_degree_knobs = {
     'ampm': 'ampm_pref_degree',
-    'bingo': 'bingo_max_degree', # Maximum - it is dynamic
+    #'bingo': 'bingo_max_degree', # Maximum - it is dynamic
     'bop': 'bop_pref_degree',
     'dspatch': 'dspatch_pref_degree',
     'mlop': 'mlop_pref_degree',

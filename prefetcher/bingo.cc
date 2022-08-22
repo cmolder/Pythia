@@ -69,6 +69,7 @@ void Bingo::print_config() {
    << "bingo_l2c_thresh " << knob::bingo_l2c_thresh << endl
    << "bingo_llc_thresh " << knob::bingo_llc_thresh << endl
    << "bingo_pc_address_fill_level " << knob::bingo_pc_address_fill_level << endl
+   << "bingo_pf_l2_only " << knob::bingo_pf_l2_only << endl
    << "bingo_pf_llc_only " << knob::bingo_pf_llc_only << endl
    << endl;
 }

@@ -1,0 +1,59 @@
+champsim:
+    warmup_instructions: 50
+    sim_instructions: 200
+    track_pc_stats: false
+    track_addr_stats: false
+    track_pref: false
+    branch_pred: 'perceptron'
+    seeds: [1337]
+l1d:
+    pref_candidates: []
+    max_hybrid: 1
+l2c:
+    pref_candidates: ['scooby']
+    max_hybrid: 1
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates: []
+    max_hybrid: 1
+pythia:
+    # Degree
+    dyn_degree: false  # Default degree is 1.
+    degree: 1
+    # Learning
+    features:
+        - [0] # PC
+        - [1] # Page offset
+        - [2] # Address delta
+        - [3] # Address of cache line
+        - [8] # Last 4 Deltas
+        - [10] # PC+Delta
+        - [12] # Page number
+        - [8, 10] # PC+Delta + Last 4 Deltas (Paper)
+        - [0, 10] # PC+Delta + PC
+        - [0, 8, 10] # PC+Delta + PC + Last 4 Deltas
+        - [0, 5, 10] # PC+Delta + PC+Addr + Last 4 Deltas
+        - [0, 5, 8, 10] # PC+Delta + PC+Addr + PC + Last 4 Deltas
+    pooling: 'max'
+    alpha: 0.006508802942367162
+    gamma: 0.556300959940946
+    epsilon: 1.0 # Randomness comes from eps = 1.0
+    policy: 'EGreedy'
+    learning_type: 'SARSA'  
+    # Double/level-aware Pythia
+    dyn_level_threshold: [] 
+    separate_lowconf_pt: false # Whether to use separate EQs for high- and 
+                               # low-confidence prefetches (Double Pythia only, for now).
+    # Prefetch table
+    pt_size: 256
+    lowconf_pt_size: 256
+paths:
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_features_random/'
+    trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Multi-level Pythia'
