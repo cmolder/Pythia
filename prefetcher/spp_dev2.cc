@@ -134,7 +134,6 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
 
                     // If the potential prefetch passes the Prefetch Filter, issue the prefetch.
                     if (FILTER.check(pf_addr, spp_level, GHR)) {
-                        cout << "[DEBUG] SPP_DEV2 Pushing back addr = " << hex << pf_addr << " level = " << pf_level << endl;
                         pref_addr.push_back(pf_addr);
                         pref_level.push_back(pf_level);
                         
@@ -209,7 +208,7 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
     if(depth >= stats.depth.max) stats.depth.max = depth;
     if(depth <= stats.depth.min) stats.depth.min = depth;
 
-    // (DEBUG) Check that if we are under the prefetch degree cap, if degree knob is enabled.
+    // Check that if we are under the prefetch degree cap, if degree knob is enabled.
     assert(knob::spp_dev2_max_degree == 0 || pref_addr.size() <= knob::spp_dev2_max_degree);
     assert(knob::spp_dev2_max_degree == 0 || pref_level.size() <= knob::spp_dev2_max_degree);
 }
