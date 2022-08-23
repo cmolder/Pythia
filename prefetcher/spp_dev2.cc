@@ -59,7 +59,7 @@ void SPP_dev2::print_config()
 
 }
 
-void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, std::vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
+void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, uint8_t type, vector<uint64_t> &pref_addr, vector<uint64_t> &pref_level)
 {
     uint64_t page = addr >> LOG2_PAGE_SIZE;
     uint32_t page_offset = (addr >> LOG2_BLOCK_SIZE) & (PAGE_SIZE / BLOCK_SIZE - 1),
@@ -111,38 +111,43 @@ void SPP_dev2::invoke_prefetcher(uint64_t ip, uint64_t addr, uint8_t cache_hit, 
         do_lookahead = 0;
         breadth = 0;
         uint32_t i = pf_q_head; // Index
-        while ((i < pf_q_tail)
+        while ((i < pf_q_tail) 
                && (knob::spp_dev2_max_degree == 0 || pref_addr.size() < knob::spp_dev2_max_degree)) {
             if (confidence_q[i] >= knob::spp_dev2_pf_threshold) {
                 uint64_t pf_addr = (base_addr & ~(BLOCK_SIZE - 1)) + (delta_q[i] << LOG2_BLOCK_SIZE);
 
                 if ((addr & ~(PAGE_SIZE - 1)) == (pf_addr & ~(PAGE_SIZE - 1))) { // Prefetch request is in the same physical page
-                    if (FILTER.check(pf_addr, confidence_q[i] >= knob::spp_dev2_fill_threshold ? SPP_L2C_PREFETCH : SPP_LLC_PREFETCH, GHR)) {
+
+                    // Determine potential prefetch level.
+                    FILTER_REQUEST spp_level;
+                    uint64_t pf_level;
+                    if (knob::spp_dev2_pf_l2_only) {
+                        spp_level = SPP_L2C_PREFETCH;
+                        pf_level = FILL_L2;
+                    } else if (knob::spp_dev2_pf_llc_only) {
+                        spp_level = SPP_LLC_PREFETCH;
+                        pf_level = FILL_LLC;
+                    } else {
+                        spp_level = (confidence_q[i] >= knob::spp_dev2_fill_threshold) ? SPP_L2C_PREFETCH : SPP_LLC_PREFETCH;
+                        pf_level = (confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC;
+                    }
+
+                    // If the potential prefetch passes the Prefetch Filter, issue the prefetch.
+                    if (FILTER.check(pf_addr, spp_level, GHR)) {
+                        cout << "[DEBUG] SPP_DEV2 Pushing back addr = " << hex << pf_addr << " level = " << pf_level << endl;
                         pref_addr.push_back(pf_addr);
-                        uint64_t level = 0;
-                        if (knob::spp_dev2_pf_l2_only) {
-                            level = FILL_L2;
-                        } else if (knob::spp_dev2_pf_llc_only) {
-                            level = FILL_LLC;
-                        } else {
-                            level = (confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC;
-                        }
-                        pref_level.push_back(level);
+                        pref_level.push_back(pf_level);
                         
-                        // if (knob::spp_dev2_pf_llc_only)
-                        //     m_parent_cache->prefetch_line(ip, addr, pf_addr, FILL_LLC, 0);
-                        // else {
-                        //     // Use addr (not base_addr) to obey the same physical page boundary
-                        //     m_parent_cache->prefetch_line(ip, addr, pf_addr, ((confidence_q[i] >= knob::spp_dev2_fill_threshold) ? FILL_L2 : FILL_LLC), 0);
-                        // }
+                        // // Use addr (not base_addr) to obey the same physical page boundary
+                        // m_parent_cache->prefetch_line(ip, addr, pf_addr, pf_level, 0);
                         
                         stats.pref.total++;
-                        if (level == FILL_L2) 
+                        if (pf_level == FILL_L2) 
                             stats.pref.at_L2++;
                         else
                             stats.pref.at_LLC++;
 
-                        if (level == FILL_L2) {
+                        if (pf_level == FILL_L2) {
                             GHR.pf_issued++;
                             if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
                                 GHR.pf_issued >>= 1;
