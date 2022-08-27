@@ -1,0 +1,43 @@
+champsim:
+    warmup_instructions: 50
+    sim_instructions: 200
+    track_pc_stats: false
+    track_addr_stats: false
+    track_pref: false
+    branch_pred: 'perceptron'
+    seeds: [1337]
+l1d:
+    pref_candidates: []
+    hybrids: [1]
+    degrees: [1]
+l2c:
+    pref_candidates: []
+    hybrids: [1]
+    degrees: [1]
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates:
+        - 'bingo'    # Bingo
+        - 'bop'      # Best Offset
+        - 'scooby'   # Pythia
+        - 'sisb'     # Idealized ISB
+        - 'sms'      # SMS
+        - 'spp_dev2' # SPP
+    hybrids: [1, 2]
+    degrees: [1, 2, 3, 4, 5, 6, 7, 8]
+pythia:
+    dyn_degree: true
+spp_dev2:
+    dyn_degree: true
+bingo:
+    dyn_degree: true
+paths:
+    exp_dir: '/scratch/cluster/cmolder/prefetcher_degree_sweep/degree_spec06/'
+    trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'                
+    project: 'ARCHITECTURE'      
+    description: 'Prefetcher Degree Sweep'

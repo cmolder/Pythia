@@ -1,0 +1,63 @@
+# Evaluate Pythia against baselines (SPP, BOP, Bingo)
+# at different, fixed degrees.
+
+champsim:
+    warmup_instructions: 50
+    sim_instructions: 200
+    track_pc_stats: false
+    track_addr_stats: false
+    track_pref: false
+    branch_pred: 'perceptron'
+    seeds: [1337]
+l1d:
+    pref_candidates: []
+    hybrids: [1]
+    degrees: [1]
+l2c:
+    pref_candidates:
+        - 'bingo'    # Bingo
+        - 'spp_dev2' # SPP
+        - 'bop'      # Best Offset
+        - 'scooby'
+    hybrids: [1]
+    degrees: [1, 2, 3, 4, 5, 6, 7, 8]
+llc:
+    sets: 2048
+    repl: 'ship'
+    pref_candidates: []
+    hybrids: [1]
+    degrees: [1]
+pythia:
+    dyn_degree: false
+    features:
+        - [8] # Last 4 Deltas
+        - [10] # PC+Delta
+        - [8, 10] # PC+Delta + Last 4 Deltas (Paper)
+    pooling: 'max'
+    alpha: 0.006508802942367162
+    gamma: 0.556300959940946
+    epsilon: 0.0018228444309622588
+    policy: 'EGreedy'
+    learning_type: 'SARSA'  
+    # Double/level-aware Pythia
+    dyn_level_threshold: [] 
+    separate_lowconf_pt: false # Whether to use separate EQs for high- and 
+                               # low-confidence prefetches (Double Pythia only, for now).
+    # Prefetch table
+    pt_size: 256
+    lowconf_pt_size: 256
+bingo:
+    # Degree
+    dyn_degree: true
+spp_dev2:
+    # Degree
+    dyn_degree: false
+paths:
+    exp_dir: '/scratch/cluster/cmolder/pythia_level/exp_394r_features_degree_fixed/'
+    trace_dir: '/scratch/cluster/cmolder/traces/394r/champsim/'
+    champsim_dir: '/u/cmolder/GitHub/Pythia/'
+condor:
+    user: 'cmolder@cs.utexas.edu'
+    group: 'GRAD'
+    project: 'ARCHITECTURE'
+    description: 'Pythia degree sweep'
