@@ -4,13 +4,10 @@ Utility functions for setting up Condor experiments on Pythia.
 Author: Carson Molder
 """
 
-import pandas as pd
 import os
-import glob
 from tqdm import tqdm
-from itertools import combinations, product
-from exp_utils import run, pc_trace
-from exp_utils.file import ChampsimTraceDirectory, ChampsimTraceFile
+from exp_utils import pc_trace
+from exp_utils.run import Run, RunGenerator
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -76,93 +73,22 @@ def generate_condor_list(out, condor_paths):
             print(path, file=f)
 
 
-def generate_run_name(trace: ChampsimTraceFile,
-                      llc_sets,
-                      branch_pred,
-                      llc_repl,
-                      l1d_pref=[],
-                      l2c_pref=[],
-                      l2c_pref_degrees=[],
-                      llc_pref=[],
-                      llc_pref_degrees=[],
-                      extra_suffix=None) -> str:
-    """Generate a unique run name, given the trace, and prefetchers+degrees."""
-    if len(l2c_pref_degrees) == len(l2c_pref):
-        l2c_pref_degrees_suffix = ",".join([str(d) for d in l2c_pref_degrees])
-    else:
-        l2c_pref_degrees_suffix = ",".join(['na' for d in l2c_pref])
-
-    if len(llc_pref_degrees) == len(llc_pref):
-        llc_pref_degrees_suffix = ",".join([str(d) for d in llc_pref_degrees])
-    else:
-        llc_pref_degrees_suffix = ",".join(['na' for d in llc_pref])
-
-    out = '-'.join((trace.full_trace, branch_pred, ','.join(l1d_pref),
-                    ','.join(l2c_pref) + '_' + l2c_pref_degrees_suffix,
-                    ','.join(llc_pref) + '_' + llc_pref_degrees_suffix,
-                    llc_repl, f'{llc_sets}llc_sets'))
-    if extra_suffix is not None:
-        out += '-' + extra_suffix
-    return out
-
-
-def build_run(cfg,
-              trace: ChampsimTraceFile,
-              l1d_pref=['no'],
-              l2c_pref=['no'],
-              l2c_pref_degrees=[],
-              llc_pref=['no'],
-              llc_pref_degrees=[],
-              extra_suffix=None,
-              extra_knobs=None,
+def build_run(cfg, run: Run,
               dry_run: bool=False,
               verbose: bool=False) -> str:
     """Build a single run and its necessary files. Return
     the path to the saved condor file.
     
     Parameters:
-        trace: ChampsimTraceFile
-            Trace file
-            
-        llc_pref: List[string]
-            List of prefetchers that are in multi.llc_pref 
-            (or "no", "pc_trace") for knob
-            
-        llc_num_sets: int
-            Number of LLC sets
-
-        exp_dir: string
-            Directory of experiment.
-            
-        champsim_dir: string
-            Directory of ChampSim / Pythia files. (default: $PYTHIA_HOME)
-            
-        num_instructions: int
-            Number of instructions to simulate (in millions)
-            
-        warmup_instructions: int
-            Number of instructions to warm up, before simulating (in millions)
-            
-        dry_run: string (optional)
-            If raised, does not save anything.
-            
-        verbose: string (optional)
-            If raised, print more information.
+        cfg: Config dictionary describing sweep parameters.
+        run: Run object describing run parameters.  
+        dry_run: If true, does not save anything.
+        verbose: If true, print more information.
     
     Return:
-        condor_file: string
-            Path to Condor file
+        condor_file: Path to Condor file
     """
-    run_name = generate_run_name(trace,
-                                 cfg.llc.sets,
-                                 cfg.champsim.branch_pred,
-                                 cfg.llc.repl,
-                                 l1d_pref=l1d_pref,
-                                 l2c_pref=l2c_pref,
-                                 l2c_pref_degrees=l2c_pref_degrees,
-                                 llc_pref=llc_pref,
-                                 llc_pref_degrees=llc_pref_degrees,
-                                 extra_suffix=extra_suffix)
+    run_name = run.run_name()
 
     # Setup initial output directories/files per experiment
     log_file_base = os.path.join(cfg.paths.exp_dir, 'logs', run_name)
@@ -203,7 +129,7 @@ def build_run(cfg,
 
     if verbose:
         print(f'ChampSim simulation parameters for {run_name}:')
-        print(f'    targets        : {" ".join(llc_pref)}')
+        print(f'    targets        : {" ".join(run.llc_prefetcher)}')
         print(f'    experiment dir : {cfg.paths.exp_dir}')
         print(f'    champsim path  : {cfg.paths.champsim_dir}')
         print(f'    results dir    : {results_dir}')
@@ -212,11 +138,12 @@ def build_run(cfg,
         print(
             f'    # warmup insts : {cfg.champsim.warmup_instructions} million')
 
-    # Add PC trace path, if we are running the pc_trace prefetcher.
-    if llc_pref == ('pc_trace', ):
+    # TODO: Cleanup the PC/Prefetch trace checks below.
+    # Add PC trace path, if we are running the pc_trace prefetcher
+    if run.llc_prefetcher == ('pc_trace', ):
         pc_trace_file = os.path.join(
             cfg.paths.pc_trace_dir, 
-            pc_trace.get_pc_trace_file(trace.full_trace, 
+            pc_trace.get_pc_trace_file(run.trace.full_trace, 
                                        cfg.pc_trace.metric, level='llc'))
         pc_trace_credit = cfg.pc_trace.credit
         pc_trace_invoke_all = cfg.pc_trace.invoke_all
@@ -228,12 +155,12 @@ def build_run(cfg,
         pc_trace_invoke_all = False
         pc_trace_credit = False
         
-    # Add prefetch trace path, if we are running the from_file prefetcher.
+    # Add prefetch trace path, if we are running the from_file prefetcher
     # NOTE: Running from_file for the Prefetcher zoo defaults to the relevant offline PC trace.
-    if llc_pref == ('from_file',):
+    if run.llc_prefetcher == ('from_file',):
         pref_trace_file = os.path.join(
             cfg.paths.pref_trace_dir, 
-            pc_trace.get_pref_trace_file(trace.full_trace, 
+            pc_trace.get_pref_trace_file(run.trace.full_trace, 
                                          cfg.pref_trace.metric, level='llc'))
         
         if verbose:
@@ -246,15 +173,15 @@ def build_run(cfg,
         script_file,
         dry_run,
         champsim_dir=cfg.paths.champsim_dir,
-        trace_file=trace.path,
+        trace_file=run.trace.path,
         cores=1,
-        l1d_pref=' '.join(l1d_pref),
-        l2c_pref=' '.join(l2c_pref),
-        l2c_pref_degrees=' '.join([str(d) for d in l2c_pref_degrees])
-        if len(l2c_pref_degrees) > 0 else None,
-        llc_pref=' '.join(llc_pref),
-        llc_pref_degrees=' '.join([str(d) for d in llc_pref_degrees])
-        if len(llc_pref_degrees) > 0 else None,
+        l1d_pref=' '.join(run.l1d_prefetcher),
+        l2c_pref=' '.join(run.l2_prefetcher),
+        l2c_pref_degrees=' '.join([str(d) for d in run.l2_prefetcher_degree])
+        if len(run.l2_prefetcher_degree) > 0 else None,
+        llc_pref=' '.join(run.llc_prefetcher),
+        llc_pref_degrees=' '.join([str(d) for d in run.llc_prefetcher_degree])
+        if len(run.llc_prefetcher_degree) > 0 else None,
         llc_repl=cfg.llc.repl,
         llc_sets=cfg.llc.sets,
         run_name=run_name,
@@ -263,7 +190,7 @@ def build_run(cfg,
         pc_trace_invoke_all=pc_trace_invoke_all,
         pref_trace_file=pref_trace_file,
         results_dir=results_dir,
-        extra_knobs=extra_knobs,
+        extra_knobs=get_extra_knobs(cfg, run.seed, run.pythia_level_threshold, run.pythia_features),
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
         track_pc=cfg.champsim.track_pc_stats,
@@ -275,7 +202,7 @@ def build_run(cfg,
     return condor_file
 
 
-def build_zoo_sweep(cfg, dry_run=False, verbose=False):
+def build_sweep(cfg, dry_run=False, verbose=False):
     """Build an evaluation sweep, for prefetcher_zoo.py
     """
     # Assertion checks
@@ -288,52 +215,15 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
             f'not in options {pc_trace.metrics}')
 
     # Get best degrees (if provided)
-    degrees_df = (pd.read_csv(cfg.paths.degree_csv) if 'degree_csv' in cfg.paths else None)
+    # degrees_df = (pd.read_csv(cfg.paths.degree_csv) if 'degree_csv' in cfg.paths else None)
+    print('Generating runs...')
 
     condor_paths = []
-    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
-
-    # Get all combinations of hybrids up to <max_hybrid>
-    l1d_prefs = [
-        p for h in range(1, cfg.l1d.max_hybrid + 1)
-        for p in combinations(cfg.l1d.pref_candidates, h)
-    ] + [('no', )]
-    l2c_prefs = [
-        p for h in range(1, cfg.l2c.max_hybrid + 1)
-        for p in combinations(cfg.l2c.pref_candidates, h)
-    ] + [('no', )]
-    llc_prefs = [
-        p for h in range(1, cfg.llc.max_hybrid + 1)
-        for p in combinations(cfg.llc.pref_candidates, h)
-    ] + [('no', )]
-
-    print('Generating runs...')
-    with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for trace in traces:
-            for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                if isinstance(degrees_df, pd.DataFrame):
-                    pf_key = str(('_'.join(l1p), '_'.join(l2p), '_'.join(llp)))
-                    l2c_pref_degree = list(eval(
-                        degrees_df[degrees_df.Trace == trace.full_trace][pf_key].item())[0]) if l2p != ('no', ) else []
-                    llc_pref_degree = list(eval(
-                        degrees_df[degrees_df.Trace == trace.full_trace][pf_key].item())[1]) if llp != ('no', ) else []
-                else:
-                    l2c_pref_degree = [cfg.l2c.degree] * len(l2p) if 'degree' in cfg.l2c else []
-                    llc_pref_degree = [cfg.llc.degree] * len(llp) if 'degree' in cfg.llc else []
-
-                print(l1p, l2p, llp, l2c_pref_degree, llc_pref_degree)
-
-                c_path = build_run(cfg,
-                                   trace,
-                                   l1d_pref=l1p,
-                                   l2c_pref=l2p,
-                                   llc_pref=llp,
-                                   l2c_pref_degrees=l2c_pref_degree,
-                                   llc_pref_degrees=llc_pref_degree,
-                                   dry_run=dry_run,
-                                   verbose=verbose)
-                condor_paths.append(c_path)
-                pbar.update(1)
+    run_generator = RunGenerator(cfg)
+    for run in tqdm(run_generator, dynamic_ncols=True, unit='run'):
+        condor_path = build_run(cfg, run,
+                                dry_run=dry_run, verbose=verbose)
+        condor_paths.append(condor_path)
 
     print(f'Generated {len(condor_paths)} runs')
 
@@ -345,90 +235,12 @@ def build_zoo_sweep(cfg, dry_run=False, verbose=False):
         generate_condor_list(condor_out_path, condor_paths)
 
 
-def _should_skip_degree_combination(l2c_pref, llc_pref, degs, cfg):
-    """Helper function to skip redundant degree sweeps,
-    on prefetchers that aren't tunable w.r.t degree.
-    
-    Check if any of the prefetchers does not have a degree knob,
-    f so, don't sweep over that degree (default to 1, which
-    gets ignored when run detects it's not a valid degree-tunable
-    prefetcher)
+def get_extra_knobs(cfg, seed=None, level_threshold=None, features=None):
+    """TODO: Docstring
+
+    TODO: Eventually get rid of this function, and simply merge the
+    baseline config .ini with the knobs we desire for the run.
     """
-    prefs = (*l2c_pref, *llc_pref)
-    #print('[DEBUG]', prefs, degs)
-
-    for i, pref in enumerate(prefs):
-        if pref == 'scooby' and cfg.pythia.dyn_degree is True:
-            return True
-        if pref not in run.pref_degree_knobs.keys() and degs[i] != 1:
-            return True
-    return False
-
-
-def build_degree_sweep(cfg, dry_run=False, verbose=False):
-    """Build a degree sweep, for prefetcher_degree_sweep.py
-    """
-    # Assertion checks
-    assert 'pc_trace' not in cfg.llc.pref_candidates, (
-        'Cannot tune pc_trace for degree')
-
-    condor_paths = []
-    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
-
-    # Get all combinations of hybrids up to <max_hybrid>
-    l1d_prefs = [
-        p for h in range(1, cfg.l1d.max_hybrid + 1)
-        for p in combinations(cfg.l1d.pref_candidates, h)
-    ] + [('no', )]
-    l2c_prefs = [
-        p for h in range(1, cfg.l2c.max_hybrid + 1)
-        for p in combinations(cfg.l2c.pref_candidates, h)
-    ] + [('no', )]
-    llc_prefs = [
-        p for h in range(1, cfg.llc.max_hybrid + 1)
-        for p in combinations(cfg.llc.pref_candidates, h)
-    ] + [('no', )]
-
-    print('Generating runs...')
-    with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for trace in traces:
-            for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                for d in product(
-                        *[list(range(1, cfg.l2c.max_degree + 1))] * len(l2p),
-                        *[list(range(1, cfg.llc.max_degree + 1))] * len(llp)):
-
-                    if _should_skip_degree_combination(l2p, llp, d, cfg):
-                        continue
-
-                    l2d, lld = d[:len(l2p)], d[len(l2p):]
-                    #print('[DEBUG]', path, l1p, l2p, llp, l2d, lld)
-                    c_path = build_run(cfg,
-                                       trace,
-                                       l1d_pref=l1p,
-                                       l2c_pref=l2p,
-                                       l2c_pref_degrees=l2d,
-                                       llc_pref=llp,
-                                       llc_pref_degrees=lld,
-                                       dry_run=dry_run,
-                                       verbose=verbose,
-                                       extra_knobs=get_extra_knobs_pythia(cfg))
-
-                    condor_paths.append(c_path)
-                    pbar.update(1)
-
-    print(f'Generated {len(condor_paths)} runs')
-
-    # Write condor paths to <exp_dir>/condor_configs_champsim.txt
-    if not dry_run:
-        condor_out_path = os.path.join(cfg.paths.exp_dir,
-                                       'condor_configs_champsim.txt')
-        print(f'Saving condor configs to {condor_out_path}...')
-        generate_condor_list(condor_out_path, condor_paths)
-
-
-def get_extra_knobs_pythia(cfg,
-                           seed=None, level_threshold=None,
-                           features=None):
     extra_knobs = ''
 
     if level_threshold is not None:
@@ -440,7 +252,7 @@ def get_extra_knobs_pythia(cfg,
     if seed is not None:
         extra_knobs += f' --champsim_seed={seed} --scooby_seed={seed}'
 
-    if cfg.pythia.separate_lowconf_pt is True:
+    if 'pythia' in cfg and cfg.pythia.separate_lowconf_pt:
         extra_knobs += f' --scooby_separate_lowconf_pt=true'
         extra_knobs += (' --scooby_lowconf_pt_size='
                        f'{cfg.pythia.lowconf_pt_size}')
@@ -451,147 +263,24 @@ def get_extra_knobs_pythia(cfg,
         extra_knobs += (' --le_featurewise_active_features='
                         f'{",".join([str(f) for f in features])}')
         extra_knobs += (' --le_featurewise_enable_tiling_offset='
-                        f'{"1," * len(features)}')
+                        f'{",".join([str(1) for _ in features])}')
 
-    if cfg.pythia.pooling == 'sum':
+    if 'pythia' in cfg and cfg.pythia.pooling == 'sum':
         extra_knobs += (' --le_featurewise_pooling_type=1') # Sum
     else:
         extra_knobs += (' --le_featurewise_pooling_type=2') # Max
     
-    if cfg.pythia.dyn_degree is False:
+    if 'pythia' in cfg and not cfg.pythia.dyn_degree:
         extra_knobs += (' --scooby_enable_dyn_degree=false')
-        extra_knobs += (f' --scooby_pref_degree={cfg.pythia.degree}')
     else:
         extra_knobs += (' --scooby_enable_dyn_degree=true')
 
-    extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
-    extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
-    extra_knobs += f' --scooby_epsilon={cfg.pythia.epsilon}'
-    extra_knobs += f' --scooby_policy={cfg.pythia.policy}'
-    extra_knobs += f' --scooby_learning_type={cfg.pythia.learning_type}'
-    extra_knobs += f' --scooby_pt_size={cfg.pythia.pt_size}'
+    if 'pythia' in cfg:
+        extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
+        extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
+        extra_knobs += f' --scooby_epsilon={cfg.pythia.epsilon}'
+        extra_knobs += f' --scooby_policy={cfg.pythia.policy}'
+        extra_knobs += f' --scooby_learning_type={cfg.pythia.learning_type}'
+        extra_knobs += f' --scooby_pt_size={cfg.pythia.pt_size}'
 
     return extra_knobs
-
-
-def any_pythia(l1p, l2p, llp):
-    """Return True if any of the prefetchers
-    are Pythia (or Pythia-related).
-    """
-    for p in [l1p, l2p, llp]:
-        if 'scooby' in p or 'scooby_double' in p:
-            return True
-    return False
-
-
-def build_pythia_sweep(cfg, dry_run=False, verbose=False):
-    """Build a sweep over Pythia configurations, for pythia.py
-    """
-    condor_paths = []
-    traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
-
-    # Get all combinations of hybrids up to <max_hybrid>
-    l1d_prefs = [
-        p for h in range(1, cfg.l1d.max_hybrid + 1)
-        for p in combinations(cfg.l1d.pref_candidates, h)
-    ] + [('no', )]
-    l2c_prefs = [
-        p for h in range(1, cfg.l2c.max_hybrid + 1)
-        for p in combinations(cfg.l2c.pref_candidates, h)
-    ] + [('no', )]
-    llc_prefs = [
-        p for h in range(1, cfg.llc.max_hybrid + 1)
-        for p in combinations(cfg.llc.pref_candidates, h)
-    ] + [('no', )]
-
-    print('Generating runs...')
-    with tqdm(dynamic_ncols=True, unit='run') as pbar:
-        for trace in traces:
-            for seed in cfg.champsim.seeds:
-                for l1p, l2p, llp in product(l1d_prefs, l2c_prefs, llc_prefs):
-                    for feats in cfg.pythia.features:
-                        for thresh in cfg.pythia.dyn_level_threshold:
-
-                            if all([p == ('no', )
-                                    for p in (l1p, l2p, llp)]) or any([
-                                        p == ('scooby_double', )
-                                        for p in (l1p, l2p, llp)
-                                    ]):
-                                continue
-
-                            c_path = build_run(
-                                cfg,
-                                trace,
-                                l1d_pref=l1p,
-                                l2c_pref=l2p,
-                                llc_pref=llp,
-                                extra_knobs=get_extra_knobs_pythia(
-                                    cfg,
-                                    seed=seed,
-                                    level_threshold=thresh,
-                                    features=feats),
-                                extra_suffix=(
-                                    f'threshold_{thresh}_'
-                                    'features_'
-                                    f'{",".join([str(f) for f in feats])}_'
-                                    f'pooling_{pooling}_'
-                                    f'seed_{seed}'),
-                                dry_run=dry_run,
-                                verbose=verbose)
-
-                            condor_paths.append(c_path)
-                            pbar.update(1)
-
-                        # Add runs for Double Pythia (extra actions for 
-                        # LLC prefetches), Static Pythia
-                        if any_pythia(l1p, l2p, llp):
-                            c_path = build_run(
-                                cfg,
-                                trace,
-                                l1d_pref=l1p,
-                                l2c_pref=l2p,
-                                llc_pref=llp,
-                                extra_knobs=get_extra_knobs_pythia(
-                                    cfg,
-                                    seed=seed,
-                                    level_threshold=None,
-                                    features=feats),
-                                extra_suffix=(
-                                    'features_'
-                                    f'{",".join([str(f) for f in feats])}_'
-                                    f'pooling_{cfg.pythia.pooling}_'
-                                    f'seed_{seed}'),
-                                dry_run=dry_run,
-                                verbose=verbose)
-
-                            condor_paths.append(c_path)
-                            pbar.update(1)
-
-                    # Add runs for other prefetchers / no prefetcher
-                    if not any_pythia(l1p, l2p, llp):
-                        c_path = build_run(
-                            cfg,
-                            trace,
-                            l1d_pref=l1p,
-                            l2c_pref=l2p,
-                            llc_pref=llp,
-                            extra_knobs=get_extra_knobs_pythia(
-                                cfg,
-                                seed=seed,
-                                level_threshold=None,
-                                features=None),
-                            extra_suffix=f'seed_{seed}',
-                            dry_run=dry_run,
-                            verbose=verbose)
-
-                        condor_paths.append(c_path)
-                        pbar.update(1)
-
-    print(f'Generated {len(condor_paths)} runs')
-
-    # Write condor paths to <exp_dir>/condor_configs_champsim.txt
-    if not dry_run:
-        condor_out_path = os.path.join(cfg.paths.exp_dir,
-                                       'condor_configs_champsim.txt')
-        print(f'Saving condor configs to "{condor_out_path}"')
-        generate_condor_list(condor_out_path, condor_paths)

@@ -8,19 +8,21 @@ champsim:
     seeds: [1337]
 l1d:
     pref_candidates: []
-    max_hybrid: 1
+    hybrids: [1]
+    degrees: [1]
 l2c:
     pref_candidates: ['scooby']
-    max_hybrid: 1
+    hybrids: [1]
+    degrees: [1]
 llc:
     sets: 2048
     repl: 'ship'
     pref_candidates: []
-    max_hybrid: 1
+    hybrids: [1]
+    degrees: [1]
 pythia:
     # Degree
     dyn_degree: false  # Default degree is 1.
-    degree: 1
     # Learning
     features:
         - [0] # PC

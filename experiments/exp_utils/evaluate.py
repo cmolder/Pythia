@@ -36,6 +36,7 @@ def get_run_statistics(
         # Pythia stats
         'pythia_level_threshold', 'pythia_high_conf_prefetches',
         'pythia_low_conf_prefetches', 'pythia_features', 'pythia_pooling', 
+        'pythia_action_called', 'pythia_avg_degree',
         # General info (prefetcher, simulator, results file, etc.)
         'all_pref', 'seed', 'path', 'baseline_path'
     ]
@@ -54,6 +55,8 @@ def get_run_statistics(
     results['full_trace'] = file.full_trace
     results['trace'] = file.trace
     results['simpoint'] = file.simpoint
+
+    # Pythia-specific features.
     results['pythia_level_threshold'] = pf_data['pythia_level_threshold']
     results['pythia_features'] = pf_data['pythia_features']
     results['pythia_high_conf_prefetches'] = pf_data[
@@ -61,6 +64,7 @@ def get_run_statistics(
     results['pythia_low_conf_prefetches'] = pf_data[
         'pythia_low_conf_prefetches']
     results['pythia_pooling'] = pf_data['pythia_pooling']
+    results['pythia_action_called'] = pf_data['pythia_action_called']
 
     if baseline_file:
         b_data = baseline_file.read()
@@ -106,6 +110,13 @@ def get_run_statistics(
         results[f'{level}_mpki'] = pf_mpki
         results[f'{level}_mpki_reduction'] = np.nan if (
             baseline_file is None) else (b_mpki - pf_mpki) / b_mpki * 100.
+
+        # TODO: Support levels other than L2 for pythia_avg_degree stat.
+        #       Also consider corner cases where Pythia is in a hybrid.
+        if level == 'L2C':
+            results['pythia_avg_degree'] = (
+                iss_prefetches / results['pythia_action_called'] 
+                if results['pythia_action_called'] > 0 else 0)
 
     # Get cumulative statistics
     results['dram_bw_epochs'] = dram_bw_epochs
