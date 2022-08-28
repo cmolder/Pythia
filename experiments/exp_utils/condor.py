@@ -4,13 +4,247 @@ Utility functions for setting up Condor experiments on Pythia.
 Author: Carson Molder
 """
 
+from itertools import combinations, product
 import os
+from typing import List, Optional, Tuple
+
 from tqdm import tqdm
+
 from exp_utils import pc_trace
-from exp_utils.run import Run, RunGenerator
+from exp_utils.run import pref_degree_knobs
+from exp_utils.file import ChampsimStatsFile, ChampsimTraceDirectory
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
+
+
+class Run():
+    """Defines an individual run of a Condor sweep."""
+
+    def __init__(self,
+                 trace: ChampsimStatsFile,
+                 l1d_prefetcher: Tuple[str] = ('no',),
+                 l2_prefetcher: Tuple[str] = ('no',),
+                 llc_prefetcher: Tuple[str] = ('no',),
+                 l1d_prefetcher_degree: Tuple[int] = (0,),
+                 l2_prefetcher_degree: Tuple[int] = (0,),
+                 llc_prefetcher_degree: Tuple[int] = (0,),
+                 llc_sets: Optional[int] = None,
+                 branch_predictor: Optional[str] = None,
+                 seed: int = 0,
+                 pythia_features: Optional[Tuple[int]] = None,
+                 pythia_level_threshold: Optional[float] = None,
+                 pythia_pooling: Optional[str] = None):
+        """Initialize a run with the given parameters.
+        """
+        # Sanity checks
+        assert len(l1d_prefetcher) == len(l1d_prefetcher_degree)
+        assert len(l2_prefetcher) == len(l2_prefetcher_degree)
+        assert len(llc_prefetcher) == len(llc_prefetcher_degree)
+
+        self.trace = trace
+
+        self.l1d_prefetcher = l1d_prefetcher
+        self.l2_prefetcher = l2_prefetcher
+        self.llc_prefetcher = llc_prefetcher
+
+        self.l1d_prefetcher_degree = l1d_prefetcher_degree
+        self.l2_prefetcher_degree = l2_prefetcher_degree
+        self.llc_prefetcher_degree = llc_prefetcher_degree
+
+        self.branch_predictor = branch_predictor
+        self.seed = seed
+        self.llc_sets = llc_sets
+
+        self.pythia_features = pythia_features
+        self.pythia_level_threshold = pythia_level_threshold
+        self.pythia_pooling = pythia_pooling
+
+    def run_name(self):
+        """Generate a run name that summarizes the run's parameters."""
+        # Prefetcher strings
+        l1d_prefetcher_str = '' if self.l1d_prefetcher == ('no',) else (
+            'l1dpf_'
+            + ','.join(self.l1d_prefetcher)
+            + '_'
+            + ','.join([str(d) for d in self.l1d_prefetcher_degree]))
+        l2_prefetcher_str = '' if self.l2_prefetcher == ('no',) else (
+            'l2pf_'
+            + ','.join(self.l2_prefetcher)
+            + '_'
+            + ','.join([str(d) for d in self.l2_prefetcher_degree]))
+        llc_prefetcher_str = '' if self.llc_prefetcher == ('no',) else (
+            'llcpf_'
+            + ','.join(self.llc_prefetcher)
+            + '_'
+            + ','.join([str(d) for d in self.llc_prefetcher_degree]))
+
+        seed_str = f'seed_{self.seed}'
+        branch_predictor_str = f'bp_{self.branch_predictor}' if self.branch_predictor else ''
+        llc_sets_str = f'llc_sets_{self.llc_sets}' if self.llc_sets else ''
+        pythia_features_str = 'pythia_features_' + \
+            ','.join([str(f) for f in self.pythia_features]
+                     ) if self.pythia_features else ''
+        pythia_level_threshold_str = f'pythia_level_threshold_{self.pythia_level_threshold}' if self.pythia_level_threshold else ''
+        pythia_poooling_str = f'pythia_pooling_{self.pythia_pooling}' if self.pythia_pooling else ''
+
+        # Return a single run name, skipping empty parameters.
+        return '-'.join(x.strip() for x in (
+            self.trace.full_trace,
+            branch_predictor_str,
+            l1d_prefetcher_str,
+            l2_prefetcher_str,
+            llc_prefetcher_str,
+            llc_sets_str,
+            pythia_features_str,
+            pythia_level_threshold_str,
+            pythia_poooling_str,
+            seed_str
+        ) if x.strip())
+
+    def __str__(self):
+        """Return a run name that summarizes the run's parameters."""
+        return self.run_name()
+
+
+class RunGenerator():
+    """Generate a list of runs by iterating on the options in the yml file."""
+
+    def __init__(self, cfg):
+        """TODO: Docstring
+        """
+        self.cfg = cfg
+        self.traces = ChampsimTraceDirectory(cfg.paths.trace_dir)
+
+    def __prefetcher_combinations(self):
+        """TODO: Docstring
+        """
+
+        # For each level of the cache, generate all possible
+        # combinations (hybrids) of prefetchers from the level's
+        # list of prefetcher candidates. Also include a no-prefetcher
+        # baseline.
+        l1d_prefetchers = [
+            p for h in self.cfg.l1d.hybrids
+            for p in combinations(self.cfg.l1d.pref_candidates, h)
+        ] + [('no', )]
+
+        l2_prefetchers = [
+            p for h in self.cfg.l2c.hybrids
+            for p in combinations(self.cfg.l2c.pref_candidates, h)
+        ] + [('no', )]
+
+        llc_prefetchers = [
+            p for h in self.cfg.llc.hybrids
+            for p in combinations(self.cfg.llc.pref_candidates, h)
+        ] + [('no', )]
+
+        return product(
+            l1d_prefetchers, l2_prefetchers, llc_prefetchers)
+
+    def __get_valid_degrees(self, degree_candidates: List[int],
+                            prefetcher: Tuple[str]):
+        """Get the valid options for degree, given the prefetcher and
+        the overall options for degree.
+
+        Parameters:
+            degree_candidates: A list of integers representing possible 
+                degrees.
+            prefetcher: A tuple of prefetcher names that make up a
+                single prefetcher (hybrid) for one level of the cache.
+                Can be a single tuple, to represent non-hybrid.
+
+        Returns:
+            candidates: A list of valid degree options for the given
+               prefetcher / prefetcher hybrid.
+        """
+
+        candidates = [(0,) for _ in range(len(prefetcher))]
+        for i, pref in enumerate(prefetcher):
+            # Filter out and don't sweep degree for the following:
+            # 1) No prefetcher
+            # 2) Prefetchers with dynamic degree schemes enabled
+            # 3) Prefetchers that lack degree knobs
+            if ('no' in pref
+                or 'bingo' in pref and self.cfg.bingo.dyn_degree is True
+                or 'scooby' in pref and self.cfg.pythia.dyn_degree is True
+                or 'spp_dev2' in pref and self.cfg.spp_dev2.dyn_degree is True
+                    or pref not in pref_degree_knobs.keys()):
+                continue
+            else:
+                candidates[i] = degree_candidates
+        return product(*candidates)
+
+    def __degree_combinations(self,
+                              l1d_prefetcher: Tuple[str],
+                              l2_prefetcher: Tuple[str],
+                              llc_prefetcher: Tuple[str]):
+        """TODO: Docstring
+        """
+        l1d_degrees = self.__get_valid_degrees(
+            self.cfg.l1d.degrees, l1d_prefetcher)
+        l2_degrees = self.__get_valid_degrees(
+            self.cfg.l2c.degrees, l2_prefetcher)
+        llc_degrees = self.__get_valid_degrees(
+            self.cfg.llc.degrees, llc_prefetcher)
+
+        return product(l1d_degrees, l2_degrees, llc_degrees)
+
+    def __extras_combinations(self,
+                              l1d_prefetcher: Tuple[str],
+                              l2_prefetcher: Tuple[str],
+                              llc_prefetcher: Tuple[str]):
+        """Generate combinations for extra knobs, like seed and 
+        prefetcher-specific knobs.
+
+        TODO: Docstring
+        """
+        seeds = []
+        pythia_features = []
+        pythia_level_thresholds = []
+
+        if 'seeds' in self.cfg.champsim:
+            seeds = self.cfg.champsim.seeds
+        if 'pythia' in self.cfg and any('scooby' in p for p in (l1d_prefetcher, l2_prefetcher, llc_prefetcher)):
+            # TODO: Skip dyn_level_threshold if we have scooby_double.
+            if 'dyn_level_threshold' in self.cfg.pythia:
+                pythia_level_thresholds = self.cfg.pythia.dyn_level_threshold
+            if 'features' in self.cfg.pythia:
+                pythia_features = self.cfg.pythia.features
+
+        # Ensure that we can still do extras combinations even if a particular
+        # extra is not defined.
+        # TODO: Achieve this more elegantly.
+        if len(seeds) == 0:
+            seeds = [None]
+        if len(pythia_features) == 0:
+            pythia_features = [None]
+        if len(pythia_level_thresholds) == 0:
+            pythia_level_thresholds = [None]
+
+        return product(seeds, pythia_features, pythia_level_thresholds)
+
+    def __iter__(self):
+        """TODO: Docstring
+        """
+        for trace in self.traces:
+            for l1d_prefetcher, l2_prefetcher, llc_prefetcher in self.__prefetcher_combinations():
+                for l1d_degree, l2_degree, llc_degree in self.__degree_combinations(l1d_prefetcher, l2_prefetcher, llc_prefetcher):
+                    for seed, pythia_features, pythia_level_threshold in self.__extras_combinations(l1d_prefetcher, l2_prefetcher, llc_prefetcher):
+                        yield Run(
+                            trace,
+                            l1d_prefetcher=l1d_prefetcher,
+                            l2_prefetcher=l2_prefetcher,
+                            llc_prefetcher=llc_prefetcher,
+                            l1d_prefetcher_degree=l1d_degree,
+                            l2_prefetcher_degree=l2_degree,
+                            llc_prefetcher_degree=llc_degree,
+                            # llc_sets=self.cfg.llc.sets,
+                            # branch_predictor=self.cfg.champsim.branch_pred,
+                            seed=seed,
+                            pythia_features=pythia_features,
+                            pythia_level_threshold=pythia_level_threshold,
+                        )
 
 
 def generate_condor_config(out, dry_run, memory=0, **params):
@@ -35,14 +269,14 @@ def generate_condor_script(out, dry_run, **params):
     cfg = cfg.format(**params)
 
     # Add optional parameters
-    if ('l2c_pref_degrees' in params.keys() 
-        and params['l2c_pref_degrees'] is not None):
+    if ('l2c_pref_degrees' in params.keys()
+            and params['l2c_pref_degrees'] is not None):
         cfg += f' \\\n    --l2c-pref-degrees {params["l2c_pref_degrees"]}'
-    if ('llc_pref_degrees' in params.keys() 
-        and params['llc_pref_degrees'] is not None):
+    if ('llc_pref_degrees' in params.keys()
+            and params['llc_pref_degrees'] is not None):
         cfg += f' \\\n    --llc-pref-degrees {params["llc_pref_degrees"]}'
-    if ('pc_trace_file' in params.keys() 
-        and params['pc_trace_file'] is not None):
+    if ('pc_trace_file' in params.keys()
+            and params['pc_trace_file'] is not None):
         cfg += f' \\\n    --pc-trace-llc {params["pc_trace_file"]}'
     if 'pc_trace_credit' in params.keys() and params['pc_trace_credit'] is True:
         cfg += f' \\\n    --pc-trace-credit'
@@ -50,12 +284,12 @@ def generate_condor_script(out, dry_run, **params):
         cfg += f' \\\n    --pc-trace-invoke-all'
     if 'pref_trace_file' in params.keys() and params['pref_trace_file'] is not None:
         cfg += f' \\\n    --pref-trace-llc {params["pref_trace_file"]}'
-    if 'track_pc'  in params.keys() and params['track_pc'] is True:
+    if 'track_pc' in params.keys() and params['track_pc'] is True:
         cfg += f' \\\n    --track-pc'
     if 'track_addr' in params.keys() and params['track_addr'] is True:
         cfg += f' \\\n    --track-addr'
-    if 'track_pref'  in params.keys() and params['track_pref'] is True:
-        cfg += f' \\\n    --track-pref' 
+    if 'track_pref' in params.keys() and params['track_pref'] is True:
+        cfg += f' \\\n    --track-pref'
     if 'run_name' in params.keys() and params['run_name'] is not None:
         cfg += f' \\\n    --run-name {params["run_name"]}'
     if 'extra_knobs' in params.keys() and params['extra_knobs'] is not None:
@@ -74,17 +308,17 @@ def generate_condor_list(out, condor_paths):
 
 
 def build_run(cfg, run: Run,
-              dry_run: bool=False,
-              verbose: bool=False) -> str:
+              dry_run: bool = False,
+              verbose: bool = False) -> str:
     """Build a single run and its necessary files. Return
     the path to the saved condor file.
-    
+
     Parameters:
         cfg: Config dictionary describing sweep parameters.
         run: Run object describing run parameters.  
         dry_run: If true, does not save anything.
         verbose: If true, print more information.
-    
+
     Return:
         condor_file: Path to Condor file
     """
@@ -142,32 +376,32 @@ def build_run(cfg, run: Run,
     # Add PC trace path, if we are running the pc_trace prefetcher
     if run.llc_prefetcher == ('pc_trace', ):
         pc_trace_file = os.path.join(
-            cfg.paths.pc_trace_dir, 
-            pc_trace.get_pc_trace_file(run.trace.full_trace, 
+            cfg.paths.pc_trace_dir,
+            pc_trace.get_pc_trace_file(run.trace.full_trace,
                                        cfg.pc_trace.metric, level='llc'))
         pc_trace_credit = cfg.pc_trace.credit
         pc_trace_invoke_all = cfg.pc_trace.invoke_all
-        
+
         if verbose:
             print(f'    pc_trace file  : {pc_trace_file}')
     else:
         pc_trace_file = None
         pc_trace_invoke_all = False
         pc_trace_credit = False
-        
+
     # Add prefetch trace path, if we are running the from_file prefetcher
     # NOTE: Running from_file for the Prefetcher zoo defaults to the relevant offline PC trace.
     if run.llc_prefetcher == ('from_file',):
         pref_trace_file = os.path.join(
-            cfg.paths.pref_trace_dir, 
-            pc_trace.get_pref_trace_file(run.trace.full_trace, 
+            cfg.paths.pref_trace_dir,
+            pc_trace.get_pref_trace_file(run.trace.full_trace,
                                          cfg.pref_trace.metric, level='llc'))
-        
+
         if verbose:
-            print(f'    pref_trace file  : {pref_trace_file}' )    
+            print(f'    pref_trace file  : {pref_trace_file}')
     else:
         pref_trace_file = None
-    
+
     # Generate Condor script
     generate_condor_script(
         script_file,
@@ -190,7 +424,8 @@ def build_run(cfg, run: Run,
         pc_trace_invoke_all=pc_trace_invoke_all,
         pref_trace_file=pref_trace_file,
         results_dir=results_dir,
-        extra_knobs=get_extra_knobs(cfg, run.seed, run.pythia_level_threshold, run.pythia_features),
+        extra_knobs=get_extra_knobs(
+            cfg, run.seed, run.pythia_level_threshold, run.pythia_features),
         warmup_instructions=cfg.champsim.warmup_instructions,
         num_instructions=cfg.champsim.sim_instructions,
         track_pc=cfg.champsim.track_pc_stats,
@@ -255,7 +490,7 @@ def get_extra_knobs(cfg, seed=None, level_threshold=None, features=None):
     if 'pythia' in cfg and cfg.pythia.separate_lowconf_pt:
         extra_knobs += f' --scooby_separate_lowconf_pt=true'
         extra_knobs += (' --scooby_lowconf_pt_size='
-                       f'{cfg.pythia.lowconf_pt_size}')
+                        f'{cfg.pythia.lowconf_pt_size}')
     else:
         extra_knobs += f' --scooby_separate_lowconf_pt=false'
 
@@ -266,10 +501,10 @@ def get_extra_knobs(cfg, seed=None, level_threshold=None, features=None):
                         f'{",".join([str(1) for _ in features])}')
 
     if 'pythia' in cfg and cfg.pythia.pooling == 'sum':
-        extra_knobs += (' --le_featurewise_pooling_type=1') # Sum
+        extra_knobs += (' --le_featurewise_pooling_type=1')  # Sum
     else:
-        extra_knobs += (' --le_featurewise_pooling_type=2') # Max
-    
+        extra_knobs += (' --le_featurewise_pooling_type=2')  # Max
+
     if 'pythia' in cfg and not cfg.pythia.dyn_degree:
         extra_knobs += (' --scooby_enable_dyn_degree=false')
     else:

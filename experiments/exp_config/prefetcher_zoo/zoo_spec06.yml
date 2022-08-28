@@ -26,6 +26,28 @@ llc:
         - 'spp_dev2' # SPP
     hybrids: [1, 2]
     degrees: [1]
+bingo:
+    dyn_degree: true
+pythia:
+    # Degree
+    dyn_degree: true
+    # Learning
+    features: [[8, 10]] # PC+Delta + Last 4 Deltas (Paper)
+    pooling: 'max'
+    alpha: 0.006508802942367162
+    gamma: 0.556300959940946
+    epsilon: 0.0018228444309622588
+    policy: 'EGreedy'
+    learning_type: 'SARSA'  
+    # Double/level-aware Pythia
+    dyn_level_threshold: [] 
+    separate_lowconf_pt: false # Whether to use separate EQs for high- and 
+                               # low-confidence prefetches (Double Pythia only, for now).
+    # Prefetch table
+    pt_size: 256
+    lowconf_pt_size: 256
+spp_dev2:
+    dyn_degree: true
 paths:
     exp_dir: '/scratch/cluster/cmolder/prefetcher_zoo/zoo_spec06/'
     trace_dir: '/scratch/cluster/cmolder/traces/spec06/champsim/'
