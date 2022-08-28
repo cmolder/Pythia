@@ -25,7 +25,18 @@ pythia:
     dyn_degree: false
     # Learning
     features:
+        - [0] # PC
+        - [1] # Page offset
+        - [2] # Address delta
+        - [3] # Address of cache line
+        - [8] # Last 4 Deltas
+        - [10] # PC+Delta
+        - [12] # Page number
         - [8, 10] # PC+Delta + Last 4 Deltas (Paper)
+        - [0, 10] # PC+Delta + PC
+        - [0, 8, 10] # PC+Delta + PC + Last 4 Deltas
+        - [0, 5, 10] # PC+Delta + PC+Addr + Last 4 Deltas
+        - [0, 5, 8, 10] # PC+Delta + PC+Addr + PC + Last 4 Deltas
     pooling: 'max'
     alpha: 0.006508802942367162
     gamma: 0.556300959940946

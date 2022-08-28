@@ -8,6 +8,7 @@ Authors: Quang Duong and Carson Molder
 # Try not to import anything outside Python default libraries.
 import argparse
 import glob
+from itertools import product
 import os
 import sys
 import shutil
@@ -28,19 +29,19 @@ help_str = {
 Available commands:
     build            Build ChampSim binaries
     run              Run ChampSim on specified traces
-    help             Display this help message. Command-specific help 
-                     messages can be displayed with 
+    help             Display this help message. Command-specific help
+                     messages can be displayed with
                      `{prog} help command`
 '''.format(prog=sys.argv[0]),
 'build':
-'''usage: {prog} build [--l1d-pref <l1d-prefetcher>] 
-                            [--l2c-pref <l2c-prefetcher>] 
+'''usage: {prog} build [--l1d-pref <l1d-prefetcher>]
+                            [--l2c-pref <l2c-prefetcher>]
                             [--llc-pref <llc-prefetcher>]
-                            [-c / --cores <core-count-list>] 
+                            [-c / --cores <core-count-list>]
                             [-s / --llc-sets <llc-set-count-list>]
 
 Description:
-    {prog} build 
+    {prog} build
         Builds ChampSim binaries.
 
         Note: The replacement policy is SHiP for the LLC.
@@ -48,7 +49,7 @@ Description:
 Options:
     --branch-pred <branch-predictor>
         Choose the branch predictor, where <branch-pred> is one of:
-        
+
         perceptron          Branch perceptron (Default)
         hashed_perceptron   Hashed Branch Perceptron
         gshare              Gshare
@@ -56,42 +57,42 @@ Options:
 
     --l1d-pref <l1d-prefetcher>
         Choose the L1D prefetcher, where <l1d-prefetcher> is one of:
-        
+
         no             No prefetcher (Default)
-        multi          Runtime-configurable prefetcher 
+        multi          Runtime-configurable prefetcher
                        (see multi.l1d_pref for options)
 
     --l2c-pref <l2c-prefetcher>
         Choose the L2 prefetcher, where <llc-prefetcher> is one of:
-        
+
         no             No prefetcher (Default)
-        multi          Runtime-configurable prefetcher 
+        multi          Runtime-configurable prefetcher
                        (see multi.l2c_pref for options)
 
     --llc-pref <llc-prefetcher>
         Choose the LLC prefetcher, where <llc-prefetcher> is one of:
-        
+
         no             No prefetcher (Default)
-        multi          Runtime-configurable prefetcher 
+        multi          Runtime-configurable prefetcher
                        (see multi.llc_pref for options)
-        multi_pc_trace Prefetch using the chosen prefetcher for each PC, 
+        multi_pc_trace Prefetch using the chosen prefetcher for each PC,
                        as defined in a PC trace.
-        from_file      Prefetch using per-instruction addresses in a 
+        from_file      Prefetch using per-instruction addresses in a
                        prefetch address trace.
-                       
+
    --llc-repl <llc-replacement>
-        Choose the LLC replacement policy, where <llc-replacement> is 
+        Choose the LLC replacement policy, where <llc-replacement> is
         one of:
-        
+
         ship           Signature-based Hit Predictor (SHiP) (Default)
         srrip          Static RRIP
         drrip          Dynamic RRIP
         lru            Least recently used
 
     -c / --cores <core-count-list>
-        Specifies a list of cores to build ChampSim variants. A single 
-        core version will always be built, but additional versions 
-        (e.g. 2-core / 4-core) can be listed here (e.g. using -c 2 4). 
+        Specifies a list of cores to build ChampSim variants. A single
+        core version will always be built, but additional versions
+        (e.g. 2-core / 4-core) can be listed here (e.g. using -c 2 4).
         The ChampSim script is tested up to 8 cores.
         Default: One core only
 
@@ -100,25 +101,25 @@ Options:
         Default: {default_llc_sets} sets only.
 
 Notes:
-    Barring updates to the GitHub repository, this will only need to be 
+    Barring updates to the GitHub repository, this will only need to be
     done once.
 '''.format(prog=sys.argv[0],
-           default_llc_ways=defaults.default_llc_ways,
+           #default_llc_ways=defaults.default_llc_ways,
            default_llc_sets=defaults.default_llc_sets),
 'run':
-'''usage: {prog} run <execution-traces> 
-                        [-c / --cores <num-cores>] 
+'''usage: {prog} run <execution-traces>
+                        [-c / --cores <num-cores>]
                         [-s / --sets <num-llc-sets>]
                         [-t / --llc-pref <list-of-llc-prefetchers>]
                         [--llc-pref-degrees <list-of-llc-degrees>]
-                        [--results-dir <results-dir>] 
-                        [--warmup-instructions <warm-inst-millions>] 
-                        [--num-instructions <num-inst-millions>] 
+                        [--results-dir <results-dir>]
+                        [--warmup-instructions <warm-inst-millions>]
+                        [--num-instructions <num-inst-millions>]
 
 Description:
     {prog} run <execution-traces>
-        Runs the base ChampSim binary on the specified execution 
-        trace(s). If using a multi-core setup, must provide <cores> 
+        Runs the base ChampSim binary on the specified execution
+        trace(s). If using a multi-core setup, must provide <cores>
         traces.
 
 Options:
@@ -128,95 +129,95 @@ Options:
             defaults to `{default_knobs_file}`.
 
         -c / --cores <num-cores>
-            The number of cores that ChampSim will be simulating. Must 
-            provide a <cores> length list of execution traces to the 
+            The number of cores that ChampSim will be simulating. Must
+            provide a <cores> length list of execution traces to the
             script. By default, one core is used.
 
         -s / --llc-sets <num-llc-sets>
-            The number of LLC cache sets that ChampSim will be 
-            simulating. By default, {default_llc_sets} sets are used 
+            The number of LLC cache sets that ChampSim will be
+            simulating. By default, {default_llc_sets} sets are used
             (if the binary is available).
 
         --results-dir <results-dir>
-            Specifies what directory to save the ChampSim results file 
+            Specifies what directory to save the ChampSim results file
             in. This defaults to `{default_results_dir}`.
-            
+
         --run-name <run-name>
-            Optionally name the run. If not given, the script will 
+            Optionally name the run. If not given, the script will
             determine one from the parameters.
 
         --warmup-instructions <warmup-instructions>
-            Number of instructions to warmup the simulation for. 
+            Number of instructions to warmup the simulation for.
             Defaults to {default_warmup_instructions}M instructions
 
         --num-instructions <num-instructions>
-            Number of instructions to run the simulation for. Defaults 
+            Number of instructions to run the simulation for. Defaults
             to {default_sim_instructions}M instructions
-            
+
         -p / --track-pc
-            Track per-PC prefetch statistics, and save them to a file 
+            Track per-PC prefetch statistics, and save them to a file
             inside <results-dir>/pc-pref-stats.
-            
+
         -a / --track-addr
-            Track per-address prefetch statistics, and save them to a 
+            Track per-address prefetch statistics, and save them to a
             file inside <results-dir>/addr-pref-stats.
-            
+
         -d / --track-pref
-            Track every prefetch's address/level, and save it to a file 
+            Track every prefetch's address/level, and save it to a file
             inside <results-dir>/pref-traces.
-                
+
         --extra-knobs <knob-string>
-            Any additional knobs to pass to ChampSim. Pass them in the 
-            form of a string with BOTH double quotes and single quotes, 
-            e.g. `--knobs "'--sisb_pref_degree=4'"`. They must match the 
+            Any additional knobs to pass to ChampSim. Pass them in the
+            form of a string with BOTH double quotes and single quotes,
+            e.g. `--knobs "'--sisb_pref_degree=4'"`. They must match the
             ChampSim knob format ("--<knob>=<value>"). (TODO: Simplify)
 
     Prefetcher options:
         -t / --llc-pref <list-of-llc-prefetchers>
-            List of LLC prefetchers to run. If two or more are proivded, 
-            runs them in a hybrid setting. By default, it will run no 
+            List of LLC prefetchers to run. If two or more are proivded,
+            runs them in a hybrid setting. By default, it will run no
             prefetcher.
-            
+
         --l2c-pref <list-of-l2c-prefetchers>
-        
+
         --l1d-pref <list-of-l1d-prefetchers>
-        
+
         --llc-pref-degrees <list-of-llc-prefetcher-degrees>
-            List of degrees to run each LLC prefetcher. If the 
-            prefetcher does not support variable degrees, the value is 
-            ignored. Pass them in the same order as `--llc-pref`. 
+            List of degrees to run each LLC prefetcher. If the
+            prefetcher does not support variable degrees, the value is
+            ignored. Pass them in the same order as `--llc-pref`.
 
             Defaults to the knobs in the config file
-            passed to `--config`, or the values in src/knobs.cc if the 
+            passed to `--config`, or the values in src/knobs.cc if the
             relevant knob isn't provided in the config file.
-            
+
         --l2c-pref-degrees <list-of-l2c-prefetcher-degrees>
-        
+
         --pc-trace-llc <pc-trace-file>
-            File to a PC trace. Must be passed if the LLC prefetcher is 
+            File to a PC trace. Must be passed if the LLC prefetcher is
             'pc_trace'.
-            
+
         --pc-trace-invoke-all
-            If passed, invoke ALL prefetchers during a demand access, 
+            If passed, invoke ALL prefetchers during a demand access,
             not just the ones for the demand access's PC.
 
         --pc-trace-credit
-            If passed, will register fills to ONLY the prefetchers that 
-            prefetch(or would have prefetched) the address. Otherwise, 
+            If passed, will register fills to ONLY the prefetchers that
+            prefetch(or would have prefetched) the address. Otherwise,
             it will register fills to ALL prefetchers.
-            
+
         --pref-trace-llc <pref-trace-file>
-            File to a prefetch address traced. Must be passed if the LLC 
+            File to a prefetch address traced. Must be passed if the LLC
             prefetcher is 'from_file'.
-            
+
     Replacement options:
         --llc-repl <llc-replacement>
-            LLC replacement policy to use. By default, SHiP ("ship") is 
+            LLC replacement policy to use. By default, SHiP ("ship") is
             used.
-            
+
     Branch prediction options:
         --branch-pred <branch-predictor>
-            Branch predictor to use. By default, Branch Perceptron 
+            Branch predictor to use. By default, Branch Perceptron
             ("perceptron") is used.
 '''.format(
         prog=sys.argv[0],
@@ -274,18 +275,17 @@ def build_command():
     llc_sets = set(args.llc_sets)
 
     # Remove Jupyter checkpoints (can conflict with actual files).
-    for d in glob.glob('*/.ipynb_checkpoints/'):
-        shutil.rmtree(d)
+    for checkpoint in glob.glob('*/.ipynb_checkpoints/'):
+        shutil.rmtree(checkpoint)
 
-    for c in cores:
-        for s in llc_sets:
-            build.build_config(c,
-                               branch_pred=args.branch_pred,
-                               l1d_pref=args.l1d_pref,
-                               l2c_pref=args.l2c_pref,
-                               llc_pref=args.llc_pref,
-                               llc_repl=args.llc_repl,
-                               llc_num_sets=s)
+    for n_cores, n_llc_sets in product(cores, llc_sets):
+        build.build_config(n_cores,
+                            branch_pred=args.branch_pred,
+                            l1d_pref=args.l1d_pref,
+                            l2c_pref=args.l2c_pref,
+                            llc_pref=args.llc_pref,
+                            llc_repl=args.llc_repl,
+                            llc_num_sets=n_llc_sets)
 
 
 def run_command():
@@ -432,7 +432,7 @@ def run_command():
                                f' --pc_trace_credit_prefetch='
                                f'{str(args.pc_trace_credit).lower()}'
                                f' --pc_trace_invoke_all='
-                               f'{str(args.pc_trace_invoke_all).lower()}' 
+                               f'{str(args.pc_trace_invoke_all).lower()}'
                                if args.pc_trace_llc else ''),
                pref_trace_knobs=(f' --prefetch_trace_llc={args.pref_trace_llc}'
                                  if args.pref_trace_llc else ''),
@@ -462,6 +462,8 @@ def help_command():
 
 
 def main():
+    """Launch the script.
+    """
     commands = {
         'build': build_command,
         'run': run_command,

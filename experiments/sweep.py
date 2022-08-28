@@ -14,64 +14,64 @@ from exp_utils import condor, config, evaluate, pc_trace
 
 # Defaults
 # TODO: Move to yml or launch args
-default_eval_csv = './out/sweep/sweep.csv'
-default_pc_trace_metric = 'num_useful'
-default_best_degree_metric = 'ipc'
+DEFAULT_EVAL_CSV = './out/sweep/sweep.csv'
+DEFAULT_PC_TRACE_METRIC = 'num_useful'
+DEFAULT_BEST_DEGREE_METRIC = 'ipc'
 
 help_str = {
     'help': '''usage: {prog} command [<args>]
 
 Available commands:
     condor            Set up sweep on Condor
-    
+
     eval              Parse and compute metrics on sweep results
 
     best_degree       Find the best degree for each prefetcher on each
                       trace, when comparing prefetch degrees
-    
-    online_pc_trace   Parse a per-PC statistics file and generate PC 
-                      traces of the best prefetchers for each PC on each 
-                      SimPoint, for use in online evaluation via 
+
+    online_pc_trace   Parse a per-PC statistics file and generate PC
+                      traces of the best prefetchers for each PC on each
+                      SimPoint, for use in online evaluation via
                       multi_pc_trace
-                      
-    offline_pc_trace  Parse a per-PC statistics file and generate 
-                      prefetch traces using the best prefetchers for 
-                      each PC on each SimPoint, for use in offline 
+
+    offline_pc_trace  Parse a per-PC statistics file and generate
+                      prefetch traces using the best prefetchers for
+                      each PC on each SimPoint, for use in offline
                       evaluation via from_file
-                      
-    help              Display this help message. Command-specific help 
-                      messages can be displayed with 
+
+    help              Display this help message. Command-specific help
+                      messages can be displayed with
                       `{prog} help command`
 '''.format(prog=sys.argv[0]),
 
-    'condor': '''usage: {prog} condor <config-file> [-v / --verbose] 
+    'condor': '''usage: {prog} condor <config-file> [-v / --verbose]
                                                 [-d / --dry-run]
 
 Description:
     {prog} condor <config-file>
-        Sets up a sweep for use on Condor. <config-file> 
-        is a path to a .yml file with the config 
+        Sets up a sweep for use on Condor. <config-file>
+        is a path to a .yml file with the config
         (example: experiments/exp_utils/zoo.yml)
-        
+
 Options:
     -v / --verbose
         If passed, prints extra details about the experiment setup.
-        
+
     -d / --dry-run
-        If passed, builds the experiment but writes nothing to 
+        If passed, builds the experiment but writes nothing to
         <experiment-dir>.
 '''.format(
         prog=sys.argv[0],
     ),
 
-    'eval': '''usage: {prog} eval <results-dir> 
-                              [--output-file <output-file>] 
+    'eval': '''usage: {prog} eval <results-dir>
+                              [--output-file <output-file>]
                               [--norm-baseline <baseline>]
 
 Description:
     {prog} eval <results-dir>
-        Runs the evaluation procedure on the ChampSim result files found 
-        in <results-dir> (i.e. champsim_results/) and outputs a CSV at 
+        Runs the evaluation procedure on the ChampSim result files found
+        in <results-dir> (i.e. champsim_results/) and outputs a CSV at
         the specified output path.
 
 Options:
@@ -81,79 +81,79 @@ Options:
         to the ouput under a "weighted" SimPoint.
 
     -o / --output-file <output-file>
-        Specifies what file path to save the stats CSV data to. This 
+        Specifies what file path to save the stats CSV data to. This
         defaults to `{default_eval_csv}`.
-              
+
     --pc
-        If provided, will compute per-PC prefetch stats on the LLC, 
+        If provided, will compute per-PC prefetch stats on the LLC,
         using results in <results-dir>/pc_pref_stats/
-        
+
     --dry-run
-        If passed, builds the spreadsheet but writes nothing to 
+        If passed, builds the spreadsheet but writes nothing to
         <output-file>.
 
 Note:
-    To get stats comparing performance to a no-prefetcher baseline, it 
-    is necessary to have run the base ChampSim binary on the same 
+    To get stats comparing performance to a no-prefetcher baseline, it
+    is necessary to have run the base ChampSim binary on the same
     execution trace.
 
-    Without the base data, relative performance data comparing MPKI and 
-    IPC will not be available and the coverage statistic will only be 
+    Without the base data, relative performance data comparing MPKI and
+    IPC will not be available and the coverage statistic will only be
     approximate.
 '''.format(
         prog=sys.argv[0],
-        default_eval_csv=default_eval_csv
+        default_eval_csv=DEFAULT_EVAL_CSV
     ),
-    'best_degree': '''usage: {prog} eval <results-dir> 
-                                     [--output-file <output-file>] 
+    'best_degree': '''usage: {prog} eval <results-dir>
+                                     [--output-file <output-file>]
                                      [--norm-baseline <baseline>]
 Description:
     {prog} eval <results-dir>
-        Runs the evaluation procedure on the ChampSim result files found 
-        in <results-dir> and outputs a CSV at the specified output path. 
+        Runs the evaluation procedure on the ChampSim result files found
+        in <results-dir> and outputs a CSV at the specified output path.
         Determines the best degree for each prefetcher combination.
 
 Options:
     -o / --output-file <output-file>
-        Specifies what file path to save the stats CSV data to. 
+        Specifies what file path to save the stats CSV data to.
         Default: `{default_output_file}`
-        
+
     -m / --metric <metric>
         Specifies the metric to compare prefetching degrees to.
         Default: `{default_metric}`
-        
+
     --dry-run
-        If passed, builds the spreadsheet but writes nothing to 
+        If passed, builds the spreadsheet but writes nothing to
         <output-file>.
 Note:
     To get stats comparing performance to a no-prefetcher baseline,
     it is necessary to have run the base ChampSim binary on the same
     execution trace. Without the baseline data, relative performance
-    data comparing MPKI and IPC will not be available and coverage 
+    data comparing MPKI and IPC will not be available and coverage
     will be approximate.
 
 '''.format(
         prog=sys.argv[0],
-        default_output_file=default_eval_csv,
-        default_metric=default_best_degree_metric,
+        default_output_file=DEFAULT_EVAL_CSV,
+        default_metric=DEFAULT_BEST_DEGREE_METRIC,
     ),
-    'online_pc_trace': '''usage: {prog} online_pc_trace <pc-stats-file> 
-                                    <output-dir> 
+    'online_pc_trace': '''usage: {prog} online_pc_trace <pc-stats-file>
+                                    <output-dir>
                                     [-m / --metric <metric>]
 
 Description:
     {prog} online_pc_trace <pc-stats-file> <output-dir>
-        Parses a PC stats file, and for each PC in each trace, 
-        determines the best prefetcher under <metric>. These online 
-        traces are saved to the output dir, for use in the 
+        Parses a PC stats file, and for each PC in each trace,
+        determines the best prefetcher under <metric>. These online
+        traces are saved to the output dir, for use in the
         multi_pc_trace prefetcher.
-        
-        <pc-stats-file> is generated by running {prog} eval and passing 
+
+        <pc-stats-file> is generated by running {prog} eval and passing
         the --pc flag.
-        
+
 Options:
     -m / --metric <metric>
-        Specifies what metric to evaluate prefetchers by. Currently, the 
+        Specifies what metric to evaluate prefetchers by. Currently, the
         options are: {metric_options}
 
     --dry-run
@@ -163,36 +163,36 @@ Options:
         metric_options=pc_trace.metrics
     ),
 
-    'offline_pc_trace': '''usage: {prog} offline_pc_trace <pc-stats-file> 
-                                     <output-dir> 
-                                     [-m / --metric <metric>] 
-                                     [-t / --num-threads <num-threads>] 
+    'offline_pc_trace': '''usage: {prog} offline_pc_trace <pc-stats-file>
+                                     <output-dir>
+                                     [-m / --metric <metric>]
+                                     [-t / --num-threads <num-threads>]
                                      [--dry-run]
 
 Description:
     {prog} pc_trace <pc-stats-file> <pref-trace-dir>
-        Parses a PC stats file, and for each PC in each trace, 
-        determines the best prefetcher under <metric>. For each 
-        SimPoint, it builds a new "combined" trace in <pref-trace-dir> 
-        that uses the prefetches from the best-performing prefetcher on 
+        Parses a PC stats file, and for each PC in each trace,
+        determines the best prefetcher under <metric>. For each
+        SimPoint, it builds a new "combined" trace in <pref-trace-dir>
+        that uses the prefetches from the best-performing prefetcher on
         each PC.
-        
-        <pc-stats-file> is generated by running {prog} eval and passing 
+
+        <pc-stats-file> is generated by running {prog} eval and passing
         the --pc flag.
-        
+
 Options:
     -m / --metric <metric>
-        Specifies what metric to evaluate prefetchers by. Currently, the 
+        Specifies what metric to evaluate prefetchers by. Currently, the
         options are: {metric_options}
-        
+
     -t / --num-threads <num-threads>
-        If passed (along with an argument to -d), will run <num-thread> 
-        threads to perform the offline trace processing for multiple 
+        If passed (along with an argument to -d), will run <num-thread>
+        threads to perform the offline trace processing for multiple
         benchmarks simultaneously.
-        
-        **CHECK YOUR SYSTEM'S MEMORY**, you may use >1 GB of memory per 
+
+        **CHECK YOUR SYSTEM'S MEMORY**, you may use >1 GB of memory per
         thread.
-        
+
     --dry-run
         If passed, builds the traces but writes nothing.
 '''.format(
@@ -285,7 +285,7 @@ def eval_command():
     parser.add_argument('-o',
                         '--output-file',
                         type=str,
-                        default=default_eval_csv)
+                        default=DEFAULT_EVAL_CSV)
     parser.add_argument('--pc', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
@@ -321,9 +321,9 @@ def best_degree_command():
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
     parser.add_argument('results_dir', type=str)
     parser.add_argument('-o', '--output-file', type=str,
-                        default=default_eval_csv)
+                        default=DEFAULT_EVAL_CSV)
     parser.add_argument('-m', '--metric', type=str,
-                        default=default_best_degree_metric)
+                        default=DEFAULT_BEST_DEGREE_METRIC)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
 
@@ -347,7 +347,7 @@ def online_pc_trace_command():
     parser.add_argument('pc_stats_file', type=str)
     parser.add_argument('output_dir', type=str)
     parser.add_argument('-m', '--metric', type=str,
-                        default=default_pc_trace_metric)
+                        default=DEFAULT_PC_TRACE_METRIC)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(sys.argv[2:])
 
@@ -368,7 +368,7 @@ def offline_pc_trace_command():
     parser.add_argument('pc_stats_file', type=str)
     parser.add_argument('pref_traces_dir', type=str)
     parser.add_argument('-m', '--metric', type=str,
-                        default=default_pc_trace_metric)
+                        default=DEFAULT_PC_TRACE_METRIC)
     parser.add_argument('-t', '--num_threads', type=int, default=1)
     parser.add_argument('--dry-run', action='store_true')
 
@@ -385,10 +385,6 @@ def offline_pc_trace_command():
     )
 
 
-"""
-Help
-"""
-
 
 def help_command():
     """Help command
@@ -403,9 +399,6 @@ def help_command():
         exit(-1)
 
 
-"""
-Main
-"""
 commands = {
     'condor': condor_command,
     'eval': eval_command,
@@ -417,6 +410,8 @@ commands = {
 
 
 def main():
+    """Launch the script.
+    """
     # If no subcommand specified or invalid subcommand, print main help
     # string and exit
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
