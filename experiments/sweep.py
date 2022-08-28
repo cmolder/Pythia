@@ -262,13 +262,13 @@ def condor_command():
         print('            Size           :', cfg.pythia.pt_size)
         print('            Low conf. size :', cfg.pythia.lowconf_pt_size,
               '(if separate PT enabled)')
-        print()
     if 'bingo' in cfg:
         print('    Bingo:')
         print('        Fixed degree       :', not cfg.bingo.dyn_degree)
     if 'spp_dev2' in cfg:
         print('    SPP_dev2:')
         print('        Fixed degree       :', not cfg.spp_dev2.dyn_degree)
+    print()
 
     condor.build_sweep(cfg, dry_run=args.dry_run, verbose=args.verbose)
 

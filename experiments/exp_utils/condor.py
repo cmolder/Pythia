@@ -10,9 +10,9 @@ from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
-from exp_utils import pc_trace
+from exp_utils import defaults, pc_trace
 from exp_utils.run import pref_degree_knobs
-from exp_utils.file import ChampsimStatsFile, ChampsimTraceDirectory
+from exp_utils.file import ChampsimTraceFile, ChampsimTraceDirectory
 
 condor_template = 'experiments/exp_utils/condor_template.txt'
 script_template = 'experiments/exp_utils/script_template.txt'
@@ -21,8 +21,7 @@ script_template = 'experiments/exp_utils/script_template.txt'
 class Run():
     """Defines an individual run of a Condor sweep."""
 
-    def __init__(self,
-                 trace: ChampsimStatsFile,
+    def __init__(self, cfg, trace: ChampsimTraceFile,
                  l1d_prefetcher: Tuple[str] = ('no',),
                  l2_prefetcher: Tuple[str] = ('no',),
                  llc_prefetcher: Tuple[str] = ('no',),
@@ -43,6 +42,7 @@ class Run():
         assert len(llc_prefetcher) == len(llc_prefetcher_degree)
 
         self.trace = trace
+        self.cfg = cfg
 
         self.l1d_prefetcher = l1d_prefetcher
         self.l2_prefetcher = l2_prefetcher
@@ -60,7 +60,7 @@ class Run():
         self.pythia_level_threshold = pythia_level_threshold
         self.pythia_pooling = pythia_pooling
 
-    def run_name(self):
+    def run_name(self) -> str:
         """Generate a run name that summarizes the run's parameters."""
         # Prefetcher strings
         l1d_prefetcher_str = '' if self.l1d_prefetcher == ('no',) else (
@@ -105,6 +105,73 @@ class Run():
     def __str__(self):
         """Return a run name that summarizes the run's parameters."""
         return self.run_name()
+
+    def mix_config_files(self, base_config_path: str) -> str:
+        """Mix this run's parameters with a base config ini file.
+        
+        Parameters:
+            base_config_path: Path to the base config ini file.
+        
+        Returns:
+            mixed_config: String representing the mixed config (not 
+               saved to file).
+
+        TODO: Support additional knobs (e.g. prefetcher type, degree)
+        """
+        with open(base_config_path, 'r') as f:
+            config = f.readlines()
+
+        knobs = {}
+        # Simulator seed
+        knobs['champsim_seed'] = self.seed
+        knobs['scooby_seed'] = self.seed
+        # Pythia dynamic level
+        if self.pythia_level_threshold is not None:
+            knobs['scooby_enable_dyn_level'] = True
+            knobs['scooby_dyn_level_threshold'] = self.pythia_level_threshold
+        else:
+            knobs['scooby_enable_dyn_level'] = False
+        # Pythia low-confidence prefetch table
+        if 'pythia' in self.cfg and self.cfg.pythia.separate_lowconf_pt:
+            knobs['scooby_separate_lowconf_pt'] = True
+            knobs['scooby_lowconf_pt_size'] = self.cfg.pythia.lowconf_pt_size
+        # Pythia features
+        if self.pythia_features is not None:
+            knobs['le_featurewise_active_features'] = (
+                ','.join([str(f) for f in self.pythia_features]))
+            knobs['le_featurewise_enable_tiling_offset'] = (
+                ','.join(["1" for _ in self.pythia_features])
+            )
+        # Pythia pooling type (1 = sum, 2 = max)
+        knobs['le_featurewise_pooling_type'] = (1 
+            if 'pythia' in self.cfg and self.cfg.pythia.pooling == 'sum' else 2)
+        # Pythia dynamic degree
+        knobs['scooby_enable_dyn_degree'] = (
+            'pythia' in self.cfg and self.cfg.pythia.dyn_degree)
+        # Pythia parameters
+        if 'pythia' in self.cfg:
+            knobs['scooby_alpha'] = self.cfg.pythia.alpha
+            knobs['scooby_gamma'] = self.cfg.pythia.gamma
+            knobs['scooby_epsilon'] = self.cfg.pythia.epsilon
+            knobs['scooby_policy'] = self.cfg.pythia.policy
+            knobs['scooby_learning_type'] = self.cfg.pythia.learning_type
+            knobs['scooby_pt_size'] = self.cfg.pythia.pt_size
+
+        clean_value = lambda v : str(v).lower() if isinstance(v, bool) or v is None else str(v)
+
+        # Replace matched knobs in the config
+        for i, line in enumerate(config):
+            for k, v in knobs.items():
+                if k in line:
+                    config[i] = f'{k} = {clean_value(v)}\n'
+
+        
+        # Add unmatched knobs to the config.
+        for k, v in knobs.items():
+            if v != None: # Unmatched
+                config.append(f'{k} = {clean_value(v)}\n')
+
+        return ''.join(config)
 
 
 class RunGenerator():
@@ -232,7 +299,7 @@ class RunGenerator():
                 for l1d_degree, l2_degree, llc_degree in self.__degree_combinations(l1d_prefetcher, l2_prefetcher, llc_prefetcher):
                     for seed, pythia_features, pythia_level_threshold in self.__extras_combinations(l1d_prefetcher, l2_prefetcher, llc_prefetcher):
                         yield Run(
-                            trace,
+                            self.cfg, trace,
                             l1d_prefetcher=l1d_prefetcher,
                             l2_prefetcher=l2_prefetcher,
                             llc_prefetcher=llc_prefetcher,
@@ -260,45 +327,62 @@ def generate_condor_config(out, dry_run, memory=0, **params):
             print(cfg, file=f)
 
 
-def generate_condor_script(out, dry_run, **params):
+def generate_condor_script(run: Run, cfg, script_out_path: str, 
+                           config_path: str,
+                           results_dir: str,
+                           pc_trace_file: Optional[str] = None,
+                           pc_trace_credit: bool = False,
+                           pc_trace_invoke_all = False,
+                           pref_trace_file: Optional[str] = None,
+                           track_pc: bool = False,
+                           track_addr: bool = False,
+                           track_pref: bool = False,
+                           dry_run: bool = False):
     """Generate a script that the Condor run will execute to simulate."""
     with open(script_template, 'r') as f:
-        cfg = f.read()
+        script = f.read()
 
     # Add required parameters
-    cfg = cfg.format(**params)
+    script = script.format(
+      champsim_dir = cfg.paths.champsim_dir,
+      trace_file = run.trace.path,
+      cores = 1,  # TODO: Support multicore
+      config = config_path,
+      l1d_pref = ' '.join(run.l1d_prefetcher),
+      l2_pref = ' '.join(run.l2_prefetcher),
+      llc_pref = ' '.join(run.llc_prefetcher),
+      llc_repl = cfg.llc.repl,
+      llc_sets = cfg.llc.sets,
+      results_dir = results_dir,
+      num_instructions = cfg.champsim.sim_instructions,
+      warmup_instructions = cfg.champsim.warmup_instructions,
+    )
 
-    # Add optional parameters
-    if ('l2c_pref_degrees' in params.keys()
-            and params['l2c_pref_degrees'] is not None):
-        cfg += f' \\\n    --l2c-pref-degrees {params["l2c_pref_degrees"]}'
-    if ('llc_pref_degrees' in params.keys()
-            and params['llc_pref_degrees'] is not None):
-        cfg += f' \\\n    --llc-pref-degrees {params["llc_pref_degrees"]}'
-    if ('pc_trace_file' in params.keys()
-            and params['pc_trace_file'] is not None):
-        cfg += f' \\\n    --pc-trace-llc {params["pc_trace_file"]}'
-    if 'pc_trace_credit' in params.keys() and params['pc_trace_credit'] is True:
-        cfg += f' \\\n    --pc-trace-credit'
-    if 'pc_trace_invoke_all' in params.keys() and params['pc_trace_invoke_all'] is True:
-        cfg += f' \\\n    --pc-trace-invoke-all'
-    if 'pref_trace_file' in params.keys() and params['pref_trace_file'] is not None:
-        cfg += f' \\\n    --pref-trace-llc {params["pref_trace_file"]}'
-    if 'track_pc' in params.keys() and params['track_pc'] is True:
-        cfg += f' \\\n    --track-pc'
-    if 'track_addr' in params.keys() and params['track_addr'] is True:
-        cfg += f' \\\n    --track-addr'
-    if 'track_pref' in params.keys() and params['track_pref'] is True:
-        cfg += f' \\\n    --track-pref'
-    if 'run_name' in params.keys() and params['run_name'] is not None:
-        cfg += f' \\\n    --run-name {params["run_name"]}'
-    if 'extra_knobs' in params.keys() and params['extra_knobs'] is not None:
-        cfg += f' \\\n    --extra-knobs "\'{params["extra_knobs"]}\'"'
+    # TODO: Support L1D prefetcher degree
+    # TODO: Move more of these knobs into the config.ini file.
+    #cfg += f' \\\n    --l1d-pref-degrees ' + ' '.join([str(d) for d in run.l1d_prefetcher_degree])
+    script += f' \\\n    --l2c-pref-degrees ' + ' '.join([str(d) for d in run.l2_prefetcher_degree])
+    script += f' \\\n    --llc-pref-degrees ' + ' '.join([str(d) for d in run.llc_prefetcher_degree])
+    script += f' \\\n    --run-name {run.run_name()}'
+    if pc_trace_file is not None:
+        script += f' \\\n    --pc-trace-llc {pc_trace_file}'
+    if pc_trace_credit:
+        script += f' \\\n    --pc-trace-credit'
+    if pc_trace_invoke_all:
+        script += f' \\\n    --pc-trace-invoke-all'
+    if pref_trace_file:
+        script += f' \\\n    --pref-trace-llc {pref_trace_file}'
+    if track_pc:
+        script += f' \\\n    --track-pc'
+    if track_addr:
+        script += f' \\\n    --track-addr'
+    if track_pref:
+        script += f' \\\n    --track-pref'
 
     if not dry_run:
-        with open(out, 'w') as f:
-            print(cfg, file=f)
-        os.chmod(out, 0o755)  # Make script executable
+        with open(script_out_path, 'w') as f:
+            print(script, file=f)
+        os.chmod(script_out_path, 0o755)  # Make script executable
 
 
 def generate_condor_list(out, condor_paths):
@@ -328,6 +412,7 @@ def build_run(cfg, run: Run,
     log_file_base = os.path.join(cfg.paths.exp_dir, 'logs', run_name)
     condor_file = os.path.join(cfg.paths.exp_dir, 'condor',
                                f'{run_name}.condor')
+    config_file = os.path.join(cfg.paths.exp_dir, 'configs', f'{run_name}.ini')
     script_file = os.path.join(cfg.paths.exp_dir, 'scripts', f'{run_name}.sh')
     results_dir = os.path.join(cfg.paths.exp_dir, 'champsim_results')
 
@@ -335,7 +420,8 @@ def build_run(cfg, run: Run,
         print(f'\nFiles for {run_name}:')
         print(f'    output log  : {log_file_base}.OUT')
         print(f'    error log   : {log_file_base}.ERR')
-        print(f'    condor      : {condor_file}')
+        print(f'    condor      : {config_file}')
+        print(f'    config      : {condor_file}')
         print(f'    script      : {script_file}')
         print(f'    results dir : {results_dir}')
 
@@ -343,6 +429,7 @@ def build_run(cfg, run: Run,
     if not dry_run:
         os.makedirs(os.path.join(cfg.paths.exp_dir, 'logs'), exist_ok=True)
         os.makedirs(os.path.join(cfg.paths.exp_dir, 'condor'), exist_ok=True)
+        os.makedirs(os.path.join(cfg.paths.exp_dir, 'configs'), exist_ok=True)
         os.makedirs(os.path.join(cfg.paths.exp_dir, 'scripts'), exist_ok=True)
         os.makedirs(results_dir, exist_ok=True)
 
@@ -360,6 +447,14 @@ def build_run(cfg, run: Run,
         init_dir=cfg.paths.champsim_dir,
         exe=script_file,
     )
+
+    # Build config file
+    # TODO: Add parameter for base config to sweep config yml
+    config = run.mix_config_files(
+        defaults.default_knobs_file 
+    )
+    with open(config_file, 'w') as f:
+        f.write(config)
 
     if verbose:
         print(f'ChampSim simulation parameters for {run_name}:')
@@ -404,33 +499,15 @@ def build_run(cfg, run: Run,
 
     # Generate Condor script
     generate_condor_script(
-        script_file,
-        dry_run,
-        champsim_dir=cfg.paths.champsim_dir,
-        trace_file=run.trace.path,
-        cores=1,
-        l1d_pref=' '.join(run.l1d_prefetcher),
-        l2c_pref=' '.join(run.l2_prefetcher),
-        l2c_pref_degrees=' '.join([str(d) for d in run.l2_prefetcher_degree])
-        if len(run.l2_prefetcher_degree) > 0 else None,
-        llc_pref=' '.join(run.llc_prefetcher),
-        llc_pref_degrees=' '.join([str(d) for d in run.llc_prefetcher_degree])
-        if len(run.llc_prefetcher_degree) > 0 else None,
-        llc_repl=cfg.llc.repl,
-        llc_sets=cfg.llc.sets,
-        run_name=run_name,
+        run, cfg, script_file, config_file, results_dir,
         pc_trace_file=pc_trace_file,
         pc_trace_credit=pc_trace_credit,
         pc_trace_invoke_all=pc_trace_invoke_all,
         pref_trace_file=pref_trace_file,
-        results_dir=results_dir,
-        extra_knobs=get_extra_knobs(
-            cfg, run.seed, run.pythia_level_threshold, run.pythia_features),
-        warmup_instructions=cfg.champsim.warmup_instructions,
-        num_instructions=cfg.champsim.sim_instructions,
         track_pc=cfg.champsim.track_pc_stats,
         track_addr=cfg.champsim.track_addr_stats,
         track_pref=cfg.champsim.track_pref,
+        dry_run=dry_run
     )
 
     # Add condor file to the list
@@ -468,54 +545,3 @@ def build_sweep(cfg, dry_run=False, verbose=False):
                                        'condor_configs_champsim.txt')
         print(f'Saving condor configs to {condor_out_path}...')
         generate_condor_list(condor_out_path, condor_paths)
-
-
-def get_extra_knobs(cfg, seed=None, level_threshold=None, features=None):
-    """TODO: Docstring
-
-    TODO: Eventually get rid of this function, and simply merge the
-    baseline config .ini with the knobs we desire for the run.
-    """
-    extra_knobs = ''
-
-    if level_threshold is not None:
-        extra_knobs += (' --scooby_enable_dyn_level=true'
-                        f' --scooby_dyn_level_threshold={level_threshold}')
-    else:
-        extra_knobs += f' --scooby_enable_dyn_level=false'
-
-    if seed is not None:
-        extra_knobs += f' --champsim_seed={seed} --scooby_seed={seed}'
-
-    if 'pythia' in cfg and cfg.pythia.separate_lowconf_pt:
-        extra_knobs += f' --scooby_separate_lowconf_pt=true'
-        extra_knobs += (' --scooby_lowconf_pt_size='
-                        f'{cfg.pythia.lowconf_pt_size}')
-    else:
-        extra_knobs += f' --scooby_separate_lowconf_pt=false'
-
-    if features is not None:
-        extra_knobs += (' --le_featurewise_active_features='
-                        f'{",".join([str(f) for f in features])}')
-        extra_knobs += (' --le_featurewise_enable_tiling_offset='
-                        f'{",".join([str(1) for _ in features])}')
-
-    if 'pythia' in cfg and cfg.pythia.pooling == 'sum':
-        extra_knobs += (' --le_featurewise_pooling_type=1')  # Sum
-    else:
-        extra_knobs += (' --le_featurewise_pooling_type=2')  # Max
-
-    if 'pythia' in cfg and not cfg.pythia.dyn_degree:
-        extra_knobs += (' --scooby_enable_dyn_degree=false')
-    else:
-        extra_knobs += (' --scooby_enable_dyn_degree=true')
-
-    if 'pythia' in cfg:
-        extra_knobs += f' --scooby_alpha={cfg.pythia.alpha}'
-        extra_knobs += f' --scooby_gamma={cfg.pythia.gamma}'
-        extra_knobs += f' --scooby_epsilon={cfg.pythia.epsilon}'
-        extra_knobs += f' --scooby_policy={cfg.pythia.policy}'
-        extra_knobs += f' --scooby_learning_type={cfg.pythia.learning_type}'
-        extra_knobs += f' --scooby_pt_size={cfg.pythia.pt_size}'
-
-    return extra_knobs

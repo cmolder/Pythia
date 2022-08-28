@@ -317,7 +317,7 @@ def run_command():
     parser.add_argument('-p', '--track-pc', action='store_true')
     parser.add_argument('-a', '--track-addr', action='store_true')
     parser.add_argument('-d', '--track-pref', action='store_true')
-    parser.add_argument('--extra-knobs', type=str, default=None)
+    #parser.add_argument('--extra-knobs', type=str, default=None)
 
     # Prefetcher options
     parser.add_argument('-t',
@@ -407,7 +407,7 @@ def run_command():
            '--simulation_instructions={sim}000000 {cloudsuite_knobs} '
            '{l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} '
            '{out_trace_knobs} {pc_trace_knobs} {pref_trace_knobs} '
-           '{extra_knobs} -traces {trace} > {results}/{results_file} '
+           '-traces {trace} > {results}/{results_file} '
            '2>&1').format(
                binary=binary,
                cloudsuite_knobs=run.get_cloudsuite_knobs(
@@ -436,9 +436,6 @@ def run_command():
                                if args.pc_trace_llc else ''),
                pref_trace_knobs=(f' --prefetch_trace_llc={args.pref_trace_llc}'
                                  if args.pref_trace_llc else ''),
-               # Index to remove single quotes on edge
-               extra_knobs=(args.extra_knobs[1:-1]
-                            if args.extra_knobs is not None else ''),
                #period=args.stat_printing_period,
                warm=args.warmup_instructions,
                sim=args.num_instructions,
