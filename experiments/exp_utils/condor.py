@@ -164,6 +164,7 @@ class Run():
             for k, v in knobs.items():
                 if k in line:
                     config[i] = f'{k} = {clean_value(v)}\n'
+                    knobs[k] = None
 
         
         # Add unmatched knobs to the config.
