@@ -18,24 +18,26 @@ def get_run_statistics(
         file: ChampsimResultsFile,
         baseline_file: Optional[ChampsimResultsFile] = None) -> Optional[dict]:
     """Get cumulative statistics from a ChampSim output / results file.
+
+    TODO: Docstring parameters/returns
     """
     stats_columns = [
         # Trace and SimPoint
-        'full_trace', 'trace', 'simpoint', 
+        'full_trace', 'trace', 'simpoint',
         # L1D Stats
-        'L1D_pref', 'L1D_pref_degree', 'L1D_issued_prefetches', 'L1D_accuracy', 
-        'L1D_coverage', 'L1D_mpki',  'L1D_mpki_reduction', 
+        'L1D_pref', 'L1D_pref_degree', 'L1D_issued_prefetches', 'L1D_accuracy',
+        'L1D_coverage', 'L1D_mpki',  'L1D_mpki_reduction',
         # L2C stats
-        'L2C_pref', 'L2C_pref_degree', 'L2C_issued_prefetches', 'L2C_accuracy', 
-        'L2C_coverage', 'L2C_mpki', 'L2C_mpki_reduction', 
+        'L2C_pref', 'L2C_pref_degree', 'L2C_issued_prefetches', 'L2C_accuracy',
+        'L2C_coverage', 'L2C_mpki', 'L2C_mpki_reduction',
         # LLC stats
-        'LLC_pref', 'LLC_pref_degree', 'LLC_issued_prefetches', 'LLC_accuracy', 
+        'LLC_pref', 'LLC_pref_degree', 'LLC_issued_prefetches', 'LLC_accuracy',
         'LLC_coverage', 'LLC_mpki', 'LLC_mpki_reduction',
         # DRAM / CPU stats
-        'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement', 
+        'dram_bw_epochs', 'dram_bw_reduction', 'ipc', 'ipc_improvement',
         # Pythia stats
         'pythia_level_threshold', 'pythia_high_conf_prefetches',
-        'pythia_low_conf_prefetches', 'pythia_features', 'pythia_pooling', 
+        'pythia_low_conf_prefetches', 'pythia_features', 'pythia_pooling',
         'pythia_action_called', 'pythia_avg_degree',
         # General info (prefetcher, simulator, results file, etc.)
         'all_pref', 'seed', 'path', 'baseline_path'
@@ -47,7 +49,7 @@ def get_run_statistics(
 
     # Get statistics
     pf_data = file.read()
-    if pf_data == None:
+    if pf_data is None:
         print(f'Warning: Missing data for {file.path}')
         return None
 
@@ -87,7 +89,7 @@ def get_run_statistics(
         if baseline_file:
             b_load_miss, b_rfo_miss = (b_data[f'{level}_load_miss'],
                                        b_data[f'{level}_rfo_miss'])
-            #b_total_miss = load_miss + rfo_miss + useful 
+            #b_total_miss = load_miss + rfo_miss + useful
             #b_total_miss = b_data[f'{level}_total_miss']
             b_total_miss = b_data[f'{level}_total_miss']
             b_mpki = b_total_miss / b_data['kilo_inst']
@@ -115,7 +117,7 @@ def get_run_statistics(
         #       Also consider corner cases where Pythia is in a hybrid.
         if level == 'L2C':
             results['pythia_avg_degree'] = (
-                iss_prefetches / results['pythia_action_called'] 
+                iss_prefetches / results['pythia_action_called']
                 if results['pythia_action_called'] > 0 else 0)
 
     # Get cumulative statistics
@@ -137,6 +139,8 @@ def get_run_statistics(
 
 def get_pc_statistics(file: ChampsimStatsFile) -> list[dict]:
     """Get per-PC statistics from a Champsim pc_pref_stats file.
+
+    TODO: Docstring parameters/returns
     """
     pc_columns = [
         'pc',
@@ -175,18 +179,20 @@ def add_simpoint_weights(stats_df: pd.DataFrame,
                          weights_file: str) -> pd.DataFrame:
     """For each run, get its SimPoint's weight and add a 'weight'
     column to contain it."""
-    
+
     weights = WeightFile(weights_file)
     stats_df = stats_df.copy()
     stats_df['weight'] = stats_df.apply(
-        lambda row : weights.get_simpoint_weight(row.trace, row.simpoint), 
+        lambda row : weights.get_simpoint_weight(row.trace, row.simpoint),
         axis=1)
     return stats_df
 
 
-def compute_weighted_run(run_df: pd.DataFrame, 
+def compute_weighted_run(run_df: pd.DataFrame,
                          weights: Dict[str, float]) -> pd.Series:
     """Compute the weighted statistics for a single trace/run (as a DataFrame).
+
+    TODO: Docstring parameters/returns
     """
     # Sort phases
     weights = dict(sorted(weights.items()))
@@ -202,28 +208,28 @@ def compute_weighted_run(run_df: pd.DataFrame,
     weighted_run.L1D_accuracy = np.average(run_df.L1D_accuracy, weights=wts)
     weighted_run.L1D_coverage = np.average(run_df.L1D_coverage, weights=wts)
     weighted_run.L1D_mpki = stats.gmean(run_df.L1D_mpki, weights=wts)
-    weighted_run.L1D_mpki_reduction = stats.gmean(run_df.L1D_mpki_reduction, 
+    weighted_run.L1D_mpki_reduction = stats.gmean(run_df.L1D_mpki_reduction,
                                                   weights=wts)
 
     weighted_run.L2C_accuracy = np.average(run_df.L2C_accuracy, weights=wts)
     weighted_run.L2C_coverage = np.average(run_df.L2C_coverage, weights=wts)
     weighted_run.L2C_mpki = stats.gmean(run_df.L2C_mpki, weights=wts)
-    weighted_run.L2C_mpki_reduction = stats.gmean(run_df.L2C_mpki_reduction, 
+    weighted_run.L2C_mpki_reduction = stats.gmean(run_df.L2C_mpki_reduction,
                                                   weights=wts)
 
     weighted_run.LLC_accuracy = np.average(run_df.LLC_accuracy, weights=wts)
     weighted_run.LLC_coverage = np.average(run_df.LLC_coverage, weights=wts)
     weighted_run.LLC_mpki = stats.gmean(run_df.LLC_mpki, weights=wts)
-    weighted_run.LLC_mpki_reduction = stats.gmean(run_df.LLC_mpki_reduction, 
+    weighted_run.LLC_mpki_reduction = stats.gmean(run_df.LLC_mpki_reduction,
                                                   weights=wts)
 
-    weighted_run.dram_bw_epochs = np.average(run_df.dram_bw_epochs, 
+    weighted_run.dram_bw_epochs = np.average(run_df.dram_bw_epochs,
                                              weights=wts)
-    weighted_run.dram_bw_reduction = np.average(run_df.dram_bw_reduction, 
+    weighted_run.dram_bw_reduction = np.average(run_df.dram_bw_reduction,
                                                 weights=wts)
 
     weighted_run.ipc = stats.gmean(run_df.ipc, weights=wts)
-    weighted_run.ipc_improvement = stats.gmean(run_df.ipc_improvement, 
+    weighted_run.ipc_improvement = stats.gmean(run_df.ipc_improvement,
                                                weights=wts)
 
     weighted_run.pythia_high_conf_prefetches = np.average(
@@ -234,9 +240,11 @@ def compute_weighted_run(run_df: pd.DataFrame,
     return weighted_run
 
 
-def get_weighted_statistics(stats_df: pd.DataFrame, 
+def get_weighted_statistics(stats_df: pd.DataFrame,
                             weights_file: str) -> pd.DataFrame:
     """Add weighted statistics to a stats DataFrame.
+
+    TODO: Docstring parameters/returns
     """
     # Get weights
     weights = WeightFile(weights_file)
@@ -248,7 +256,7 @@ def get_weighted_statistics(stats_df: pd.DataFrame,
         # Split runs by base features (prefetchers, Pythia stuff)
         # so that we only have one row per SimPoint in each run.
         # TODO: Handle corner case where prefetcher degrees vary, but there
-        #       is only one run per prefetcher hybrid. 
+        #       is only one run per prefetcher hybrid.
         #       (i.e. ./out/prefetcher_zoo/individual.csv)
         run_groups = runs.groupby([
             'L1D_pref', 'L2C_pref', 'LLC_pref', 'pythia_level_threshold',
@@ -258,7 +266,7 @@ def get_weighted_statistics(stats_df: pd.DataFrame,
                 f'Duplicated SimPoint found for {tr}'
             assert(len(run_df) == len(weights.get_trace_weights(tr))), \
                 f'Incorrect number of phases in run for {tr}'
-            weighted_run = compute_weighted_run(run_df, 
+            weighted_run = compute_weighted_run(run_df,
                                                 weights.get_trace_weights(tr))
             weighted_run.replace({'NoneTemp': np.nan}, inplace=True)
             weighted_runs.append(weighted_run)
@@ -273,6 +281,8 @@ def generate_run_csv(results_dir: str,
                      weights_file: Optional[str] = None,
                      dry_run: bool = False) -> None:
     """Generate cumulative statistics for each run.
+
+    TODO: Docstring parameters/returns
     """
     # Automatically append "champsim_results/" if it wasn't supplied.
     if not os.path.dirname(results_dir).endswith('champsim_results'):
@@ -323,6 +333,8 @@ def generate_best_degree_csv(results_dir: str,
                              metric: str = 'ipc',
                              dry_run: bool = False) -> None:
     """Generate the best degree for each prefetcher on each run.
+
+    TODO: Docstring parameters/returns
     """
     # Automatically append "champsim_results/" if it wasn't supplied.
     if not os.path.dirname(results_dir).endswith('champsim_results'):
@@ -349,8 +361,8 @@ def generate_best_degree_csv(results_dir: str,
         # TODO : Consider other parts of the variant, seed (currently
         #        overrides with the last-seen file)
         if row is not None:
-            scores[tr][pf][','.join(file.l2c_prefetcher_degeree,
-                                    file.llc_prefetcher_degree)] = row[metric]
+            scores[tr][pf][','.join((file.l2c_prefetcher_degeree,
+                                     file.llc_prefetcher_degree))] = row[metric]
 
     # Loop through trace+prefetchers and get best score on each.
     best_degree = defaultdict(dict)
@@ -360,9 +372,9 @@ def generate_best_degree_csv(results_dir: str,
 
     # Turn best_degree dictionary into a table
     df = pd.DataFrame(columns=['Trace'] + list(prefetchers))
-    for tr in best_degree.keys():
-        row = best_degree[tr]
+    for tr, row in best_degree.items():
         row['Trace'] = tr
+        # TODO: Replace with pd.concat (df.append is deprecated)
         df = df.append(best_degree[tr], ignore_index=True)
     df.sort_values('Trace', inplace=True)
 
@@ -378,6 +390,8 @@ def generate_pc_csv(results_dir: str,
                     level: str = 'llc',
                     dry_run: bool = False) -> None:
     """Generate statistics on each PC for each prefetcher on each run.
+
+    TODO: Docstring parameters/returns
     """
     # Automatically append "champsim_results/" if it wasn't supplied.
     if not os.path.dirname(results_dir).endswith('champsim_results'):
@@ -388,7 +402,7 @@ def generate_pc_csv(results_dir: str,
     stats = []
 
     # Build stats table
-    # TODO: Try to filter on or explicitly track seed / variants if we can, to 
+    # TODO: Try to filter on or explicitly track seed / variants if we can, to
     #       avoid excessive repeats. But this might not be necessary.
     # TODO: Can we wrap this routine by passing a callable? That way, we can
     #       reuse code between the CSV file creators.

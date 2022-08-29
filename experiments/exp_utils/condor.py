@@ -1,5 +1,4 @@
-"""
-Utility functions for setting up Condor experiments on Pythia.
+"""Utility classes and functions for setting up Condor experiments.
 
 Author: Carson Molder
 """
@@ -128,8 +127,8 @@ class Run():
 
         TODO: Support additional knobs (e.g. prefetcher type, degree)
         """
-        with open(base_config_path, 'r') as f:
-            config = f.readlines()
+        with open(base_config_path, 'r') as config_in_f:
+            config = config_in_f.readlines()
 
         knobs = {}
         # Simulator seed
@@ -173,15 +172,15 @@ class Run():
 
         # Replace matched knobs in the config
         for i, line in enumerate(config):
-            for k, v in knobs.items():
-                if k in line:
-                    config[i] = f'{k} = {clean_value(v)}\n'
-                    knobs[k] = None
+            for key, value in knobs.items():
+                if key in line:
+                    config[i] = f'{key} = {clean_value(value)}\n'
+                    knobs[key] = None
 
         # Add unmatched knobs to the config.
-        for k, v in knobs.items():
-            if v is not None:  # Unmatched
-                config.append(f'{k} = {clean_value(v)}\n')
+        for key, value in knobs.items():
+            if value is not None:  # Unmatched
+                config.append(f'{key} = {clean_value(value)}\n')
 
         return ''.join(config)
 
@@ -353,15 +352,15 @@ class RunGenerator():
 
 def generate_condor_config(out, dry_run, memory=0, **params):
     """Generate a configuration that Condor will use to submit the job."""
-    with open(CONDOR_TEMPLATE, 'r') as f:
-        cfg = f.read()
+    with open(CONDOR_TEMPLATE, 'r') as condor_in_f:
+        cfg = condor_in_f.read()
 
     params['memory'] = memory
     cfg = cfg.format(**params)
 
     if not dry_run:
-        with open(out, 'w') as f:
-            print(cfg, file=f)
+        with open(out, 'w') as condor_out_f:
+            print(cfg, file=condor_out_f)
 
 
 def generate_condor_script(run: Run, cfg, script_out_path: str,
@@ -376,8 +375,8 @@ def generate_condor_script(run: Run, cfg, script_out_path: str,
                            track_pref: bool = False,
                            dry_run: bool = False):
     """Generate a script that the Condor run will execute to simulate."""
-    with open(SCRIPT_TEMPLATE, 'r') as f:
-        script = f.read()
+    with open(SCRIPT_TEMPLATE, 'r') as script_in_f:
+        script = script_in_f.read()
 
     # Add required parameters
     script = script.format(
@@ -419,17 +418,17 @@ def generate_condor_script(run: Run, cfg, script_out_path: str,
         script += ' \\\n    --track-pref'
 
     if not dry_run:
-        with open(script_out_path, 'w') as f:
-            print(script, file=f)
+        with open(script_out_path, 'w') as script_out_f:
+            print(script, file=script_out_f)
         os.chmod(script_out_path, 0o755)  # Make script executable
 
 
 def generate_condor_list(out, condor_paths):
     """TODO: Docstring
     """
-    with open(out, 'w') as f:
+    with open(out, 'w') as condor_list_f:
         for path in condor_paths:
-            print(path, file=f)
+            print(path, file=condor_list_f)
 
 
 def build_run(cfg, run: Run,
@@ -492,8 +491,8 @@ def build_run(cfg, run: Run,
     # Build config file
     # TODO: Add parameter for base config to sweep config yml
     config = run.mix_config_files(defaults.default_knobs_file)
-    with open(config_file, 'w') as f:
-        f.write(config)
+    with open(config_file, 'w') as config_out_f:
+        config_out_f.write(config)
 
     if verbose:
         print(f'ChampSim simulation parameters for {run_name}:')

@@ -1,3 +1,8 @@
+"""Utility classes and functions for working with ChampSim files.
+
+Author: Carson Molder
+"""
+
 import os
 import glob
 from collections import defaultdict
@@ -9,7 +14,7 @@ class ChampsimFile():
 
     Inherited by:
         ChampsimResultsFile: Paths for results paths (.txt)
-            ChampsimStatsFile: Paths for per-PC/address statistics 
+            ChampsimStatsFile: Paths for per-PC/address statistics
                                (_(l1d|l2c|llc).txt)
         ChampsimTraceFile: Paths for traces (.trace.gz)
     """
@@ -54,9 +59,9 @@ class ChampsimTraceFile(ChampsimFile):
     def __init__(self, path: str):
         assert (path.endswith('.trace')
                 or path.endswith('.gz')
-                or path.endswith('.xz')), \
-            ('Wrong file extension for ChampsimTraceFile, should be'
-             '.trace or .(g|x)z')
+                or path.endswith('.xz')), (
+            'Wrong file extension for ChampsimTraceFile, should be'
+            '.trace or .(g|x)z')
         super().__init__(path)
 
 
@@ -112,8 +117,8 @@ class ChampsimResultsFile(ChampsimFile):
         data['pythia_high_conf_prefetches'] = 0
         data['pythia_action_called'] = 0
         cpu = 0  # TODO : Implement multi-core support
-        with open(self.path, 'r') as f:
-            for line in f:
+        with open(self.path, 'r') as path_f:
+            for line in path_f:
                 if 'ChampSim seed:' in line:
                     data['seed'] = int(line.split()[3])
                 if 'Finished CPU' in line:
@@ -174,7 +179,7 @@ class ChampsimResultsFile(ChampsimFile):
                 and self.llc_prefetcher == other.llc_prefetcher)
 
     def get_prefetcher_at_level(self, level: str) -> Optional[str]:
-        """Get the prefetcher(s) at 
+        """Get the prefetcher(s) at
         the specified cache level (l1/l1d, l2/l2c, llc)
         """
         level = level.lower()
@@ -188,7 +193,7 @@ class ChampsimResultsFile(ChampsimFile):
 
     def get_prefetcher_degree_at_level(self, level: str) -> \
             Tuple[Optional[int], ...]:
-        """Get the prefetcher degree(s) at 
+        """Get the prefetcher degree(s) at
         the specified cache level (l1/l1d, l2/l2c, llc)
         """
         level = level.lower()
@@ -212,7 +217,7 @@ class ChampsimResultsFile(ChampsimFile):
         return (self.l2_prefetcher_degree, self.llc_prefetcher_degree)
 
     def get_all_variants(self) -> Tuple:
-        """Get the key for the variant properties (degree, Pythia 
+        """Get the key for the variant properties (degree, Pythia
         variables, etc.), mainly for indexing inside a Directory.
         """
         variants = {
@@ -220,7 +225,8 @@ class ChampsimResultsFile(ChampsimFile):
             'llc_prefetcher_degree': self.llc_prefetcher_degree,
             'pythia_level_threshold': self.pythia_level_threshold,
             'pythia_features': self.pythia_features,
-            'pythia_pooling': self.pythia_pooling,
+            # FIXME: Where is pythia_pooling?
+            #'pythia_pooling': self.pythia_pooling,
         }
         return tuple(sorted(variants.items()))
 
@@ -244,6 +250,25 @@ class ChampsimResultsFile(ChampsimFile):
         return tuple(sorted(variants.items()))
 
     @staticmethod
+    def __merge_names(prefetcher_name):
+        """TODO: Docstring
+        """
+        return (prefetcher_name.replace('spp_dev2', 'sppdev2')
+                                .replace('scooby_double', 'scoobydouble')
+                                .replace('pc_trace', 'pctrace')
+                                .replace('from_file', 'fromfile'))
+
+    @staticmethod
+    def __unmerge_names(prefetcher_name):
+        """TODO: Docstring
+        """
+        return (prefetcher_name.replace(',', '_')
+                               .replace('sppdev2', 'spp_dev2')
+                               .replace('scoobydouble', 'scooby_double')
+                               .replace('pctrace', 'pc_trace')
+                               .replace('fromfile', 'from_file'))
+
+    @staticmethod
     def __get_prefetcher_names(path: str) -> Tuple[str, str, str]:
         """Get the prefetcher(s) names.
 
@@ -252,40 +277,36 @@ class ChampsimResultsFile(ChampsimFile):
         # (l1_prefethcher, l2_prefetcher, llc_prefetcher)
         path = os.path.splitext(os.path.basename(path))[0]
 
-        merge_names = lambda p : (p.replace('spp_dev2', 'sppdev2')
-                                   .replace('scooby_double', 'scoobydouble')
-                                   .replace('pc_trace', 'pctrace')
-                                   .replace('from_file', 'fromfile'))
 
-        unmerge_names = lambda p : (p.replace(',', '_')
-                                     .replace('sppdev2', 'spp_dev2')
-                                     .replace('scoobydouble', 'scooby_double')
-                                     .replace('pctrace', 'pc_trace')
-                                     .replace('fromfile', 'from_file'))
+
+
+
         if 'l1dpf' in path:
             l1d_prefetcher = path[path.index('l1dpf'):].split('-')[0]
             # Remove extra underscores
-            l1d_prefetcher = merge_names(l1d_prefetcher)
+            l1d_prefetcher = ChampsimResultsFile.__merge_names(l1d_prefetcher)
             # Split prefetchers and degrees
-            l1d_prefetcher = l1d_prefetcher.split('_')[-2] 
+            l1d_prefetcher = l1d_prefetcher.split('_')[-2]
             # Re-add extra underscores
-            l1d_prefetcher = unmerge_names(l1d_prefetcher)
+            l1d_prefetcher = ChampsimResultsFile.__unmerge_names(
+                l1d_prefetcher)
         else:
             l1d_prefetcher = 'no'
 
         if 'l2pf' in path:
             l2_prefetcher = path[path.index('l2pf'):].split('-')[0]
-            l2_prefetcher = merge_names(l2_prefetcher)
-            l2_prefetcher = l2_prefetcher.split('_')[-2] 
-            l2_prefetcher = unmerge_names(l2_prefetcher)
+            l2_prefetcher = ChampsimResultsFile.__merge_names(l2_prefetcher)
+            l2_prefetcher = l2_prefetcher.split('_')[-2]
+            l2_prefetcher = ChampsimResultsFile.__unmerge_names(l2_prefetcher)
         else:
             l2_prefetcher = 'no'
 
         if 'llcpf' in path:
             llc_prefetcher = path[path.index('llcpf'):].split('-')[0]
-            llc_prefetcher = merge_names(llc_prefetcher)
-            llc_prefetcher = llc_prefetcher.split('_')[-2] 
-            llc_prefetcher = unmerge_names(llc_prefetcher)
+            llc_prefetcher = ChampsimResultsFile.__merge_names(llc_prefetcher)
+            llc_prefetcher = llc_prefetcher.split('_')[-2]
+            llc_prefetcher = ChampsimResultsFile.__unmerge_names(
+                llc_prefetcher)
         else:
             llc_prefetcher = 'no'
 
@@ -301,41 +322,36 @@ class ChampsimResultsFile(ChampsimFile):
         # (l1_prefetcher, l2_prefetcher, llc_prefetcher)
         path = os.path.splitext(os.path.basename(path))[0]
 
-        merge_names = lambda p : (p.replace('spp_dev2', 'sppdev2')
-                                   .replace('scooby_double', 'scoobydouble')
-                                   .replace('pc_trace', 'pctrace')
-                                   .replace('from_file', 'fromfile'))
-
         if 'l1dpf' in path:
             l1d_prefetcher = path[path.index('l1dpf'):].split('-')[0]
             # Remove extra underscores
-            l1d_prefetcher = merge_names(l1d_prefetcher)
+            l1d_prefetcher = ChampsimResultsFile.__merge_names(l1d_prefetcher)
             # Split prefetchers and degrees
-            l1d_degree = l1d_prefetcher.split('_')[-1] 
+            l1d_degree = l1d_prefetcher.split('_')[-1]
             # Convert degree into a tuple
             l1d_degree = tuple(
-                (None if d == '0' else int(d)) 
+                (None if d == '0' else int(d))
                 for d in l1d_degree.split(','))
         else:
             l1d_degree = (None,)
 
         if 'l2pf' in path:
             l2_prefetcher = path[path.index('l2pf'):].split('-')[0]
-            l2_prefetcher = merge_names(l2_prefetcher)
-            l2_degree = l2_prefetcher.split('_')[-1] 
+            l2_prefetcher = ChampsimResultsFile.__merge_names(l2_prefetcher)
+            l2_degree = l2_prefetcher.split('_')[-1]
             l2_degree = tuple(
-                (None if d == '0' else int(d)) 
+                (None if d == '0' else int(d))
                 for d in l2_degree.split(','))
         else:
             l2_degree = (None,)
 
         if 'llcpf' in path:
             llc_prefetcher = path[path.index('llcpf'):].split('-')[0]
-            llc_prefetcher = merge_names(llc_prefetcher)
+            llc_prefetcher = ChampsimResultsFile.__merge_names(llc_prefetcher)
             llc_degree = llc_prefetcher.split('_')[-1]
             llc_degree = tuple(
-                (None if d == '0' else int(d)) 
-                for d in llc_degree.split(',')) 
+                (None if d == '0' else int(d))
+                for d in llc_degree.split(','))
         else:
             llc_degree = (None,)
 
@@ -409,8 +425,8 @@ class ChampsimStatsFile(ChampsimResultsFile):
         a dictionary of data.
         """
         stats = defaultdict(dict)
-        with open(self.path, 'r') as f:
-            for line in f:
+        with open(self.path, 'r') as path_f:
+            for line in path_f:
                 index = line.split()[0]
                 stats[index]['useful'] = int(line.split()[1])
                 stats[index]['useless'] = int(line.split()[2])
@@ -426,8 +442,8 @@ class WeightFile():
 
     def __init__(self, path: str):
         self.weights = defaultdict(dict)
-        with open(path) as f:
-            for line in f:
+        with open(path) as path_f:
+            for line in path_f:
                 if line == '\n':
                     continue
                 full_trace, weight = line.split()
@@ -435,12 +451,18 @@ class WeightFile():
                 self.weights[dummy.trace][dummy.simpoint] = float(weight)
 
     def get_trace_weights(self, trace: str) -> Dict[str, float]:
+        """TODO: Docstring
+        """
         return self.weights[trace]
 
     def get_simpoint_weight(self, trace: str, simpoint: str) -> float:
+        """TODO: Docstring
+        """
         return self.weights[trace][simpoint]
 
     def get_traces(self):
+        """TODO: Docstring
+        """
         return self.weights.keys()
 
 
@@ -449,11 +471,11 @@ class ChampsimDirectory():
 
     Inherited by:
         ChampsimResultsDirectory: Directories for results paths (.txt)
-            ChampsimStatsDirectory: Directories for per-PC/address 
+            ChampsimStatsDirectory: Directories for per-PC/address
                                     statistics (_(l1d|l2c|llc).txt)
     """
 
-    def __init__(self, path: str):
+    def __init__(self):
         self.paths = []
         self.files = []
 
@@ -479,7 +501,7 @@ class ChampsimTraceDirectory(ChampsimDirectory):
     """
 
     def __init__(self, path: str):
-        super().__init__(path)
+        super().__init__()
         self.paths = glob.glob(os.path.join(path, '*.[g|x]z'))
         self.__gather_files()
 
@@ -493,21 +515,25 @@ class ChampsimResultsDirectory(ChampsimDirectory):
     """A directory of ChampSim result files (ChampsimResultFile).
 
     Organizes files into a hierarchical dictionary:
-        trace -> seed -> prefetchers -> variants (degree, Pythia 
+        trace -> seed -> prefetchers -> variants (degree, Pythia
         variables, etc.)
     """
 
     def __init__(self, path: str):
-        super().__init__(path)
+        super().__init__()
         self.paths = glob.glob(os.path.join(path, '*.txt'))
         self.baselines: dict = {}  # Points to the baseline ChampsimFile
         # for (full_trace, seed)
         self.__gather_files()
 
     def get_baseline(self, trace: str, seed: int) -> ChampsimResultsFile:
+        """TODO: Docstring
+        """
         return self.baselines[(trace, seed)]
 
     def __gather_files(self) -> None:
+        """TODO: Docstring
+        """
         for path in self.paths:
             file = ChampsimResultsFile(path)
             self.files.append(file)
@@ -518,7 +544,7 @@ class ChampsimResultsDirectory(ChampsimDirectory):
 
 
 class ChampsimStatsDirectory(ChampsimResultsDirectory):
-    """A directory of ChampSim per-PC address/stats files 
+    """A directory of ChampSim per-PC address/stats files
     (ChampsimStatsFile).
 
     Organizes files into a hierarchical dictionary:
@@ -528,6 +554,6 @@ class ChampsimStatsDirectory(ChampsimResultsDirectory):
 
     def __init__(self, path: str, level: str = 'llc'):
         super().__init__(path)
-        self.paths = glob.glob(os.path.join(path, f'*_{self.level}.txt'))
         self.level = level
+        self.paths = glob.glob(os.path.join(path, f'*_{self.level}.txt'))
         self.__gather_files()

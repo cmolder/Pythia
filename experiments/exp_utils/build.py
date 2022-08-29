@@ -1,5 +1,5 @@
 """
-Utility functions for building versions of Pythia fork of ChampSim.
+Utility functions for building ChampSim binaries.
 
 Author: Carson Molder
 """
@@ -14,17 +14,17 @@ def change_llc_sets(cacheh_path: str, num_cpus: int, num_sets: int) -> None:
     """Replace the number of LLC sets in the ChampSim LLC definition."""
     print(f'Changing LLC sets in inc/cache.h to NUM_CPUS*{num_sets} '
           f'(effectively {num_cpus} * {num_sets}, '
-          f'{num_cpus*num_sets*16 / 1024} KB)...')
+          f'{num_cpus*num_sets*16 / 1024} KB)')
 
     replacement = ''
-    with open(cacheh_path, 'rt') as f:
-        for line in f:
+    with open(cacheh_path, 'rt') as cache_h_f:
+        for line in cache_h_f:
             if 'LLC_SET' in line:
                 line = f'#define LLC_SET NUM_CPUS*{num_sets}\n'
             replacement += line
 
-    with open(cacheh_path, 'wt') as f:
-        print(replacement, file=f)
+    with open(cacheh_path, 'wt') as cache_h_f:
+        print(replacement, file=cache_h_f)
 
 
 def build_binary(branch_pred: str, l1d_pref: str, l2c_pref: str, llc_pref: str,
@@ -32,21 +32,21 @@ def build_binary(branch_pred: str, l1d_pref: str, l2c_pref: str, llc_pref: str,
     """System call to build the binary."""
     cmd = (f'./build_champsim.sh {branch_pred} {l1d_pref} '
            f'{l2c_pref} {llc_pref} {llc_repl} {num_cpus}')
-    print(f'Calling "{cmd}"...')
+    print(f'Calling "{cmd}"')
     os.system(cmd)
 
 
 def backup_file(path: str) -> None:
     """Back up a file."""
     if os.path.exists(path):
-        print(f'Backing up {path}...')
+        print(f'Backing up {path}')
         shutil.copyfile(path, path + '.bak')
 
 
 def restore_file(path: str) -> None:
     """Restore a file from backup."""
     if os.path.exists(path + '.bak'):
-        print(f'Restoring {path} from backup...')
+        print(f'Restoring {path} from backup')
         shutil.copyfile(path + '.bak', path)
         os.remove(path + '.bak')
 
@@ -54,7 +54,7 @@ def restore_file(path: str) -> None:
 def move_file(old_path: str, new_path: str) -> None:
     """Move a file from <old_path> to <new_path>"""
     if os.path.exists(old_path):
-        print(f'Moving {old_path} to {new_path}...')
+        print(f'Moving {old_path} to {new_path}')
         shutil.move(old_path, new_path)
     else:
         print(f'[DEBUG] {old_path} does not exist, cannot move to {new_path}.')
@@ -68,14 +68,14 @@ def build_config(num_cpus: int,
                  llc_repl: str = 'ship',
                  llc_num_sets: int = 2048) -> None:
     """Build a configuration of ChampSim.
-    
+
     Parameters:
         llc_pref_fn: string
             The LLC prefetch function to build.
-        
+
         num_cpus: int
             The number of cores to configure the binary to run.
-        
+
         llc_num_sets: int (optional)
             The number of LLC sets to configure the binary to have.
     """
