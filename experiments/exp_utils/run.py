@@ -6,6 +6,7 @@ Author: Carson Molder
 
 # Try not to import anything outside Python default libraries.
 import os
+from typing import List, Optional
 
 from exp_utils import defaults
 
@@ -29,7 +30,9 @@ pref_degree_knobs = {
 }
 
 
-def get_llc_pref_fn(llc_prefs):
+def get_llc_pref_fn(llc_prefs: List[str]) -> str:
+    """Get the Champsim prefetcher knob for an LLC prefetcher.
+    """
     if llc_prefs == ['no']:
         return 'no'
     elif llc_prefs == ['pc_trace']:
@@ -39,20 +42,24 @@ def get_llc_pref_fn(llc_prefs):
     return 'multi'
 
 
-def get_l2c_pref_fn(l2c_prefs):
+def get_l2c_pref_fn(l2c_prefs: List[str]) -> str:
+    """Get the Champsim prefetcher knob for an L2 prefetcher.
+    """
     if l2c_prefs == ['no']:
         return 'no'
     return 'multi'
 
 
-def get_l1d_pref_fn(l1d_prefs):
+def get_l1d_pref_fn(l1d_prefs: List[str]) -> str:
+    """Get the Champsim prefetcher knob for an L1D prefetcher.
+    """
     if l1d_prefs == ['no']:
         return 'no'
     return 'multi'
 
 
-def get_binary(**kwargs):
-    """Return name of a binary
+def get_binary(**kwargs) -> str:
+    """Get the name of a binary.
     """
     binary = (defaults.binary_base + defaults.llc_sets_suffix).format(**kwargs)
 
@@ -61,28 +68,36 @@ def get_binary(**kwargs):
         binary)
 
 
-def get_results_file(binary,
-                     traces,
-                     l1d_prefs=[],
-                     l2c_prefs=[],
-                     llc_prefs=[],
-                     l2c_pref_degrees=[],
-                     llc_pref_degrees=[]):
-    """Return name of a results file.
+def get_results_file(binary: str,
+                     traces: List[str],
+                     l1d_prefs: Optional[List[str]] = None,
+                     l2c_prefs: Optional[List[str]] = None,
+                     llc_prefs: Optional[List[str]] = None,
+                     l2c_pref_degrees: Optional[List[int]] = None,
+                     llc_pref_degrees: Optional[List[int]] = None) -> str:
+    """Get the name of a results file.
+
+    TODO: Support L1D prefetch degree.
+    TODO: Use the Run class to get the results file name instead.
     """
     base_traces = '-'.join(
         [''.join(os.path.basename(et).split('.')[:-2]) for et in traces])
     base_binary = os.path.basename(binary)
 
-    bp, l1p, l2p, llp, llr, n_cores, n_sets = base_binary.split('-')
+    bpred, l1p, l2p, llp, llr, n_cores, n_sets = base_binary.split('-')
 
     # Prefetcher degrees
-    l2pd = [
-        str(d) for d in l2c_pref_degrees
-    ] if len(l2c_pref_degrees) == len(l2c_prefs) else ['na'] * len(l2c_prefs)
-    llpd = [
-        str(d) for d in llc_pref_degrees
-    ] if len(llc_pref_degrees) == len(llc_prefs) else ['na'] * len(llc_prefs)
+    if l2c_pref_degrees:
+        assert(len(l2c_pref_degrees) == len(l2c_prefs))
+        l2pd = list(map(str, l2c_pref_degrees))
+    else:
+        l2pd = ['0'] * len(l2c_prefs)
+
+    if llc_pref_degrees:
+        assert(len(llc_pref_degrees) == len(llc_prefs))
+        llpd = list(map(str, llc_pref_degrees))
+    else:
+        llpd = ['0'] * len(llc_prefs)
 
     if l1p == 'multi':
         l1p = ','.join(l1d_prefs)
@@ -91,36 +106,44 @@ def get_results_file(binary,
     if llp == 'multi':
         llp = ','.join(llc_prefs) + '_' + ','.join(llpd)
 
-    return f'{base_traces}-{bp}-{l1p}-{l2p}-{llp}-{llr}-{n_cores}-{n_sets}.txt'
+    return '-'.join((
+        base_traces, bpred, l1p, l2p, llp, llr, n_cores, n_sets)) + '.txt'
 
 
-def get_prefetcher_knobs(prefetchers, pref_degrees=[], level='llc'):
-    assert pref_degrees == [] \
-        or len(pref_degrees) == len(prefetchers), (
-        'Must pass one degree for each prefetcher, '
-        'if providing degrees')
+def get_prefetcher_knobs(prefetchers: List[str],
+                         pref_degrees: Optional[List[int]] = None,
+                         level: str = 'llc') -> str:
+    """Get the knobs required for prefetchers.
+    """
+    assert (not pref_degrees or len(pref_degrees) == len(prefetchers)), (
+        'Must pass one degree for each prefetcher, if providing degrees')
 
     knobs = []
-    for i, t in enumerate(prefetchers):
-        knobs.append(f'--{level}_prefetcher_types={t}')
+    for i, pref in enumerate(prefetchers):
+        knobs.append(f'--{level}_prefetcher_types={pref}')
 
         # NOTE: Will ignore the degree knob, if the prefetcher lacks one.
-        if t in pref_degree_knobs and len(pref_degrees) == len(prefetchers):
-            knobs.append(f'--{pref_degree_knobs[t]}={pref_degrees[i]}')
+        if (pref_degrees
+            and pref in pref_degree_knobs
+            and len(pref_degrees) == len(prefetchers)):
+            knobs.append(f'--{pref_degree_knobs[pref]}={pref_degrees[i]}')
 
     return ' '.join(knobs)
 
 
-def _is_cloudsuite(trace):
+def _is_cloudsuite(trace: str) -> bool:
+    """Helper function that determines if a trace is from Cloudsuite.
+    """
     trace = os.path.basename(trace)
     tokens = trace.split('_')
 
-    return (len(tokens) == 3 and tokens[1].startswith('phase')
+    return (len(tokens) == 3
+            and tokens[1].startswith('phase')
             and tokens[2].startswith('core'))
 
 
-def get_cloudsuite_knobs(traces):
-    """Parse the format of the filenames to determine if the run is 
+def get_cloudsuite_knobs(traces: List[str]) -> str:
+    """Parse the format of the filenames to determine if the run is
     using a CloudSuite trace.
 
     (TODO: Do automatically by reading the file format).
@@ -133,15 +156,14 @@ def get_cloudsuite_knobs(traces):
 
     if all(i for i in is_cloudsuite):
         return '--knob_cloudsuite=true'
-    else:
-        return ''
+    return ''
 
 
-def get_output_trace_knobs(results_dir,
-                           results_file,
-                           track_pc=False,
-                           track_addr=False,
-                           track_pref=False):
+def get_output_trace_knobs(results_dir: str,
+                           results_file: str,
+                           track_pc: bool = False,
+                           track_addr: bool = False,
+                           track_pref: bool = False) -> str:
     """Get the knobs required to track per-PC and per-address
     prefetch statistics, including the toggle knob and output file path.
     """
@@ -177,3 +199,42 @@ def get_output_trace_knobs(results_dir,
                       f'{level_results_file.replace(".txt", ".gz")}')
 
     return knobs
+
+
+def get_pc_trace_knobs(pc_trace_llc: bool = False,
+                       pc_trace_credit: bool = False,
+                       pc_trace_invoke_all: bool = False) -> str:
+    """Get the knobs for recording the PC trace.
+
+    Parameters:
+        pc_trace_llc: Whether to record the LLC PC trace.
+        pc_trace_credit: Whether to credit other prefetchers besides
+            the one for the particular PC.
+        pc_trace_invoke_all: Whether to invoke all prefetchers or just
+            the one for the particular PC.
+
+    Returns:
+        knobs: A list of knobs to pass into ChampSim.
+    """
+    if pc_trace_llc:
+        return (
+            f' --pc_trace_llc={pc_trace_llc}'
+            f' --pc_trace_credit_prefetch='
+            f'{str(pc_trace_credit).lower()}'
+            f' --pc_trace_invoke_all='
+            f'{str(pc_trace_invoke_all).lower()}'
+        )
+    return ''
+
+def get_prefetch_trace_knobs(prefetch_trace_llc: bool = False) -> str:
+    """Get the knobs for recording the prefetch trace.
+
+    Parameters:
+        prefetch_trace_llc: Whether to record the LLC prefetch trace.
+
+    Returns:
+        knobs: A list of knobs to pass into ChampSim.
+    """
+    if prefetch_trace_llc:
+        return f' --prefetch_trace_llc={prefetch_trace_llc}'
+    return ''

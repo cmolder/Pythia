@@ -148,7 +148,7 @@ void ScoobyDouble::init_knobs()
 		knob::scooby_max_offsets = 1024;
 		knob::scooby_max_deltas = 1024;
 	}
-	assert(knob::scooby_pref_degree >= 1 && (knob::scooby_pref_degree == 1 || !knob::scooby_enable_dyn_degree));
+	assert(knob::scooby_pref_degree >= 0 && (knob::scooby_pref_degree == 0 || !knob::scooby_enable_dyn_degree));
 	assert(knob::scooby_max_to_avg_q_thresholds.size() == knob::scooby_dyn_degrees.size()-1);
 	assert(knob::scooby_last_pref_offset_conf_thresholds.size() == knob::scooby_dyn_degrees_type2.size()-1);
 }

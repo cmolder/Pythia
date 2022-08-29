@@ -369,17 +369,12 @@ def run_command():
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)
 
-    # Choose llc prefetcher binary
-    l1d_pref_fn = run.get_l1d_pref_fn(args.l1d_pref)
-    l2c_pref_fn = run.get_l2c_pref_fn(args.l2c_pref)
-    llc_pref_fn = run.get_llc_pref_fn(args.llc_pref)
-
-    # Generate paths
+    # Choose llc prefetcher binary, generate paths
     binary = run.get_binary(
         branch_pred=args.branch_pred,
-        l1d_pref=l1d_pref_fn,
-        l2c_pref=l2c_pref_fn,
-        llc_pref=llc_pref_fn,
+        l1d_pref=run.get_l1d_pref_fn(args.l1d_pref),
+        l2c_pref=run.get_l2c_pref_fn(args.l2c_pref),
+        llc_pref=run.get_llc_pref_fn(args.llc_pref),
         llc_repl=args.llc_repl,
         n_cores=args.cores,
         llc_n_sets=args.llc_sets,
@@ -403,46 +398,32 @@ def run_command():
 
     # Run ChampSim
     # NOTE: Put config knob first, so any other added knobs override it.
-    cmd = ('{binary} --config={config} --warmup_instructions={warm}000000 '
-           '--simulation_instructions={sim}000000 {cloudsuite_knobs} '
-           '{l1d_pref_knobs} {l2c_pref_knobs} {llc_pref_knobs} '
-           '{out_trace_knobs} {pc_trace_knobs} {pref_trace_knobs} '
-           '-traces {trace} > {results}/{results_file} '
-           '2>&1').format(
-               binary=binary,
-               cloudsuite_knobs=run.get_cloudsuite_knobs(
-                   args.execution_traces),
-               l1d_pref_knobs=run.get_prefetcher_knobs(args.l1d_pref,
-                                                       level='l1d'),
-               l2c_pref_knobs=run.get_prefetcher_knobs(
-                   args.l2c_pref,
-                   pref_degrees=args.l2c_pref_degrees,
-                   level='l2c'),
-               llc_pref_knobs=run.get_prefetcher_knobs(
-                   args.llc_pref,
-                   pref_degrees=args.llc_pref_degrees,
-                   level='llc'),
-               out_trace_knobs=run.get_output_trace_knobs(
-                   results_dir,
-                   results_file,
-                   track_pc=args.track_pc,
-                   track_addr=args.track_addr,
-                   track_pref=args.track_pref),
-               pc_trace_knobs=(f' --pc_trace_llc={args.pc_trace_llc}'
-                               f' --pc_trace_credit_prefetch='
-                               f'{str(args.pc_trace_credit).lower()}'
-                               f' --pc_trace_invoke_all='
-                               f'{str(args.pc_trace_invoke_all).lower()}'
-                               if args.pc_trace_llc else ''),
-               pref_trace_knobs=(f' --prefetch_trace_llc={args.pref_trace_llc}'
-                                 if args.pref_trace_llc else ''),
-               #period=args.stat_printing_period,
-               warm=args.warmup_instructions,
-               sim=args.num_instructions,
-               config=args.knobs,  # .ini file
-               trace=' '.join(args.execution_traces),
-               results=results_dir,
-               results_file=results_file)
+    cloudsuite_knobs = run.get_cloudsuite_knobs(args.execution_traces)
+    # TODO: Support L1D prefetcher degree
+    l1d_prefetcher_knobs = run.get_prefetcher_knobs(
+        args.l1d_pref, level='l1d')
+    l2_prefetcher_knobs = run.get_prefetcher_knobs(
+        args.l2c_pref, pref_degrees=args.l2c_pref_degrees, level='l2c')
+    llc_prefetcher_knobs = run.get_prefetcher_knobs(
+        args.llc_pref, pref_degrees=args.llc_pref_degrees, level='llc')
+    output_trace_knobs = run.get_output_trace_knobs(
+        results_dir, results_file, track_pc=args.track_pc,
+        track_addr=args.track_addr, track_pref=args.track_pref)
+    pc_trace_knobs = run.get_pc_trace_knobs(
+        pc_trace_llc=args.pc_trace_llc, pc_trace_credit=args.pc_trace_credit,
+        pc_trace_invoke_all=args.pc_trace_invoke_all)
+    prefetch_trace_knobs = run.get_prefetch_trace_knobs(
+        prefetch_trace_llc=args.pref_trace_llc)
+
+    cmd = (
+        f'{binary} --config={args.knobs} '
+        f'--warmup_instructions={args.warmup_instructions}000000 '
+        f'--simulation_instructions={args.num_instructions}000000 '
+        f'{cloudsuite_knobs} {l1d_prefetcher_knobs} {l2_prefetcher_knobs} '
+        f'{llc_prefetcher_knobs} {output_trace_knobs} {pc_trace_knobs} '
+        f'{prefetch_trace_knobs} -traces {" ".join(args.execution_traces)} '
+        f'> {os.path.join(results_dir, results_file)}'
+    )
 
     print('Running "' + cmd + '"')
     os.system(cmd)
