@@ -15,6 +15,7 @@ pref_degree_knobs = {
     'ampm': 'ampm_pref_degree',
     'bingo': 'bingo_max_degree',  # Maximum - it is dynamic
     'bop': 'bop_pref_degree',
+    'bop_orig': 'bop_pref_degree',
     'dspatch': 'dspatch_pref_degree',
     'mlop': 'mlop_pref_degree',
     'scooby': 'scooby_pref_degree',  # Note, it can be dynamic

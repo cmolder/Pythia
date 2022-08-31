@@ -18,6 +18,7 @@ l2c:
         - 'bingo'    # Bingo
         - 'spp_dev2' # SPP
         - 'bop'      # Best Offset
+        - 'bop_orig' # Best Offset (original)
         - 'scooby'
     hybrids: [1]
     degrees: [1, 2, 3, 4, 5, 6, 7, 8]

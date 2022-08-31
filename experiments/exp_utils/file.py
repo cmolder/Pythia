@@ -253,16 +253,18 @@ class ChampsimResultsFile(ChampsimFile):
     def __merge_names(prefetcher_name):
         """TODO: Docstring
         """
-        return (prefetcher_name.replace('spp_dev2', 'sppdev2')
-                                .replace('scooby_double', 'scoobydouble')
-                                .replace('pc_trace', 'pctrace')
-                                .replace('from_file', 'fromfile'))
+        return (prefetcher_name.replace('bop_orig', 'boporig')
+                               .replace('spp_dev2', 'sppdev2')
+                               .replace('scooby_double', 'scoobydouble')
+                               .replace('pc_trace', 'pctrace')
+                               .replace('from_file', 'fromfile'))
 
     @staticmethod
     def __unmerge_names(prefetcher_name):
         """TODO: Docstring
         """
         return (prefetcher_name.replace(',', '_')
+                               .replace('boporig', 'bop_orig')
                                .replace('sppdev2', 'spp_dev2')
                                .replace('scoobydouble', 'scooby_double')
                                .replace('pctrace', 'pc_trace')

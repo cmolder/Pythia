@@ -198,6 +198,8 @@ class RunGenerator():
         # to additionally filter the runs.
         if best_degree_df:
             self.best_degree_df = pd.read_csv(best_degree_df)
+        else:
+            self.best_degree_df = None
 
     def __prefetcher_combinations(self):
         """TODO: Docstring

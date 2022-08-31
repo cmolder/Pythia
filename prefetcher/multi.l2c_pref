@@ -9,6 +9,7 @@
 #include "scooby_double.h"
 #include "next_line.h"
 #include "bop.h"
+#include "bop_orig.h"
 #include "sandbox.h"
 #include "dspatch.h"
 #include "spp_dev2.h"
@@ -49,6 +50,13 @@ void CACHE::l2c_prefetcher_initialize()
 			cout << "adding L2C_PREFETCHER: BOP" << endl;
 			BOPrefetcher *pref_bop = new BOPrefetcher(knob::l2c_prefetcher_types[index]);
 			prefetchers.push_back(pref_bop);
+		}
+		else if (knob::l2c_prefetcher_types[index] == "bop_orig")
+		{
+			cout << "adding L2C_PREFETCHER: BOP_ORIG" << endl;
+			BOOriginalPrefetcher *pref_bop_orig = 
+				new BOOriginalPrefetcher(knob::l2c_prefetcher_types[index], this);
+			prefetchers.push_back(pref_bop_orig);
 		}
 		else if (knob::l2c_prefetcher_types[index] == "dspatch")
 		{
@@ -207,6 +215,11 @@ uint32_t CACHE::l2c_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t 
 			{
 				BOPrefetcher *pref_bop = (BOPrefetcher*)prefetchers[index];
 				pref_bop->register_fill(addr);
+			}
+			if(prefetchers[index]->get_type() == "bop_orig")
+			{
+				BOOriginalPrefetcher *pref_bop_orig = (BOOriginalPrefetcher*)prefetchers[index];
+				pref_bop_orig->register_fill(addr, set, way, prefetch, evicted_addr);
 			}
 			if(prefetchers[index]->get_type() == "spp_dev2")
 			{
