@@ -65,12 +65,13 @@ int prefetch_offset;   // 7 bits (6-bit value + 1 sign bit)
 // Recent Requests (RR) table: 2 banks, 64 entries per bank, RRTAG bits per entry
 int recent_request[2][1<<RRINDEX]; // 2x64x12 = 1536 bits
 
-const int NUM_SET = L2C_SET;
-const int NUM_WAY = L2C_WAY;
-
 // 1 prefetch bit per L2 cache line : 256x8 = 2048 bits 
 // TODO: Make agnostic to cache level.
+// const int NUM_SET = LLC_SET;
+// const int NUM_WAY = LLC_WAY;
 int** prefetch_bit; //int prefetch_bit[NUM_SET][NUM_WAY]; 
+int num_set;
+int num_way;
 
 
 struct offsets_scores {
@@ -416,7 +417,6 @@ void bo_prefetcher_initialize(uint8_t cache_type) {
     dq_init();
     //pt_init();
 
-    int num_set, num_way;
     if (cache_type == IS_LLC) {
       num_set = LLC_SET;
       num_way = LLC_WAY;
@@ -433,9 +433,9 @@ void bo_prefetcher_initialize(uint8_t cache_type) {
     // Initialize prefetch_bit, a [num_set][num_way] 2D table.
     int i, j;
     prefetch_bit = (int**)malloc(num_set * sizeof(int*));
-    for (i = 0; i < NUM_SET; i++) {
+    for (i = 0; i < num_set; i++) {
         prefetch_bit[i] = (int*)malloc(num_way * sizeof(int));
-        for (j = 0; j < NUM_WAY; j++) {
+        for (j = 0; j < num_way; j++) {
             prefetch_bit[i][j] = 0;
         }
     }
@@ -448,7 +448,7 @@ void bo_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
 
     int s = set;
     int w = way;
-    int hit = (w < NUM_WAY);
+    int hit = (w < num_way);
     int prefetched = 0;
     assert(prefetch_candidates.size() == 0);
 
