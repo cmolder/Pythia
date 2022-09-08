@@ -257,11 +257,11 @@ class RunGenerator():
             # 1) No prefetcher
             # 2) Prefetchers with dynamic degree schemes enabled
             # 3) Prefetchers that lack degree knobs
-            if ('no' in pref
-                or 'bingo' in pref and self.cfg.bingo.dyn_degree is True
-                or 'scooby' in pref and self.cfg.pythia.dyn_degree is True
-                or 'spp_dev2' in pref and self.cfg.spp_dev2.dyn_degree is True
-                    or pref not in pref_degree_knobs):
+            if (pref == 'no'
+                or ('bingo' in pref and self.cfg.bingo.dyn_degree is True)
+                or ('scooby' in pref and self.cfg.pythia.dyn_degree is True)
+                or ('spp_dev2' in pref and self.cfg.spp_dev2.dyn_degree is True)
+                or (pref not in pref_degree_knobs)):
                 continue
             # If best_degree_df is provided, use it to filter on only
             # the best degree for this trace+prefetcher.
