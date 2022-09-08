@@ -17,7 +17,8 @@ l2c:
     pref_candidates:
         - 'bingo'    # Bingo
         - 'spp_dev2' # SPP
-        - 'bop'   # Best Offset
+        - 'bop'      # Best Offset
+        - 'bop_orig'
     hybrids: [1, 2]
     degrees: [1]
 llc:

@@ -7,6 +7,7 @@
 #ifndef BOP_ORIG_HELPER_H
 #define BOP_ORIG_HELPER_H
 
+#include <algorithm>
 #include <map>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,9 +16,12 @@
 
 namespace knob 
 {
-    extern vector<int32_t> bop_candidates; // TODO: Replace OFFSET
-    extern uint32_t bop_max_rounds; // TODO: Replace ROUND_MAX
-    extern uint32_t bop_max_score; // TODO: Replace SCORE_MAX
+    extern vector<int32_t> bop_candidates;
+    extern int32_t bop_default_candidate;
+    extern uint32_t bop_max_rounds;
+    extern uint32_t bop_max_score;
+    extern uint32_t bop_low_score;
+    extern uint32_t bop_bad_score;
     extern uint32_t bop_pref_degree;
 }
 
@@ -28,6 +32,7 @@ namespace knob
 // Author: Pierre Michaud
 
 // (Modified to be a LLC prefetcher by Akanksha Jain)
+// (Modified to work in Pythia prefetcher framework by Carson Molder)
 // Prefetch Throttling is disabled since MSH info is not available
 //######################################################################################
 //                             PREFETCHER PARAMETERS 
@@ -37,11 +42,7 @@ namespace knob
 // greater than 63. However, with pages larger than 4KB, it would be beneficial to consider
 // larger offsets.
 
-#define NOFFSETS 46
-int OFFSET[NOFFSETS] = {1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9,10,-10,11,-11,12,-12,13,-13,14,-14,15,-15,16,-16,18,-18,20,-20,24,-24,30,-30,32,-32,36,-36,40,-40};
-#define DEFAULT_OFFSET 1
-//#define SCORE_MAX 31
-//#define ROUND_MAX 100
+#define MAX_N_CANDIDATES 512
 #define RRINDEX 6
 #define RRTAG 12
 #define DELAYQSIZE 15
@@ -51,9 +52,9 @@ int OFFSET[NOFFSETS] = {1,-1,2,-2,3,-3,4,-4,5,-5,6,-6,7,-7,8,-8,9,-9,10,-10,11,-
 //#define GAUGE_MAX 8191
 //#define MSHR_THRESHOLD_MAX (LLC_MSHR_SIZE-4)
 //#define MSHR_THRESHOLD_MIN 2
-#define LOW_SCORE 20
+//#define LOW_SCORE 20
 //#define BAD_SCORE ((knob_small_llc)? 10 : 1)
-#define BAD_SCORE 10
+//#define BAD_SCORE 10
 //#define BANDWIDTH ((knob_low_bandwidth)? 64 : 16)
 //######################################################################################
 //                               PREFETCHER STATE
@@ -69,16 +70,16 @@ const int NUM_WAY = L2C_WAY;
 
 // 1 prefetch bit per L2 cache line : 256x8 = 2048 bits 
 // TODO: Make agnostic to cache level.
-int prefetch_bit[NUM_SET][NUM_WAY]; 
+int** prefetch_bit; //int prefetch_bit[NUM_SET][NUM_WAY]; 
 
 
 struct offsets_scores {
-  int score[NOFFSETS];    // log2 SCORE_MAX = 5 bits per entry
-  int max_score;          // log2 SCORE_MAX = 5 bits
-  int best_offset;        // 7 bits (6-bit value + 1 sign bit)
-  int round;              // log2 ROUND_MAX = 7 bits
-  int p;                  // log2 NOFFSETS = 6 bits
-} os;                     // 46x5+5+7+7+6 = 255 bits
+  int score[MAX_N_CANDIDATES];  // log2 SCORE_MAX = 5 bits per entry
+  int max_score;                // log2 SCORE_MAX = 5 bits
+  int best_offset;              // 7 bits (6-bit value + 1 sign bit)
+  int round;                    // log2 ROUND_MAX = 7 bits
+  int p;                        // log2 NOFFSETS = 6 bits
+} os;                           // 46x5+5+7+7+6 = 255 bits
 
 
 struct delay_queue {
@@ -98,7 +99,14 @@ struct prefetch_throttle {
   int last_cycle;         // TIME_BITS = 12 bits
 } pt;                     // 4+5+8+13+12 = 42 bits
 
-// Total prefetcher state: 7 + 1536 + 2048 + 255 + 473 + 42 = 4361 bits 
+// Total prefetcher state: 7 + 1536 + 2048 + 255 + 473 + 42 = 4361 bits
+
+// Statistics tracking (For final output)
+struct stats_tracker {
+  std::map<int32_t, uint32_t> candidate_chosen;
+  std::map<int32_t, uint32_t> candidate_prefetched;
+} stats;
+
 
 
 
@@ -278,7 +286,7 @@ void pt_init()
 
 void pt_update_mshr_threshold()
 {
-  if ((pt.prefetch_score > LOW_SCORE) || (pt.llc_rate > (2*BANDWIDTH))) {
+  if ((pt.prefetch_score > knob::bop_low_score) || (pt.llc_rate > (2*BANDWIDTH))) {
     // prefetch accuracy not too bad, or low bandwidth requirement
     // ==> maximum prefetch aggressiveness
     pt.mshr_threshold = MSHR_THRESHOLD_MAX;
@@ -333,8 +341,8 @@ void pt_llc_access()
 
 void os_reset()
 {
-  int i;
-  for (i=0; i<NOFFSETS; i++) {
+  uint32_t i;
+  for (i = 0; i < knob::bop_candidates.size(); i++) {
     os.score[i] = 0;
   }
   os.max_score = 0;
@@ -344,17 +352,18 @@ void os_reset()
 }
 
 
-// The os_learn_best_offset function tests one offset at a time, trying to determine
-// if the current line would have been successfully prefetched with that offset
+// The os_learn_best_offset function tests one offset at a time, trying to 
+// determine if the current line would have been successfully prefetched with
+// that offset
 
 void os_learn_best_offset(t_addr lineaddr)
 {
-  int testoffset = OFFSET[os.p]; // knob::bop_candidates[os.p];
+  int testoffset = knob::bop_candidates[os.p];
   t_addr testlineaddr = lineaddr - testoffset;
 
   if (SAMEPAGE(lineaddr,testlineaddr) && rr_hit(testlineaddr)) {
-    // the current line would likely have been prefetched successfully with that offset
-    // ==> increment the score 
+    // the current line would likely have been prefetched successfully with that
+    // offset ==> increment the score 
     os.score[os.p]++;
     if (os.score[os.p] >= os.max_score) {
       os.max_score = os.score[os.p];
@@ -362,26 +371,29 @@ void os_learn_best_offset(t_addr lineaddr)
     }
   }
 
-  if (os.p == (NOFFSETS-1)) {
+  if (os.p == ((int)knob::bop_candidates.size() - 1)) {
     // one round finished
     os.round++;
 
-    if ((os.max_score == knob::bop_max_score) || (os.round == knob::bop_max_rounds)) {
+    if ((os.max_score == (int)knob::bop_max_score) 
+        || (os.round == (int)knob::bop_max_rounds)) {
       // learning phase is finished, update the prefetch offset
-      prefetch_offset = (os.best_offset != 0)? os.best_offset : DEFAULT_OFFSET;
+      prefetch_offset = 
+        (os.best_offset != 0) ? os.best_offset : knob::bop_default_candidate;
       pt.prefetch_score = os.max_score;
       //pt_update_mshr_threshold();
 
-      if (os.max_score <= BAD_SCORE) {
+      if (os.max_score <= (int)knob::bop_bad_score) {
         // prefetch accuracy is likely to be very low ==> turn the prefetch off 
         prefetch_offset = 0;
       }
       // new learning phase starts
+      stats.candidate_chosen[prefetch_offset]++;
       os_reset();
       return;
     }
   }
-  INCREMENT(os.p,NOFFSETS); // prepare to test the next offset
+  INCREMENT(os.p, (int)knob::bop_candidates.size()); // prepare to test the next offset
 }
 
 
@@ -390,22 +402,48 @@ void os_learn_best_offset(t_addr lineaddr)
 //######################################################################################
 
 
-void bo_prefetcher_initialize() {
-    prefetch_offset = DEFAULT_OFFSET;
+void bo_prefetcher_initialize(uint8_t cache_type) {
+    // Candidate list size remain within fixed array size of os.score.
+    assert((int)knob::bop_candidates.size() <= MAX_N_CANDIDATES); 
+    // Default offset must be in the candidate list.
+    assert(std::find(
+      knob::bop_candidates.begin(), knob::bop_candidates.end(),
+      knob::bop_default_candidate) != knob::bop_candidates.end());
+
+    prefetch_offset = knob::bop_default_candidate;
     rr_init();
     os_reset();
     dq_init();
     //pt_init();
-    int i,j;
-    for (i=0; i<NUM_SET; i++) {
-        for (j=0; j<NUM_WAY; j++) {
+
+    int num_set, num_way;
+    if (cache_type == IS_LLC) {
+      num_set = LLC_SET;
+      num_way = LLC_WAY;
+    } else if (cache_type == IS_L2C) {
+      num_set = L2C_SET;
+      num_way = L2C_WAY;
+    } else if (cache_type = IS_L1D) {
+      num_set = L1D_SET;
+      num_way = L1D_WAY;
+    } else {
+      assert(0); // Cache level must be L1D, L2, or LLC.
+    }
+
+    // Initialize prefetch_bit, a [num_set][num_way] 2D table.
+    int i, j;
+    prefetch_bit = (int**)malloc(num_set * sizeof(int*));
+    for (i = 0; i < NUM_SET; i++) {
+        prefetch_bit[i] = (int*)malloc(num_way * sizeof(int));
+        for (j = 0; j < NUM_WAY; j++) {
             prefetch_bit[i][j] = 0;
         }
     }
 }
 
-void bo_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, int set, int way, vector<uint64_t>& prefetch_candidates)
-{
+void bo_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, 
+                           uint8_t type, int set, int way, 
+                           vector<uint64_t>& prefetch_candidates) {
     t_addr lineaddr = addr >> LOGLINE;
 
     int s = set;
@@ -444,16 +482,20 @@ void bo_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_
         else
         {
             dq_push(lineaddr);
-            for(uint32_t i=1; i <= knob::bop_pref_degree; i++)
-                if (pt.prefetch_score > LOW_SCORE)
+            for(uint32_t i = 1; i <= knob::bop_pref_degree; i++) {
+                if (pt.prefetch_score > (int)knob::bop_low_score) {
                     prefetch_candidates.push_back((lineaddr+i*offset)<<LOGLINE);
+                    stats.candidate_prefetched[offset]++;
                     //prefetch_issued += cache->prefetch_line(ip ,lineaddr<<LOGLINE,(lineaddr+i*offset)<<LOGLINE, FILL_LLC, 0);
+                }
+            }
         }
     }
 }
 
 
-void bo_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr)
+void bo_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, 
+                              uint8_t prefetch, uint64_t evicted_addr)
 {
     
     // In this version of the DPC2 simulator, the "prefetch" boolean passed
@@ -484,7 +526,12 @@ void bo_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t
 
 
 void bo_prefetcher_final_stats() {
-    
+  for (auto candidate : knob::bop_candidates) {
+    std::cout << std::dec
+              << "bop.offset.index_" << candidate << ".chosen " << stats.candidate_chosen[candidate] << std::endl
+              << "bop.offset.index_" << candidate << ".prefetched " << stats.candidate_prefetched[candidate] << std::endl;
+  }
+  std::cout << endl;
 }
 
-#endif // BO_ORIG_HELPER_H
+#endif // BOP_ORIG_HELPER_H

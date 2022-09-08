@@ -112,6 +112,16 @@ namespace knob
 	uint32_t bop_pref_buffer_size = 256;
 	uint32_t bop_pref_degree = 4;
 	uint32_t bop_rr_size = 256;
+
+	/* BOP (Original) */
+	//vector<int32_t> bop_candidates;
+	//uint32_t bop_max_rounds = 100;
+	//uint32_t bop_max_score = 31;
+	int32_t bop_default_candidate = 1;
+	uint32_t bop_low_score = 20;
+	uint32_t bop_bad_score = 10;
+	//uint32_t bop_pref_degree = 4;
+
     
     /* SISB */
     uint32_t sisb_pref_degree = 1;
@@ -728,6 +738,18 @@ int parse_knobs(void* user, const char* section, const char* name, const char* v
 	else if (MATCH("", "bop_rr_size"))
 	{
 		knob::bop_rr_size = atoi(value);
+	}
+	else if (MATCH("", "bop_default_candidate"))
+	{
+		knob::bop_default_candidate = atoi(value);
+	}
+	else if (MATCH("", "bop_low_score"))
+	{
+		knob::bop_low_score = atoi(value);
+	}
+	else if (MATCH("", "bop_bad_score"))
+	{
+		knob::bop_bad_score = atoi(value);
 	}
     
     /* SISB */

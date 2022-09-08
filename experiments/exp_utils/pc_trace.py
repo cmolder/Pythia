@@ -24,16 +24,18 @@ def get_pc_trace_file(trace, metric, level='llc'):
     return f'{trace}_{metric}_{level}_pc_trace.txt'
 
 def _format_prefetcher(pref):
-    """TODO: Docstring
+    """Format the prefetcher name for the PC trace.
     """
-    pref = pref.replace('spp_dev2', 'sppdev2')
+    pref = (pref.replace('spp_dev2', 'sppdev2')
+                .replace('bop_orig', 'boporig'))
     pref = pref.replace('_', ',')
-    pref = pref.replace('sppdev2', 'spp_dev2')
+    pref = (pref.replace('sppdev2', 'spp_dev2')
+                .replace('boporig', 'bop_orig'))
     return pref
 
 
 def _format_degree(deg):
-    """TODO: Docstring
+    """Format the prefetcher degree for the PC trace.
     """
     deg = eval(deg)
     deg = ','.join([str(d) if d is not None else 'na' for d in deg])
