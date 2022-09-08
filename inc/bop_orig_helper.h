@@ -423,7 +423,7 @@ void bo_prefetcher_initialize(uint8_t cache_type) {
     } else if (cache_type == IS_L2C) {
       num_set = L2C_SET;
       num_way = L2C_WAY;
-    } else if (cache_type = IS_L1D) {
+    } else if (cache_type == IS_L1D) {
       num_set = L1D_SET;
       num_way = L1D_WAY;
     } else {
