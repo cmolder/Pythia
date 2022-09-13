@@ -50,8 +50,8 @@ Options:
     --branch-pred <branch-predictor>
         Choose the branch predictor, where <branch-pred> is one of:
 
-        perceptron          Branch perceptron (Default)
-        hashed_perceptron   Hashed Branch Perceptron
+        perceptron          Branch perceptron 
+        hashed_perceptron   Hashed branch perceptron (Default)
         gshare              Gshare
         bimodal             Bimodal
 
@@ -217,8 +217,8 @@ Options:
 
     Branch prediction options:
         --branch-pred <branch-predictor>
-            Branch predictor to use. By default, Branch Perceptron
-            ("perceptron") is used.
+            Branch predictor to use. By default, hashed branch 
+            perceptron ("hashed_perceptron") is used.
 '''.format(
         prog=sys.argv[0],
         default_knobs_file=defaults.default_knobs_file,
@@ -238,7 +238,7 @@ def build_command():
         exit(-1)
 
     parser = argparse.ArgumentParser(usage=argparse.SUPPRESS, add_help=False)
-    parser.add_argument('--branch-pred', default='perceptron')
+    parser.add_argument('--branch-pred', default='hashed_perceptron')
     parser.add_argument('--l1d-pref', default='no')
     parser.add_argument('--l2c-pref', default='no')
     parser.add_argument('--llc-pref', default='no')
@@ -339,7 +339,7 @@ def run_command():
     parser.add_argument('--llc-repl', type=str, default='ship')
 
     # Branch prediction options
-    parser.add_argument('--branch-pred', type=str, default='perceptron')
+    parser.add_argument('--branch-pred', type=str, default='hashed_perceptron')
 
     print(sys.argv[2:])
 

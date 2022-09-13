@@ -8,9 +8,9 @@
 #define DRAM_WQ_SIZE 64
 #define DRAM_RQ_SIZE 64
 
-#define tRP_DRAM_NANOSECONDS  20.0 // tRP = tRCD = tCAS = 20 in Voyager paper.
-#define tRCD_DRAM_NANOSECONDS 20.0
-#define tCAS_DRAM_NANOSECONDS 20.0
+#define tRP_DRAM_NANOSECONDS  12.5 //20.0 // tRP = tRCD = tCAS = 20 in Voyager paper.
+#define tRCD_DRAM_NANOSECONDS 12.5 //20.0
+#define tCAS_DRAM_NANOSECONDS 12.5 //20.0
 
 // the data bus must wait this amount of time when switching between reads and writes, and vice versa
 #define DRAM_DBUS_TURN_AROUND_TIME ((15*CPU_FREQ)/2000) // 7.5 ns 
